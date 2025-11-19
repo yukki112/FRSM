@@ -198,12 +198,12 @@ $stmt = null;
             <span class="font-medium">Settings</span>
         </a>
         
-        <a href="#" class="menu-item">
-            <div class="icon-box icon-bg-indigo">
-                <i class='bx bxs-help-circle icon-indigo'></i>
-            </div>
-            <span class="font-medium">Help</span>
-        </a>
+       <a href="../profile.php" class="menu-item">
+                        <div class="icon-box icon-bg-orange">
+                            <i class='bx bxs-user icon-orange'></i>
+                        </div>
+                        <span class="font-medium">Profile</span>
+                    </a>
         
         <a href="../includes/logout.php" class="menu-item">
             <div class="icon-box icon-bg-red">

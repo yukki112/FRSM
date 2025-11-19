@@ -70,149 +70,185 @@ $stmt = null;
                 <span class="logo-text">Fire & Rescue</span>
             </div>
             
-          <!-- Menu Section -->
-<div class="menu-section">
-    <p class="menu-title">FIRE & RESCUE MANAGEMENT</p>
-    
-    <div class="menu-items">
-        <a href="#" class="menu-item active" id="dashboard-menu">
-            <div class="icon-box icon-bg-red">
-                <i class='bx bxs-dashboard icon-red'></i>
+            <!-- Menu Section -->
+            <div class="menu-section">
+                <p class="menu-title">FIRE & RESCUE MANAGEMENT</p>
+                
+                <div class="menu-items">
+                    <a href="#" class="menu-item active" id="dashboard-menu">
+                        <div class="icon-box icon-bg-red">
+                            <i class='bx bxs-dashboard icon-red'></i>
+                        </div>
+                        <span class="font-medium">Dashboard</span>
+                    </a>
+                    
+                    <!-- User Management -->
+                    <div class="menu-item" onclick="toggleSubmenu('user-management')">
+                        <div class="icon-box icon-bg-orange">
+                            <i class='bx bxs-user icon-orange'></i>
+                        </div>
+                        <span class="font-medium">User Management</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="user-management" class="submenu">
+                        <a href="#" class="submenu-item">Manage Users</a>
+                        <a href="#" class="submenu-item">Role Control</a>
+                        <a href="#" class="submenu-item">Monitor Activity</a>
+                        <a href="#" class="submenu-item">Reset Passwords</a>
+                    </div>
+                    
+                    <!-- Fire & Incident Reporting Management -->
+                    <div class="menu-item" onclick="toggleSubmenu('incident-management')">
+                        <div class="icon-box icon-bg-yellow">
+                            <i class='bx bxs-alarm-exclamation icon-yellow'></i>
+                        </div>
+                        <span class="font-medium">Incident Management</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="incident-management" class="submenu">
+                        <a href="#" class="submenu-item">View Reports</a>
+                        <a href="#" class="submenu-item">Validate Data</a>
+                        <a href="#" class="submenu-item">Assign Severity</a>
+                        <a href="#" class="submenu-item">Track Progress</a>
+                        <a href="#" class="submenu-item">Mark Resolved</a>
+                    </div>
+                    
+                    <!-- Barangay Volunteer Roster Management -->
+                    <div class="menu-item" onclick="toggleSubmenu('volunteer-management')">
+                        <div class="icon-box icon-bg-blue">
+                            <i class='bx bxs-user-detail icon-blue'></i>
+                        </div>
+                        <span class="font-medium">Volunteer Management</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="volunteer-management" class="submenu">
+                        <a href="vm/review_data.php" class="submenu-item">Review Data</a>
+                        <a href="#" class="submenu-item">Approve Applications</a>
+                        <a href="#" class="submenu-item">Assign Volunteers</a>
+                        <a href="#" class="submenu-item">View Availability</a>
+                        <a href="#" class="submenu-item">Remove Volunteers</a>
+                        <a href="vm/toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
+                    </div>
+                    
+                    <!-- Resource Inventory Management -->
+                    <div class="menu-item" onclick="toggleSubmenu('resource-management')">
+                        <div class="icon-box icon-bg-green">
+                            <i class='bx bxs-cube icon-green'></i>
+                        </div>
+                        <span class="font-medium">Resource Management</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="resource-management" class="submenu">
+                        <a href="#" class="submenu-item">View Equipment</a>
+                        <a href="#" class="submenu-item">Approve Maintenance</a>
+                        <a href="#" class="submenu-item">Approve Resources</a>
+                        <a href="#" class="submenu-item">Review Deployment</a>
+                    </div>
+                    
+                    <!-- Shift & Duty Scheduling -->
+                    <div class="menu-item" onclick="toggleSubmenu('schedule-management')">
+                        <div class="icon-box icon-bg-purple">
+                            <i class='bx bxs-calendar icon-purple'></i>
+                        </div>
+                        <span class="font-medium">Schedule Management</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="schedule-management" class="submenu">
+                        <a href="#" class="submenu-item">Create Schedule</a>
+                        <a href="#" class="submenu-item">Approve Shifts</a>
+                        <a href="#" class="submenu-item">Override Assignments</a>
+                        <a href="#" class="submenu-item">Monitor Attendance</a>
+                    </div>
+                    
+                    <!-- Training & Certification Monitoring -->
+                    <div class="menu-item" onclick="toggleSubmenu('training-management')">
+                        <div class="icon-box icon-bg-teal">
+                            <i class='bx bxs-graduation icon-teal'></i>
+                        </div>
+                        <span class="font-medium">Training Management</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="training-management" class="submenu">
+                        <a href="#" class="submenu-item">View Records</a>
+                        <a href="#" class="submenu-item">Approve Completions</a>
+                        <a href="#" class="submenu-item">Assign Training</a>
+                        <a href="#" class="submenu-item">Track Expiry</a>
+                    </div>
+                    
+                    <!-- Inspection Logs for Establishments -->
+                    <div class="menu-item" onclick="toggleSubmenu('inspection-management')">
+                        <div class="icon-box icon-bg-cyan">
+                            <i class='bx bxs-check-shield icon-cyan'></i>
+                        </div>
+                        <span class="font-medium">Inspection Management</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="inspection-management" class="submenu">
+                        <a href="#" class="submenu-item">Approve Reports</a>
+                        <a href="#" class="submenu-item">Review Violations</a>
+                        <a href="#" class="submenu-item">Issue Certificates</a>
+                        <a href="#" class="submenu-item">Track Follow-Up</a>
+                    </div>
+                    
+                    <!-- Post-Incident Reporting & Analytics -->
+                    <div class="menu-item" onclick="toggleSubmenu('analytics-management')">
+                        <div class="icon-box icon-bg-pink">
+                            <i class='bx bxs-file-doc icon-pink'></i>
+                        </div>
+                        <span class="font-medium">Analytics & Reports</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="analytics-management" class="submenu">
+                        <a href="#" class="submenu-item">Review Summaries</a>
+                        <a href="#" class="submenu-item">Analyze Data</a>
+                        <a href="#" class="submenu-item">Export Reports</a>
+                        <a href="#" class="submenu-item">Generate Statistics</a>
+                    </div>
+                    
+                   
+                </div>
+                
+                <p class="menu-title" style="margin-top: 32px;">GENERAL</p>
+                
+                <div class="menu-items">
+                    <a href="#" class="menu-item">
+                        <div class="icon-box icon-bg-teal">
+                            <i class='bx bxs-cog icon-teal'></i>
+                        </div>
+                        <span class="font-medium">Settings</span>
+                    </a>
+                    
+                    <a href="../profile.php" class="menu-item">
+                        <div class="icon-box icon-bg-orange">
+                            <i class='bx bxs-user icon-orange'></i>
+                        </div>
+                        <span class="font-medium">Profile</span>
+                    </a>
+                    
+                    <a href="../includes/logout.php" class="menu-item">
+                        <div class="icon-box icon-bg-red">
+                            <i class='bx bx-log-out icon-red'></i>
+                        </div>
+                        <span class="font-medium">Logout</span>
+                    </a>
+                </div>
             </div>
-            <span class="font-medium">Dashboard</span>
-        </a>
-        
-        <div class="menu-item" onclick="toggleSubmenu('fire-incident')">
-            <div class="icon-box icon-bg-orange">
-                <i class='bx bxs-alarm-exclamation icon-orange'></i>
-            </div>
-            <span class="font-medium">Fire & Incident Reporting</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="fire-incident" class="submenu">
-            <a href="#" class="submenu-item">Active Incidents</a>
-            <a href="#" class="submenu-item">Incident Reports</a>
-            <a href="#" class="submenu-item">Response History</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('volunteer')">
-            <div class="icon-box icon-bg-blue">
-                <i class='bx bxs-user-detail icon-blue'></i>
-            </div>
-            <span class="font-medium">Volunteer Roster</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="volunteer" class="submenu">
-            <a href="#" class="submenu-item">Volunteer List</a>
-            <a href="#" class="submenu-item">Roles & Skills</a>
-            <a href="#" class="submenu-item">Availability</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('inventory')">
-            <div class="icon-box icon-bg-green">
-                <i class='bx bxs-cube icon-green'></i>
-            </div>
-            <span class="font-medium">Resource Inventory</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="inventory" class="submenu">
-            <a href="#" class="submenu-item">Equipment List</a>
-            <a href="#" class="submenu-item">Stock Levels</a>
-            <a href="#" class="submenu-item">Maintenance Logs</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('schedule')">
-            <div class="icon-box icon-bg-purple">
-                <i class='bx bxs-calendar icon-purple'></i>
-            </div>
-            <span class="font-medium">Shift & Duty Scheduling</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="schedule" class="submenu">
-            <a href="#" class="submenu-item">Shift Calendar</a>
-            <a href="#" class="submenu-item">Duty Assignments</a>
-            <a href="#" class="submenu-item">Attendance Logs</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('training')">
-            <div class="icon-box icon-bg-teal">
-                <i class='bx bxs-graduation icon-teal'></i>
-            </div>
-            <span class="font-medium">Training & Certification</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="training" class="submenu">
-            <a href="#" class="submenu-item">Training Records</a>
-            <a href="#" class="submenu-item">Certification Status</a>
-            <a href="#" class="submenu-item">Upcoming Seminars</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('inspection')">
-            <div class="icon-box icon-bg-yellow">
-                <i class='bx bxs-check-shield icon-yellow'></i>
-            </div>
-            <span class="font-medium">Establishment Inspections</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="inspection" class="submenu">
-            <a href="#" class="submenu-item">Inspection Scheduler</a>
-            <a href="#" class="submenu-item">Inspection Results</a>
-            <a href="#" class="submenu-item">Violation Notices</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('postincident')">
-            <div class="icon-box icon-bg-pink">
-                <i class='bx bxs-file-doc icon-pink'></i>
-            </div>
-            <span class="font-medium">Post-Incident Analytics</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="postincident" class="submenu">
-            <a href="#" class="submenu-item">Analytics Dashboard</a>
-            <a href="#" class="submenu-item">Incident Trends</a>
-            <a href="#" class="submenu-item">Lessons Learned</a>
-        </div>
-    </div>
-    
-    <p class="menu-title" style="margin-top: 32px;">GENERAL</p>
-    
-    <div class="menu-items">
-        <a href="#" class="menu-item">
-            <div class="icon-box icon-bg-teal">
-                <i class='bx bxs-cog icon-teal'></i>
-            </div>
-            <span class="font-medium">Settings</span>
-        </a>
-        
-        <a href="#" class="menu-item">
-            <div class="icon-box icon-bg-indigo">
-                <i class='bx bxs-help-circle icon-indigo'></i>
-            </div>
-            <span class="font-medium">Help</span>
-        </a>
-        
-        <a href="../includes/logout.php" class="menu-item">
-            <div class="icon-box icon-bg-red">
-                <i class='bx bx-log-out icon-red'></i>
-            </div>
-            <span class="font-medium">Logout</span>
-        </a>
-    </div>
-</div>
         </div>
         
         <!-- Main Content -->
@@ -260,20 +296,20 @@ $stmt = null;
                 </div>
             </div>
             
-            <!-- dashboard content palitan nyo nalnag ng content na gamit sa system nyo -->
+            <!-- Dashboard Content -->
             <div class="dashboard-content">
                 <div class="dashboard-header">
                     <div>
-                        <h1 class="dashboard-title">Fire & Rescue Dashboard</h1>
-                        <p class="dashboard-subtitle">Monitor, manage, and coordinate fire & rescue operations.</p>
+                        <h1 class="dashboard-title">Administrative Dashboard</h1>
+                        <p class="dashboard-subtitle">Oversee, approve, configure, and analyze the system.</p>
                     </div>
                     <div class="dashboard-actions">
                         <button class="primary-button">
                             <span style="font-size: 20px;">+</span>
-                            New Incident
+                            Generate Report
                         </button>
                         <button class="secondary-button">
-                            Export Reports
+                            System Backup
                         </button>
                     </div>
                 </div>
@@ -282,8 +318,26 @@ $stmt = null;
                 <div class="stats-grid">
                     <div class="stat-card stat-card-primary">
                         <div class="stat-header">
-                            <span class="stat-title">Active Incidents</span>
+                            <span class="stat-title">Pending Approvals</span>
                             <button class="stat-button stat-button-primary">
+                                <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="stat-value">12</div>
+                        <div class="stat-info">
+                            <svg class="stat-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                            </svg>
+                            <span>5 new today</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card stat-card-white">
+                        <div class="stat-header">
+                            <span class="stat-title">Active Incidents</span>
+                            <button class="stat-button stat-button-white">
                                 <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                                 </svg>
@@ -294,58 +348,40 @@ $stmt = null;
                             <svg class="stat-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                             </svg>
-                            <span>2 new in last hour</span>
+                            <span>2 high priority</span>
                         </div>
                     </div>
                     
                     <div class="stat-card stat-card-white">
                         <div class="stat-header">
-                            <span class="stat-title">Avg Response Time</span>
+                            <span class="stat-title">System Users</span>
                             <button class="stat-button stat-button-white">
                                 <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                                 </svg>
                             </button>
                         </div>
-                        <div class="stat-value">4.2<span style="font-size: 24px;">min</span></div>
+                        <div class="stat-value">156</div>
                         <div class="stat-info">
                             <svg class="stat-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                             </svg>
-                            <span>Improved from last month</span>
+                            <span>42 volunteers</span>
                         </div>
                     </div>
                     
                     <div class="stat-card stat-card-white">
                         <div class="stat-header">
-                            <span class="stat-title">Equipment Operational</span>
+                            <span class="stat-title">Uptime</span>
                             <button class="stat-button stat-button-white">
                                 <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                                 </svg>
                             </button>
                         </div>
-                        <div class="stat-value">96%</div>
+                        <div class="stat-value">99.8%</div>
                         <div class="stat-info">
-                            <svg class="stat-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                            </svg>
-                            <span>5 units in maintenance</span>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card stat-card-white">
-                        <div class="stat-header">
-                            <span class="stat-title">Personnel On Duty</span>
-                            <button class="stat-button stat-button-white">
-                                <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="stat-value">42</div>
-                        <div class="stat-info">
-                            <span>Across 6 stations</span>
+                            <span>Last 30 days</span>
                         </div>
                     </div>
                 </div>
@@ -354,116 +390,116 @@ $stmt = null;
                 <div class="main-grid">
                     <div class="left-column">
                         <div class="card">
-                            <h2 class="card-title">Incident Response Analysis</h2>
+                            <h2 class="card-title">System Overview</h2>
                             <div class="response-chart">
                                 <div class="chart-bar">
-                                    <div class="chart-bar-value bar-red" style="height: 35%;"></div>
-                                    <span class="chart-bar-label">Residential</span>
+                                    <div class="chart-bar-value bar-red" style="height: 65%;"></div>
+                                    <span class="chart-bar-label">Incidents</span>
                                 </div>
                                 <div class="chart-bar">
-                                    <div class="chart-bar-value bar-orange" style="height: 75%;"></div>
-                                    <span class="chart-bar-label">Commercial</span>
+                                    <div class="chart-bar-value bar-orange" style="height: 45%;"></div>
+                                    <span class="chart-bar-label">Users</span>
                                 </div>
                                 <div class="chart-bar bar-highlight">
-                                    <div class="chart-bar-value bar-yellow" style="height: 90%;"></div>
-                                    <span class="chart-bar-label">Vehicle</span>
+                                    <div class="chart-bar-value bar-yellow" style="height: 80%;"></div>
+                                    <span class="chart-bar-label">Volunteers</span>
                                 </div>
                                 <div class="chart-bar">
-                                    <div class="chart-bar-value bar-green" style="height: 100%;"></div>
-                                    <span class="chart-bar-label">Medical</span>
+                                    <div class="chart-bar-value bar-green" style="height: 90%;"></div>
+                                    <span class="chart-bar-label">Resources</span>
                                 </div>
                                 <div class="chart-bar">
-                                    <div class="chart-bar-value bar-blue" style="height: 40%;"></div>
-                                    <span class="chart-bar-label">Hazmat</span>
+                                    <div class="chart-bar-value bar-blue" style="height: 55%;"></div>
+                                    <span class="chart-bar-label">Training</span>
                                 </div>
                                 <div class="chart-bar">
-                                    <div class="chart-bar-value bar-purple" style="height: 55%;"></div>
-                                    <span class="chart-bar-label">Rescue</span>
+                                    <div class="chart-bar-value bar-purple" style="height: 70%;"></div>
+                                    <span class="chart-bar-label">Inspections</span>
                                 </div>
                                 <div class="chart-bar">
-                                    <div class="chart-bar-value bar-pink" style="height: 45%;"></div>
-                                    <span class="chart-bar-label">Other</span>
+                                    <div class="chart-bar-value bar-pink" style="height: 35%;"></div>
+                                    <span class="chart-bar-label">Reports</span>
                                 </div>
                             </div>
                             <div class="progress-container">
                                 <div class="progress-bar">
-                                    <div class="progress-fill" style="width: 75%;"></div>
+                                    <div class="progress-fill" style="width: 85%;"></div>
                                 </div>
                                 <div class="progress-labels">
-                                    <span>Response Goal: 5 min</span>
-                                    <span>Current Avg: 4.2 min</span>
+                                    <span>System Performance</span>
+                                    <span>85% Optimal</span>
                                 </div>
                             </div>
                         </div>
                         
-                        <!-- Quick Actions & Incident Reports -->
+                        <!-- Quick Actions & Pending Approvals -->
                         <div class="two-column-grid">
                             <div class="card">
                                 <h2 class="card-title">Quick Actions</h2>
                                 <div class="quick-actions">
                                     <div class="action-button">
                                         <div class="icon-box icon-bg-red">
-                                            <i class='bx bxs-report icon-red'></i>
+                                            <i class='bx bxs-user-check icon-red'></i>
                                         </div>
-                                        <span class="action-label">Report Incident</span>
+                                        <span class="action-label">Approve Users</span>
                                     </div>
                                     <div class="action-button">
                                         <div class="icon-box icon-bg-blue">
-                                            <i class='bx bxs-cog icon-blue'></i>
+                                            <i class='bx bxs-file-check icon-blue'></i>
                                         </div>
-                                        <span class="action-label">Check Equipment</span>
+                                        <span class="action-label">Review Reports</span>
                                     </div>
                                     <div class="action-button">
                                         <div class="icon-box icon-bg-purple">
-                                            <i class='bx bxs-calendar icon-purple'></i>
+                                            <i class='bx bxs-cog icon-purple'></i>
                                         </div>
-                                        <span class="action-label">Schedule Personnel</span>
+                                        <span class="action-label">System Config</span>
                                     </div>
                                     <div class="action-button">
                                         <div class="icon-box icon-bg-yellow">
-                                            <i class='bx bxs-check-shield icon-yellow'></i>
+                                            <i class='bx bxs-bar-chart-alt-2 icon-yellow'></i>
                                         </div>
-                                        <span class="action-label">Inspection Report</span>
+                                        <span class="action-label">View Analytics</span>
                                     </div>
                                 </div>
                             </div>
                             
-                            <!-- Incident Reports -->
+                            <!-- Pending Approvals -->
                             <div class="card">
                                 <div class="incident-header">
-                                    <h2 class="card-title">Active Incidents</h2>
+                                    <h2 class="card-title">Pending Approvals</h2>
                                     <button class="secondary-button" style="font-size: 14px; padding: 8px 16px;">View All</button>
                                 </div>
                                 <div class="incident-list">
                                     <div class="incident-item">
                                         <div class="incident-icon icon-red">
-                                            <i class='bx bxs-map icon-red'></i>
+                                            <i class='bx bxs-user-plus icon-red'></i>
                                         </div>
                                         <div class="incident-info">
-                                            <p class="incident-name">Structure Fire - 124 Main St</p>
-                                            <p class="incident-location">Units: Engine 1, Ladder 3, Rescue 2</p>
+                                            <p class="incident-name">New Volunteer Applications</p>
+                                            <p class="incident-location">5 applications pending review</p>
                                         </div>
-                                        <span class="status-badge status-pending">Active</span>
+                                        <span class="status-badge status-pending">Review</span>
                                     </div>
                                     <div class="incident-item">
                                         <div class="incident-icon icon-yellow">
-                                            <i class='bx bxs-car-crash icon-yellow'></i>
+                                            <i class='bx bxs-report icon-yellow'></i>
                                         </div>
                                         <div class="incident-info">
-                                            <p class="incident-name">Vehicle Accident - Highway 101</p>
-                                            <p class="incident-location">Units: Engine 4, Medic 2</p>
+                                            <p class="incident-name">Incident Reports</p>
+                                            <p class="incident-location">3 reports awaiting validation</p>
                                         </div>
-                                        <span class="status-badge status-progress">En Route</span>
+                                        <span class="status-badge status-progress">Validate</span>
                                     </div>
                                     <div class="incident-item">
                                         <div class="incident-icon icon-blue">
-                                            <i class='bx bxs-first-aid icon-blue'></i>
+                                            <i class='bx bxs-cog icon-blue'></i>
                                         </div>
                                         <div class="incident-info">
-                                            <p class="incident-name">Medical Emergency - 58 Park Ave</p>
-                                            <p class="incident-location">Units: Medic 1, Engine 2</p>
+                                            <p class="incident-name">Maintenance Requests</p>
+                                            <p class="incident-location">2 equipment repairs pending</p>
                                         </div>
-                                        <span class="status-badge status-completed">Stabilized</span>
+                                        <span class="status-badge status-completed">Approve</span>
                                     </div>
                                 </div>
                             </div>
@@ -473,10 +509,20 @@ $stmt = null;
                    
                     <div class="right-column">
                         <div class="card">
-                            <h2 class="card-title">Emergency Alerts</h2>
+                            <h2 class="card-title">System Alerts</h2>
                             <div class="alert-card">
-                                <h3 class="alert-title">High Fire Risk - Northwest District</h3>
-                                <p class="alert-time">Issued: Today 10:30 AM | Expires: Tomorrow 6:00 PM</p>
+                                <h3 class="alert-title">System Backup Required</h3>
+                                <p class="alert-time">Last backup: 2 days ago | Recommended: Daily</p>
+                                <button class="alert-button">
+                                    <svg class="button-icon" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4z"></path>
+                                    </svg>
+                                    Run Backup
+                                </button>
+                            </div>
+                            <div class="alert-card">
+                                <h3 class="alert-title">Certificate Expiry Notice</h3>
+                                <p class="alert-time">5 training certificates expiring in 30 days</p>
                                 <button class="alert-button">
                                     <svg class="button-icon" fill="currentColor" viewBox="0 0 24 24">
                                         <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4z"></path>
@@ -484,22 +530,12 @@ $stmt = null;
                                     View Details
                                 </button>
                             </div>
-                            <div class="alert-card">
-                                <h3 class="alert-title">Hydrant Maintenance - Central Area</h3>
-                                <p class="alert-time">Schedule: Tomorrow 8 AM - 4 PM | 15 hydrants affected</p>
-                                <button class="alert-button">
-                                    <svg class="button-icon" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4z"></path>
-                                    </svg>
-                                    View Map
-                                </button>
-                            </div>
                         </div>
                         
-                        <!-- Personnel Status -->
+                        <!-- User Activity -->
                         <div class="card">
                             <div class="personnel-header">
-                                <h2 class="card-title">Personnel Status</h2>
+                                <h2 class="card-title">Recent User Activity</h2>
                                 <button class="secondary-button" style="font-size: 14px; padding: 8px 16px;">Refresh</button>
                             </div>
                             <div class="personnel-list">
@@ -508,8 +544,8 @@ $stmt = null;
                                         <i class='bx bxs-user icon-cyan'></i>
                                     </div>
                                     <div class="personnel-info">
-                                        <p class="personnel-name">Station 1 - A Shift</p>
-                                        <p class="personnel-details">8 personnel on duty | 2 available</p>
+                                        <p class="personnel-name">Admin User - System Config</p>
+                                        <p class="personnel-details">Updated notification settings</p>
                                     </div>
                                 </div>
                                 <div class="personnel-item">
@@ -517,8 +553,8 @@ $stmt = null;
                                         <i class='bx bxs-user icon-purple'></i>
                                     </div>
                                     <div class="personnel-info">
-                                        <p class="personnel-name">Station 2 - B Shift</p>
-                                        <p class="personnel-details">7 personnel on duty | 5 available</p>
+                                        <p class="personnel-name">Staff Member - Incident Report</p>
+                                        <p class="personnel-details">Submitted new incident report</p>
                                     </div>
                                 </div>
                                 <div class="personnel-item">
@@ -526,16 +562,16 @@ $stmt = null;
                                         <i class='bx bxs-user-badge icon-indigo'></i>
                                     </div>
                                     <div class="personnel-info">
-                                        <p class="personnel-name">Special Operations</p>
-                                        <p class="personnel-details">12 personnel | 8 on call</p>
+                                        <p class="personnel-name">Volunteer - Training</p>
+                                        <p class="personnel-details">Completed safety training</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         
-                        <!-- Equipment Status -->
+                        <!-- System Status -->
                         <div class="card">
-                            <h2 class="card-title">Equipment Status</h2>
+                            <h2 class="card-title">System Status</h2>
                             <div class="equipment-container">
                                 <div class="equipment-circle">
                                     <svg class="equipment-svg">
@@ -543,8 +579,8 @@ $stmt = null;
                                         <circle cx="96" cy="96" r="80" class="equipment-fill"></circle>
                                     </svg>
                                     <div class="equipment-text">
-                                        <span class="equipment-value">96%</span>
-                                        <span class="equipment-label">Operational</span>
+                                        <span class="equipment-value">99.8%</span>
+                                        <span class="equipment-label">Uptime</span>
                                     </div>
                                 </div>
                             </div>

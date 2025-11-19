@@ -19,70 +19,89 @@ function send_verification_email($email, $name, $verification_code) {
     $mail = new PHPMailer(true);
     
     try {
-        // Server settings
+        // Server settings with improved configuration
         $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com'; // Set your SMTP server
+        $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'Stephenviray12@gmail.com'; // Your email
-        $mail->Password = 'bubr nckn tgqf lvus'; // Your app password
+        $mail->Username = 'Stephenviray12@gmail.com';
+        $mail->Password = 'bubr nckn tgqf lvus';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
+        $mail->SMTPDebug = 0; // Set to 2 for detailed debugging
+        $mail->Timeout = 30;
+        $mail->SMTPOptions = array(
+            'ssl' => array(
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true
+            )
+        );
         
         // Recipients
         $mail->setFrom('41004.FRSM@gmail.com', 'Fire & Rescue Services Management');
         $mail->addAddress($email, $name);
+        $mail->addReplyTo('41004.FRSM@gmail.com', 'Fire & Rescue Services Management');
         
         // Content
         $mail->isHTML(true);
-        $mail->Subject = 'Email Verification - Fire & Rescue Services Management';
+        $mail->Subject = 'Volunteer Registration - Email Verification Required';
         $mail->Body = "
             <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fffaf5; border: 1px solid #ffe4d6; border-radius: 10px; overflow: hidden;'>
                 <div style='background: linear-gradient(135deg, #dc2626, #b91c1c); padding: 30px; text-align: center; color: white;'>
                     <h1 style='margin: 0; font-size: 28px;'>🚒 Fire & Rescue Services</h1>
-                    <p style='margin: 10px 0 0 0; opacity: 0.9;'>Emergency Response & Safety Management</p>
+                    <p style='margin: 10px 0 0 0; opacity: 0.9;'>Volunteer Registration</p>
                 </div>
                 
                 <div style='padding: 30px;'>
-                    <h2 style='color: #dc2626; margin-top: 0;'>Email Verification</h2>
+                    <h2 style='color: #dc2626; margin-top: 0;'>Welcome to Our Volunteer Team!</h2>
                     <p>Hello <strong>$name</strong>,</p>
-                    <p>Thank you for registering with <strong>Fire & Rescue Services Management</strong>. Please use the verification code below to complete your registration:</p>
+                    <p>Thank you for registering as a volunteer with <strong>Fire & Rescue Services Management</strong>. To complete your registration and join our emergency response team, please verify your email address using the code below:</p>
                     
                     <div style='text-align: center; margin: 30px 0;'>
-                        <div style='display: inline-block; padding: 15px 30px; background: #fef2f2; border: 2px dashed #dc2626; border-radius: 8px; font-family: monospace;'>
-                            <h3 style='color: #dc2626; font-size: 28px; margin: 0; letter-spacing: 3px;'>$verification_code</h3>
+                        <div style='display: inline-block; padding: 20px 40px; background: #fef2f2; border: 3px solid #dc2626; border-radius: 10px; font-family: monospace;'>
+                            <h3 style='color: #dc2626; font-size: 32px; margin: 0; letter-spacing: 5px; font-weight: bold;'>$verification_code</h3>
                         </div>
                     </div>
                     
-                    <div style='background: #fef2f2; padding: 15px; border-radius: 5px; border-left: 4px solid #dc2626;'>
-                        <p style='margin: 0; color: #991b1b; font-size: 14px;'>
-                            <strong>⚠️ Important:</strong> This code will expire in 15 minutes.
+                    <div style='background: #fffbeb; padding: 15px; border-radius: 5px; border-left: 4px solid #f59e0b;'>
+                        <p style='margin: 0; color: #92400e; font-size: 14px;'>
+                            <strong>⏰ Important:</strong> This verification code will expire in 15 minutes.
                         </p>
                     </div>
                     
                     <p style='color: #666; font-size: 14px; margin-top: 25px;'>
-                        If you did not request this registration, please ignore this email.
+                        If you did not request to join as a volunteer, please ignore this email to help us maintain the security of our emergency response system.
                     </p>
                 </div>
                 
                 <div style='background: #fef2f2; padding: 20px; text-align: center; border-top: 1px solid #fecaca;'>
-                    <p style='margin: 0; color: #991b1b;'>
-                        <strong>🚨 Safety First:</strong> Always have an emergency evacuation plan and working smoke detectors.
+                    <p style='margin: 0; color: #991b1b; font-size: 14px;'>
+                        <strong>🚨 Safety First:</strong> Thank you for your commitment to community safety and emergency response.
                     </p>
                     <p style='margin: 10px 0 0 0; color: #666; font-size: 12px;'>
                         Best regards,<br>
                         <strong>Fire & Rescue Services Management Team</strong><br>
-                        Protecting lives and property through emergency response
+                        Protecting lives and property through dedicated volunteers
                     </p>
                 </div>
             </div>
         ";
         
-        $mail->AltBody = "Hello $name,\n\nThank you for registering with Fire & Rescue Services Management. Please use the verification code below to complete your registration:\n\nVerification Code: $verification_code\n\nThis code will expire in 15 minutes.\n\nIf you did not request this registration, please ignore this email.\n\n🚨 Safety First: Always have an emergency evacuation plan and working smoke detectors.\n\nBest regards,\nFire & Rescue Services Management Team";
+        $mail->AltBody = "Hello $name,\n\nThank you for registering as a volunteer with Fire & Rescue Services Management. To complete your registration, please use the verification code below:\n\nVerification Code: $verification_code\n\nThis code will expire in 15 minutes.\n\nIf you did not request to join as a volunteer, please ignore this email.\n\n🚨 Safety First: Thank you for your commitment to community safety.\n\nBest regards,\nFire & Rescue Services Management Team";
         
-        $mail->send();
-        return true;
+        // Test connection first
+        if (!$mail->smtpConnect()) {
+            error_log("SMTP connection failed for $email");
+            return false;
+        }
+        
+        return $mail->send();
     } catch (Exception $e) {
-        error_log("Email sending failed: " . $mail->ErrorInfo);
+        error_log("Email sending failed for $email: " . $mail->ErrorInfo);
+        
+        // Log additional debugging information
+        error_log("Email debug - Host: smtp.gmail.com, Port: 587, Username: Stephenviray12@gmail.com");
+        
         return false;
     }
 }

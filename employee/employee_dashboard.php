@@ -70,149 +70,181 @@ $stmt = null;
                 <span class="logo-text">Fire & Rescue</span>
             </div>
             
-          <!-- Menu Section -->
-<div class="menu-section">
-    <p class="menu-title">FIRE & RESCUE MANAGEMENT</p>
-    
-    <div class="menu-items">
-        <a href="#" class="menu-item active" id="dashboard-menu">
-            <div class="icon-box icon-bg-red">
-                <i class='bx bxs-dashboard icon-red'></i>
+            <!-- Menu Section -->
+            <div class="menu-section">
+                <p class="menu-title">FIRE & RESCUE MANAGEMENT</p>
+                
+                <div class="menu-items">
+                    <a href="#" class="menu-item active" id="dashboard-menu">
+                        <div class="icon-box icon-bg-red">
+                            <i class='bx bxs-dashboard icon-red'></i>
+                        </div>
+                        <span class="font-medium">Dashboard</span>
+                    </a>
+                    
+                    <!-- Fire & Incident Reporting -->
+                    <div class="menu-item" onclick="toggleSubmenu('fire-incident')">
+                        <div class="icon-box icon-bg-orange">
+                            <i class='bx bxs-alarm-exclamation icon-orange'></i>
+                        </div>
+                        <span class="font-medium">Fire & Incident Reporting</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="fire-incident" class="submenu">
+                        <a href="#" class="submenu-item">Receive Data</a>
+                        <a href="#" class="submenu-item">Manual Reporting</a>
+                        <a href="#" class="submenu-item">Update Status</a>
+                    </div>
+                    
+                    <!-- Dispatch Coordination -->
+                    <div class="menu-item" onclick="toggleSubmenu('dispatch')">
+                        <div class="icon-box icon-bg-yellow">
+                            <i class='bx bxs-truck icon-yellow'></i>
+                        </div>
+                        <span class="font-medium">Dispatch Coordination</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="dispatch" class="submenu">
+                        <a href="#" class="submenu-item">Select Unit</a>
+                        <a href="#" class="submenu-item">Send Dispatch Info</a>
+                        <a href="#" class="submenu-item">Notify Unit</a>
+                        <a href="#" class="submenu-item">Track Status</a>
+                    </div>
+                    
+                    <!-- Barangay Volunteer Roster Access -->
+                    <div class="menu-item" onclick="toggleSubmenu('volunteer')">
+                        <div class="icon-box icon-bg-blue">
+                            <i class='bx bxs-user-detail icon-blue'></i>
+                        </div>
+                        <span class="font-medium">Volunteer Roster Access</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="volunteer" class="submenu">
+                        <a href="vra/review_data.php" class="submenu-item">Review Data</a>
+                        <a href="#" class="submenu-item">Approve Applications</a>
+                        <a href="#" class="submenu-item">Assign Volunteers</a>
+                        <a href="#" class="submenu-item">View Availability</a>
+                        <a href="#" class="submenu-item">Remove Volunteers</a>
+                        <a href="vra/toggle_volunteer_status.php" class="submenu-item">Open/Close Volunteer Registration</a>
+                    </div>
+                    
+                    <!-- Resource Inventory Updates -->
+                    <div class="menu-item" onclick="toggleSubmenu('inventory')">
+                        <div class="icon-box icon-bg-green">
+                            <i class='bx bxs-cube icon-green'></i>
+                        </div>
+                        <span class="font-medium">Resource Inventory</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="inventory" class="submenu">
+                        <a href="#" class="submenu-item">Log Usage</a>
+                        <a href="#" class="submenu-item">Report Damages</a>
+                        <a href="#" class="submenu-item">Request Supplies</a>
+                        <a href="#" class="submenu-item">Tag Resources</a>
+                    </div>
+                    
+                    <!-- Shift & Duty Scheduling -->
+                    <div class="menu-item" onclick="toggleSubmenu('schedule')">
+                        <div class="icon-box icon-bg-purple">
+                            <i class='bx bxs-calendar icon-purple'></i>
+                        </div>
+                        <span class="font-medium">Shift & Duty Scheduling</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="schedule" class="submenu">
+                        <a href="#" class="submenu-item">View Shifts</a>
+                        <a href="#" class="submenu-item">Confirm Availability</a>
+                        <a href="#" class="submenu-item">Request Change</a>
+                        <a href="#" class="submenu-item">Mark Attendance</a>
+                    </div>
+                    
+                    <!-- Training & Certification Logging -->
+                    <div class="menu-item" onclick="toggleSubmenu('training')">
+                        <div class="icon-box icon-bg-teal">
+                            <i class='bx bxs-graduation icon-teal'></i>
+                        </div>
+                        <span class="font-medium">Training & Certification</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="training" class="submenu">
+                        <a href="#" class="submenu-item">Submit Training</a>
+                        <a href="#" class="submenu-item">Upload Certificates</a>
+                        <a href="#" class="submenu-item">Request Training</a>
+                        <a href="#" class="submenu-item">View Events</a>
+                    </div>
+                    
+                    <!-- Inspection Logs -->
+                    <div class="menu-item" onclick="toggleSubmenu('inspection')">
+                        <div class="icon-box icon-bg-cyan">
+                            <i class='bx bxs-check-shield icon-cyan'></i>
+                        </div>
+                        <span class="font-medium">Inspection Logs</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="inspection" class="submenu">
+                        <a href="#" class="submenu-item">Conduct Inspections</a>
+                        <a href="#" class="submenu-item">Submit Findings</a>
+                        <a href="#" class="submenu-item">Upload Photos</a>
+                        <a href="#" class="submenu-item">Tag Violations</a>
+                    </div>
+                    
+                    <!-- Post-Incident Reporting -->
+                    <div class="menu-item" onclick="toggleSubmenu('postincident')">
+                        <div class="icon-box icon-bg-pink">
+                            <i class='bx bxs-file-doc icon-pink'></i>
+                        </div>
+                        <span class="font-medium">Post-Incident Reporting</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="postincident" class="submenu">
+                        <a href="#" class="submenu-item">Upload Reports</a>
+                        <a href="#" class="submenu-item">Add Notes</a>
+                        <a href="#" class="submenu-item">Attach Equipment</a>
+                        <a href="#" class="submenu-item">Mark Completed</a>
+                    </div>
+                </div>
+                
+                <p class="menu-title" style="margin-top: 32px;">GENERAL</p>
+                
+                <div class="menu-items">
+                    <a href="#" class="menu-item">
+                        <div class="icon-box icon-bg-indigo">
+                            <i class='bx bxs-cog icon-indigo'></i>
+                        </div>
+                        <span class="font-medium">Settings</span>
+                    </a>
+                    
+                    <a href="../profile.php" class="menu-item">
+                        <div class="icon-box icon-bg-orange">
+                            <i class='bx bxs-user icon-orange'></i>
+                        </div>
+                        <span class="font-medium">Profile</span>
+                    </a>
+                    
+                    <a href="../includes/logout.php" class="menu-item">
+                        <div class="icon-box icon-bg-red">
+                            <i class='bx bx-log-out icon-red'></i>
+                        </div>
+                        <span class="font-medium">Logout</span>
+                    </a>
+                </div>
             </div>
-            <span class="font-medium">Dashboard</span>
-        </a>
-        
-        <div class="menu-item" onclick="toggleSubmenu('fire-incident')">
-            <div class="icon-box icon-bg-orange">
-                <i class='bx bxs-alarm-exclamation icon-orange'></i>
-            </div>
-            <span class="font-medium">Fire & Incident Reporting</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="fire-incident" class="submenu">
-            <a href="#" class="submenu-item">Active Incidents</a>
-            <a href="#" class="submenu-item">Incident Reports</a>
-            <a href="#" class="submenu-item">Response History</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('volunteer')">
-            <div class="icon-box icon-bg-blue">
-                <i class='bx bxs-user-detail icon-blue'></i>
-            </div>
-            <span class="font-medium">Volunteer Roster</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="volunteer" class="submenu">
-            <a href="#" class="submenu-item">Volunteer List</a>
-            <a href="#" class="submenu-item">Roles & Skills</a>
-            <a href="#" class="submenu-item">Availability</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('inventory')">
-            <div class="icon-box icon-bg-green">
-                <i class='bx bxs-cube icon-green'></i>
-            </div>
-            <span class="font-medium">Resource Inventory</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="inventory" class="submenu">
-            <a href="#" class="submenu-item">Equipment List</a>
-            <a href="#" class="submenu-item">Stock Levels</a>
-            <a href="#" class="submenu-item">Maintenance Logs</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('schedule')">
-            <div class="icon-box icon-bg-purple">
-                <i class='bx bxs-calendar icon-purple'></i>
-            </div>
-            <span class="font-medium">Shift & Duty Scheduling</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="schedule" class="submenu">
-            <a href="#" class="submenu-item">Shift Calendar</a>
-            <a href="#" class="submenu-item">Duty Assignments</a>
-            <a href="#" class="submenu-item">Attendance Logs</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('training')">
-            <div class="icon-box icon-bg-teal">
-                <i class='bx bxs-graduation icon-teal'></i>
-            </div>
-            <span class="font-medium">Training & Certification</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="training" class="submenu">
-            <a href="#" class="submenu-item">Training Records</a>
-            <a href="#" class="submenu-item">Certification Status</a>
-            <a href="#" class="submenu-item">Upcoming Seminars</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('inspection')">
-            <div class="icon-box icon-bg-yellow">
-                <i class='bx bxs-check-shield icon-yellow'></i>
-            </div>
-            <span class="font-medium">Establishment Inspections</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="inspection" class="submenu">
-            <a href="#" class="submenu-item">Inspection Scheduler</a>
-            <a href="#" class="submenu-item">Inspection Results</a>
-            <a href="#" class="submenu-item">Violation Notices</a>
-        </div>
-        
-        <div class="menu-item" onclick="toggleSubmenu('postincident')">
-            <div class="icon-box icon-bg-pink">
-                <i class='bx bxs-file-doc icon-pink'></i>
-            </div>
-            <span class="font-medium">Post-Incident Analytics</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="postincident" class="submenu">
-            <a href="#" class="submenu-item">Analytics Dashboard</a>
-            <a href="#" class="submenu-item">Incident Trends</a>
-            <a href="#" class="submenu-item">Lessons Learned</a>
-        </div>
-    </div>
-    
-    <p class="menu-title" style="margin-top: 32px;">GENERAL</p>
-    
-    <div class="menu-items">
-        <a href="#" class="menu-item">
-            <div class="icon-box icon-bg-teal">
-                <i class='bx bxs-cog icon-teal'></i>
-            </div>
-            <span class="font-medium">Settings</span>
-        </a>
-        
-        <a href="#" class="menu-item">
-            <div class="icon-box icon-bg-indigo">
-                <i class='bx bxs-help-circle icon-indigo'></i>
-            </div>
-            <span class="font-medium">Help</span>
-        </a>
-        
-        <a href="../includes/logout.php" class="menu-item">
-            <div class="icon-box icon-bg-red">
-                <i class='bx bx-log-out icon-red'></i>
-            </div>
-            <span class="font-medium">Logout</span>
-        </a>
-    </div>
-</div>
         </div>
         
         <!-- Main Content -->
@@ -260,7 +292,7 @@ $stmt = null;
                 </div>
             </div>
             
-            <!-- dashboard content palitan nyo nalnag ng content na gamit sa system nyo -->
+            <!-- Dashboard Content -->
             <div class="dashboard-content">
                 <div class="dashboard-header">
                     <div>
