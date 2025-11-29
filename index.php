@@ -772,7 +772,7 @@
                         </div>
                         <div class="logo-text">
                             <h1>Barangay Commonwealth</h1>
-                            <p>Fire & Rescue Services</p>
+                            <p>Fire & Rescue Servicess</p>
                         </div>
                     </div>
                     <div class="nav-buttons">
