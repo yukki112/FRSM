@@ -88,14 +88,12 @@ $status_counts_stmt = null;
             --background-color: #ffffff;
             --text-color: #1f2937;
             --text-light: #6b7280;
-            --border-color: rgba(255, 255, 255, 0.2);
-            --card-bg: rgba(255, 255, 255, 0.15);
-            --sidebar-bg: rgba(255, 255, 255, 0.15);
-
-            --glass-bg: rgba(255, 255, 255, 0.25);
-            --glass-border: rgba(255, 255, 255, 0.3);
-            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-            --glass-blur: blur(12px);
+            /* Replaced glassmorphism border-color with a cleaner default */
+            --border-color: #e5e7eb;
+            /* Replaced glassmorphism card-bg with a cleaner default */
+            --card-bg: #f9fafb;
+            /* Replaced glassmorphism sidebar-bg with a cleaner default */
+            --sidebar-bg: #ffffff;
             
             --icon-red: #ef4444;
             --icon-blue: #3b82f6;
@@ -153,15 +151,15 @@ $status_counts_stmt = null;
             --background-color: #0f172a;
             --text-color: #f1f5f9;
             --text-light: #f1f5f9;
-            --border-color: rgba(255, 255, 255, 0.1);
-            --card-bg: rgba(30, 41, 59, 0.4);
-            --sidebar-bg: rgba(30, 41, 59, 0.4);
-            
-            --glass-bg: rgba(30, 41, 59, 0.6);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            /* Replaced glassmorphism border-color with a cleaner default */
+            --border-color: #1e293b;
+            /* Replaced glassmorphism card-bg with a cleaner default */
+            --card-bg: #1e293b;
+            /* Replaced glassmorphism sidebar-bg with a cleaner default */
+            --sidebar-bg: #0f172a;
         }
 
+        /* Removed glassmorphism variables and replaced with clean design */
         /* Font and size from reference */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -184,7 +182,6 @@ $status_counts_stmt = null;
             font-size: 16px;
         }
 
-        /* COMPLETELY NEW LAYOUT DESIGN */
         .dashboard-content {
             padding: 0;
             min-height: 100vh;
@@ -199,6 +196,8 @@ $status_counts_stmt = null;
             overflow: hidden;
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            /* Added border for consistency */
+            border: 1px solid var(--border-color);
         }
 
         .dark-mode .dashboard-header {
@@ -252,10 +251,8 @@ $status_counts_stmt = null;
         }
 
         .secondary-button {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             color: var(--text-color);
         }
 
@@ -302,16 +299,12 @@ $status_counts_stmt = null;
             margin-bottom: 24px;
             flex-wrap: wrap;
             align-items: flex-end;
-            position: relative;
-            z-index: 100;
         }
         
         .filter-group {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            position: relative;
-            z-index: 101;
         }
         
         .filter-label {
@@ -328,38 +321,29 @@ $status_counts_stmt = null;
             padding: 10px 16px;
             border-radius: 10px;
             border: 1px solid var(--border-color);
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
+            background: var(--card-bg);
+            color: var(--text-color);
             font-size: 14px;
             min-width: 180px;
             transition: all 0.3s ease;
-            position: relative;
-            z-index: 101;
         }
         
         .filter-select:focus, .filter-input:focus {
             outline: none;
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
-            z-index: 102;
         }
         
         .stats-container {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
-            position: relative;
-            z-index: 1;
         }
         
         .stat-card {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 20px;
             display: flex;
@@ -371,6 +355,8 @@ $status_counts_stmt = null;
             cursor: pointer;
             position: relative;
             overflow: hidden;
+            /* Replaced glassmorphism shadow */
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
         
         .stat-card::before {
@@ -400,7 +386,8 @@ $status_counts_stmt = null;
         
         .stat-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            /* Replaced glassmorphism shadow */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         }
         
         .stat-card.active {
@@ -456,21 +443,21 @@ $status_counts_stmt = null;
         }
         
         .volunteer-card {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 20px;
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            /* Replaced glassmorphism shadow */
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
         
         .volunteer-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            /* Replaced glassmorphism shadow */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         }
         
         .volunteer-card::before {
@@ -627,10 +614,8 @@ $status_counts_stmt = null;
         .pagination-button {
             padding: 8px 16px;
             border-radius: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             color: var(--gray-700);
             cursor: pointer;
             transition: all 0.3s ease;
@@ -691,11 +676,8 @@ $status_counts_stmt = null;
         }
         
         .modal {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 20px;
             width: 90%;
             max-width: 900px;
@@ -703,6 +685,8 @@ $status_counts_stmt = null;
             overflow-y: auto;
             transform: scale(0.9);
             transition: all 0.3s ease;
+            /* Replaced glassmorphism shadow */
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
         }
         
         .modal-overlay.active .modal {
@@ -715,6 +699,8 @@ $status_counts_stmt = null;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            /* Replaced glassmorphism background */
+            background: rgba(220, 38, 38, 0.02);
         }
         
         .modal-title {
@@ -749,7 +735,8 @@ $status_counts_stmt = null;
             margin-bottom: 16px;
             padding-bottom: 8px;
             border-bottom: 1px solid var(--border-color);
-            color: black;
+            /* Changed color to primary */
+            color: var(--primary-color);
         }
         
         .modal-grid {
@@ -764,13 +751,13 @@ $status_counts_stmt = null;
         
         .modal-detail-label {
             font-size: 14px;
-            color: white;
+            color: var(--text-light);
             margin-bottom: 4px;
         }
         
         .modal-detail-value {
             font-size: 16px;
-            color: black;
+            color: var(--text-color);
             font-weight: 500;
         }
         
@@ -827,7 +814,8 @@ $status_counts_stmt = null;
             padding: 40px;
             text-align: center;
             color: var(--text-light);
-            background: rgba(255, 255, 255, 0.1);
+            /* Replaced glassmorphism background */
+            background: rgba(220, 38, 38, 0.05);
             border-radius: 12px;
         }
         
@@ -837,6 +825,8 @@ $status_counts_stmt = null;
             display: flex;
             justify-content: flex-end;
             gap: 12px;
+            /* Replaced glassmorphism background */
+            background: rgba(220, 38, 38, 0.02);
         }
         
         .modal-button {
@@ -898,11 +888,8 @@ $status_counts_stmt = null;
         .notification {
             padding: 16px 20px;
             border-radius: 12px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             gap: 12px;
@@ -910,6 +897,8 @@ $status_counts_stmt = null;
             opacity: 0;
             transition: all 0.3s ease;
             max-width: 350px;
+            /* Replaced glassmorphism shadow */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
         .notification.show {
@@ -961,7 +950,7 @@ $status_counts_stmt = null;
             flex-shrink: 0;
         }
 
-        /* User Profile Dropdown - FIXED POSITIONING */
+        /* User Profile Dropdown */
         .user-profile {
             position: relative;
             cursor: pointer;
@@ -972,11 +961,8 @@ $status_counts_stmt = null;
             top: 100%;
             right: 0;
             margin-top: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 8px;
             min-width: 200px;
@@ -985,6 +971,8 @@ $status_counts_stmt = null;
             visibility: hidden;
             transform: translateY(-10px);
             transition: all 0.3s ease;
+            /* Replaced glassmorphism shadow */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .user-profile-dropdown.show {
@@ -1005,7 +993,7 @@ $status_counts_stmt = null;
         }
 
         .dropdown-item:hover {
-            background: rgba(220, 38, 38, 0.1);
+            background: rgba(220, 38, 38, 0.05);
         }
 
         .dropdown-item i {
@@ -1019,7 +1007,7 @@ $status_counts_stmt = null;
             margin: 8px 0;
         }
 
-        /* Notification Bell - FIXED POSITIONING */
+        /* Notification Bell */
         .notification-bell {
             position: relative;
         }
@@ -1040,17 +1028,14 @@ $status_counts_stmt = null;
             font-weight: 600;
         }
 
-        /* Notification Dropdown - FIXED POSITIONING */
+        /* Notification Dropdown */
         .notification-dropdown {
             position: absolute;
             top: 100%;
             right: 0;
             margin-top: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             width: 320px;
             max-height: 400px;
@@ -1060,6 +1045,8 @@ $status_counts_stmt = null;
             visibility: hidden;
             transform: translateY(-10px);
             transition: all 0.3s ease;
+            /* Replaced glassmorphism shadow */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .notification-dropdown.show {
@@ -1255,6 +1242,7 @@ $status_counts_stmt = null;
             }
         }
     </style>
+
 </head>
 <body>
     <div class="dashboard-animation" id="dashboard-animation">
@@ -1307,9 +1295,9 @@ $status_counts_stmt = null;
                         </svg>
                     </div>
                     <div id="fire-incident" class="submenu">
-                        <a href="../incident/receive_data.php" class="submenu-item">Receive Data</a>
-                        <a href="../incident/manual_reporting.php" class="submenu-item">Manual Reporting</a>
-                        <a href="../incident/update_status.php" class="submenu-item">Update Status</a>
+                         <a href="../fir/recieve_data.php" class="submenu-item">Receive Data</a>
+                        <a href="../fir/manual_reporting.php" class="submenu-item">Manual Reporting</a>
+                        <a href="../fir/update_status.php" class="submenu-item">Update Status</a>
                     </div>
                     
                     <!-- Dispatch Coordination -->
@@ -1443,7 +1431,7 @@ $status_counts_stmt = null;
                         <span class="font-medium">Settings</span>
                     </a>
                     
-                    <a href="../profile.php" class="menu-item">
+                    <a href="../profile/profile.php" class="menu-item">
                         <div class="icon-box icon-bg-orange">
                             <i class='bx bxs-user icon-orange'></i>
                         </div>
@@ -1544,7 +1532,7 @@ $status_counts_stmt = null;
                                 <p class="user-email"><?php echo $role; ?></p>
                             </div>
                             <div class="user-profile-dropdown" id="user-dropdown">
-                                <a href="../profile.php" class="dropdown-item">
+                                <a href="../profile/profile.php" class="dropdown-item">
                                     <i class='bx bx-user'></i>
                                     <span>Profile</span>
                                 </a>

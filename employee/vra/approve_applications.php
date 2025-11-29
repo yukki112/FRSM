@@ -84,165 +84,269 @@ $count_stmt = null;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Approve & Assign Volunteers - Fire Rescue Service Management</title>
-    <link rel="icon" type="image/x-icon" href="../../assets/images/logo.ico">
+    <title>Approve Applications & Assign Units - Fire & Rescue Services</title>
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <link rel="icon" type="image/png" sizes="32x32" href="../../img/frsm-logo.png">
+    <link rel="stylesheet" href="../../css/dashboard.css">
     <style>
-        /* ... existing CSS remains unchanged ... keep all previous styles ... */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         :root {
-            --primary: #ff6b6b;
-            --primary-dark: #ff5252;
-            --secondary: #4ecdc4;
-            --background: #0f1419;
-            --surface: #1a1f2e;
-            --surface-light: #252d3d;
-            --text: #e0e0e0;
-            --text-light: #9ca3af;
-            --border: #2d3748;
-            --success: #51cf66;
-            --warning: #ffd43b;
-            --error: #ff6b6b;
-            --info: #4dabf7;
+            --primary-color: #dc2626;
+            --primary-dark: #b91c1c;
+            --secondary-color: #ef4444;
+            --secondary-dark: #dc2626;
+            --background-color: #ffffff;
+            --text-color: #1f2937;
+            --text-light: #6b7280;
+            --border-color: #e5e7eb;
+            --card-bg: #f9fafb;
+            --sidebar-bg: #ffffff;
+            
+            --icon-red: #ef4444;
+            --icon-blue: #3b82f6;
+            --icon-green: #10b981;
+            --icon-purple: #8b5cf6;
+            --icon-yellow: #f59e0b;
+            --icon-indigo: #6366f1;
+            --icon-cyan: #06b6d4;
+            --icon-orange: #f97316;
+            --icon-pink: #ec4899;
+            --icon-teal: #14b8a6;
+            
+            --icon-bg-red: rgba(254, 226, 226, 0.7);
+            --icon-bg-blue: rgba(219, 234, 254, 0.7);
+            --icon-bg-green: rgba(220, 252, 231, 0.7);
+            --icon-bg-purple: rgba(243, 232, 255, 0.7);
+            --icon-bg-yellow: rgba(254, 243, 199, 0.7);
+            --icon-bg-indigo: rgba(224, 231, 255, 0.7);
+            --icon-bg-cyan: rgba(207, 250, 254, 0.7);
+            --icon-bg-orange: rgba(255, 237, 213, 0.7);
+            --icon-bg-pink: rgba(252, 231, 243, 0.7);
+            --icon-bg-teal: rgba(204, 251, 241, 0.7);
+
+            --chart-red: #ef4444;
+            --chart-orange: #f97316;
+            --chart-yellow: #f59e0b;
+            --chart-green: #10b981;
+            --chart-blue: #3b82f6;
+            --chart-purple: #8b5cf6;
+            --chart-pink: #ec4899;
+
+            --primary: var(--primary-color);
+            --primary-dark: var(--primary-dark);
+            --secondary: var(--secondary-color);
+            --success: var(--icon-green);
+            --warning: var(--icon-yellow);
+            --danger: var(--primary-color);
+            --info: var(--icon-blue);
+            --light: #f9fafb;
+            --dark: #1f2937;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
         }
         
+        .dark-mode {
+            --background-color: #0f172a;
+            --text-color: #f1f5f9;
+            --text-light: #f1f5f9;
+            --border-color: #1e293b;
+            --card-bg: #1e293b;
+            --sidebar-bg: #0f172a;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background-color: var(--background);
-            color: var(--text);
-            line-height: 1.6;
-            overflow-x: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-color);
+            background-color: var(--background-color);
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 600;
+        }
+
+        .dashboard-title {
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        .dashboard-subtitle {
+            font-size: 16px;
+        }
+
+        .dashboard-content {
+            padding: 0;
+            min-height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            position: relative;
+            z-index: 1000;
+        }
+
+        .dashboard-header {
+            color: white;
+            padding: 60px 40px 40px;
+            border-radius: 0 0 30px 30px;
+            margin-bottom: 40px;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--border-color);
+        }
+
+        .dark-mode .dashboard-header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         }
         
-        body.dark-mode {
-            background-color: #0a0e14;
+        .dashboard-title {
+            font-size: 40px;
+            margin-bottom: 12px;
+            color: var(--text-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-        
-        .container {
+
+        .dashboard-subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+            color: var(--text-color);
+        }
+
+        .dashboard-actions {
             display: flex;
-            height: 100vh;
+            gap: 12px;
+            margin-top: 20px;
         }
-        
-        .sidebar {
-            width: 280px;
-            background-color: var(--surface);
-            border-right: 1px solid var(--border);
-            padding: 30px 20px;
-            overflow-y: auto;
-            position: fixed;
-            height: 100vh;
-            left: 0;
-            top: 0;
+
+        .primary-button, .secondary-button {
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: none;
+            font-size: 14px;
         }
-        
-        .main-content {
-            margin-left: 280px;
-            flex: 1;
+
+        .primary-button {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+        }
+
+        .primary-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+        }
+
+        .secondary-button {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+
+        .secondary-button:hover {
+            background: var(--gray-100);
+            transform: translateY(-2px);
+        }
+
+        .dark-mode .secondary-button:hover {
+            background: var(--gray-800);
+        }
+
+        .approve-container {
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            gap: 24px;
+            padding: 0 40px 40px;
         }
         
-        .header {
-            background-color: var(--surface);
-            border-bottom: 1px solid var(--border);
-            padding: 20px 40px;
+        .approve-header {
             display: flex;
+            align-items: center;
             justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            margin-bottom: 24px;
         }
         
-        .header-title {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--text);
+        .approve-title {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
         }
         
-        .header-actions {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-        
-        .header-button {
-            background: none;
-            border: none;
-            color: var(--text);
-            cursor: pointer;
-            font-size: 20px;
-            padding: 8px;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-        }
-        
-        .header-button:hover {
-            background-color: var(--surface-light);
-            color: var(--primary);
-        }
-        
-        .content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 30px 40px;
-        }
-        
-        .approve-container {
-            animation: fadeIn 0.5s ease;
-        }
-        
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .approve-subtitle {
+            color: var(--text-light);
+            font-size: 16px;
         }
         
         .stats-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 20px;
-            margin-bottom: 40px;
+            margin-bottom: 24px;
         }
         
         .stat-card {
-            background: linear-gradient(135deg, var(--surface-light), var(--surface));
-            border: 1px solid var(--border);
-            border-radius: 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
             padding: 25px;
             display: flex;
-            gap: 20px;
             align-items: center;
+            gap: 20px;
             transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
         }
         
         .stat-card:hover {
             transform: translateY(-5px);
-            border-color: var(--primary);
-            box-shadow: 0 8px 16px rgba(255, 107, 107, 0.1);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         }
         
         .stat-icon {
             font-size: 32px;
-            color: var(--primary);
-            background: rgba(255, 107, 107, 0.1);
-            width: 60px;
-            height: 60px;
+            padding: 15px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 12px;
+            width: 60px;
+            height: 60px;
+            flex-shrink: 0;
         }
         
         .stat-content {
@@ -250,42 +354,43 @@ $count_stmt = null;
         }
         
         .stat-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--text);
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
         
         .stat-label {
             font-size: 14px;
             color: var(--text-light);
-            margin-top: 5px;
+            font-weight: 500;
         }
         
         .volunteers-table-container {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
             overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
         
         .table-header {
-            background: var(--surface-light);
-            padding: 20px;
-            border-bottom: 1px solid var(--border);
+            padding: 25px;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
+            background: rgba(220, 38, 38, 0.02);
         }
         
         .table-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--text);
-        }
-        
-        .table-info {
-            font-size: 13px;
-            color: var(--text-light);
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
         
         .volunteers-table {
@@ -293,192 +398,228 @@ $count_stmt = null;
             border-collapse: collapse;
         }
         
-        .volunteers-table thead {
-            background: var(--surface-light);
-        }
-        
         .volunteers-table th {
-            padding: 15px 20px;
+            background: rgba(220, 38, 38, 0.05);
+            padding: 18px;
             text-align: left;
             font-weight: 600;
-            color: var(--text-light);
-            font-size: 13px;
+            color: var(--text-color);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            border-bottom: 1px solid var(--border);
         }
         
         .volunteers-table td {
-            padding: 15px 20px;
-            border-bottom: 1px solid var(--border);
+            padding: 18px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+        
+        .volunteers-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .volunteers-table tr:hover {
+            background: rgba(220, 38, 38, 0.02);
+            transform: scale(1.01);
+            transition: all 0.2s ease;
+        }
+        
+        .volunteer-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 18px;
+            margin-right: 15px;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
         }
         
         .volunteer-info {
             display: flex;
-            gap: 12px;
             align-items: center;
-        }
-        
-        .volunteer-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            color: white;
-            font-size: 16px;
         }
         
         .volunteer-name {
             font-weight: 600;
-            color: var(--text);
+            margin-bottom: 4px;
+            font-size: 15px;
         }
         
         .volunteer-email {
-            font-size: 13px;
             color: var(--text-light);
-            margin-top: 4px;
+            font-size: 13px;
         }
         
-        .skills-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
+        .unit-select {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
+            font-size: 14px;
+            min-width: 200px;
+            transition: all 0.3s ease;
         }
         
-        .skill-tag {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
+        .unit-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        }
+        
+        .action-button {
+            padding: 8px 16px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
             font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
         }
         
-        .skill-fire {
-            background: rgba(255, 107, 107, 0.2);
-            color: #ff8787;
+        .view-button {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--info);
         }
         
-        .skill-medical {
-            background: rgba(76, 205, 196, 0.2);
-            color: #72e0d8;
+        .view-button:hover {
+            background: var(--info);
+            color: white;
+            transform: translateY(-1px);
         }
         
-        .skill-rescue {
-            background: rgba(255, 176, 59, 0.2);
-            color: #ffc857;
+        .assign-button {
+            background: var(--success);
+            color: white;
         }
         
-        .skill-drive {
-            background: rgba(81, 207, 102, 0.2);
-            color: #69f0ae;
+        .assign-button:hover {
+            background: #0d8c5f;
+            transform: translateY(-1px);
+        }
+        
+        .assign-button:disabled {
+            background: var(--gray-400);
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .reassign-button {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+        
+        .reassign-button:hover {
+            background: var(--warning);
+            color: white;
+            transform: translateY(-1px);
         }
         
         .assigned-unit {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 6px 12px;
-            background: rgba(81, 207, 102, 0.1);
-            border-radius: 6px;
-            color: #69f0ae;
-            font-size: 13px;
-        }
-        
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        
-        .action-button {
-            padding: 8px 12px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
+            padding: 8px 16px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.2));
+            color: var(--success);
+            border-radius: 12px;
             font-size: 13px;
             font-weight: 500;
-            display: inline-flex;
-            align-items: center;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        
+        .skills-tags {
+            display: flex;
+            flex-wrap: wrap;
             gap: 6px;
-            transition: all 0.3s ease;
         }
         
-        .view-button {
-            background: rgba(77, 171, 247, 0.1);
-            color: #4dabf7;
+        .skill-tag {
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
         
-        .view-button:hover {
-            background: rgba(77, 171, 247, 0.2);
-            transform: translateY(-2px);
+        .skill-fire {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(220, 38, 38, 0.2);
         }
         
-        .assign-button {
-            background: rgba(81, 207, 102, 0.1);
-            color: #69f0ae;
+        .skill-medical {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
         }
         
-        .assign-button:hover {
-            background: rgba(81, 207, 102, 0.2);
-            transform: translateY(-2px);
+        .skill-rescue {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--info);
+            border: 1px solid rgba(59, 130, 246, 0.2);
         }
         
-        .reassign-button {
-            background: rgba(255, 176, 59, 0.1);
-            color: #ffc857;
+        .skill-drive {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.2);
         }
         
-        .reassign-button:hover {
-            background: rgba(255, 176, 59, 0.2);
-            transform: translateY(-2px);
+        .no-volunteers {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-light);
         }
         
-        .unit-select {
-            padding: 8px 12px;
-            background: var(--surface-light);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text);
-            font-size: 13px;
-            cursor: pointer;
-        }
-        
-        .unit-select:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+        .no-volunteers-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            color: var(--text-light);
+            opacity: 0.3;
         }
         
         .pagination {
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 10px;
-            padding: 20px;
-            border-top: 1px solid var(--border);
+            padding: 25px;
+            border-top: 1px solid var(--border-color);
+            background: rgba(220, 38, 38, 0.02);
+            gap: 12px;
         }
         
         .pagination-button {
-            padding: 8px 12px;
-            background: rgba(77, 171, 247, 0.1);
-            border: 1px solid var(--border);
-            color: var(--text);
-            border-radius: 6px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
             cursor: pointer;
-            font-size: 13px;
+            transition: all 0.3s ease;
             display: flex;
             align-items: center;
-            gap: 5px;
-            transition: all 0.3s ease;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 500;
         }
         
         .pagination-button:hover:not(:disabled) {
-            background: rgba(77, 171, 247, 0.2);
-            border-color: #4dabf7;
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+            transform: translateY(-1px);
         }
         
         .pagination-button:disabled {
@@ -488,669 +629,1186 @@ $count_stmt = null;
         
         .pagination-info {
             color: var(--text-light);
-            font-size: 13px;
+            font-size: 14px;
+            margin: 0 16px;
         }
         
         .pagination-numbers {
             display: flex;
-            gap: 5px;
+            gap: 6px;
+            margin: 0 16px;
         }
         
         .page-number {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text);
-            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
             cursor: pointer;
-            font-size: 13px;
             transition: all 0.3s ease;
+            font-size: 13px;
+            font-weight: 500;
+            min-width: 40px;
+            text-align: center;
         }
         
         .page-number:hover {
-            border-color: #4dabf7;
-            color: #4dabf7;
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
         }
         
         .page-number.active {
-            background: var(--primary);
-            border-color: var(--primary);
+            background: var(--primary-color);
             color: white;
+            border-color: var(--primary-color);
         }
         
-        .no-volunteers {
-            text-align: center;
-            padding: 60px 20px;
-        }
-        
-        .no-volunteers-icon {
-            font-size: 64px;
-            color: var(--text-light);
-            margin-bottom: 20px;
-        }
-        
-        .no-volunteers h3 {
-            font-size: 24px;
-            color: var(--text);
-            margin-bottom: 10px;
-        }
-        
-        .no-volunteers p {
-            color: var(--text-light);
-            margin-bottom: 20px;
-        }
-        
-        /* Modal Styles */
         .modal-overlay {
-            display: none;
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 1000;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
             align-items: center;
             justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
         }
         
         .modal-overlay.active {
-            display: flex;
+            opacity: 1;
+            visibility: visible;
         }
         
         .modal {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            max-width: 500px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
             width: 90%;
+            max-width: 500px;
+            transform: scale(0.9);
+            transition: all 0.3s ease;
             max-height: 90vh;
             overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .modal-overlay.active .modal {
+            transform: scale(1);
         }
         
         .modal-header {
-            padding: 20px;
-            border-bottom: 1px solid var(--border);
+            padding: 25px;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
+            background: rgba(220, 38, 38, 0.02);
         }
         
         .modal-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--text);
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-color);
         }
         
         .modal-close {
             background: none;
             border: none;
-            font-size: 28px;
-            color: var(--text-light);
+            font-size: 24px;
             cursor: pointer;
+            color: var(--text-light);
             transition: all 0.3s ease;
+            padding: 5px;
+            border-radius: 8px;
         }
         
         .modal-close:hover {
-            color: var(--primary);
+            color: var(--danger);
+            background: rgba(220, 38, 38, 0.1);
         }
         
         .modal-body {
-            padding: 20px;
+            padding: 25px;
         }
         
-        .modal-detail {
-            margin-bottom: 15px;
-        }
-        
-        .modal-label {
-            display: block;
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--text);
-            margin-bottom: 8px;
+        .modal-footer {
+            padding: 20px 25px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            background: rgba(220, 38, 38, 0.02);
         }
         
         .modal-input {
             width: 100%;
-            padding: 10px;
-            background: var(--surface-light);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text);
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
             font-size: 14px;
+            margin-bottom: 16px;
+            transition: all 0.3s ease;
         }
         
         .modal-input:focus {
             outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
         }
         
-        .modal-footer {
-            padding: 20px;
-            border-top: 1px solid var(--border);
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
+        .modal-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-color);
         }
         
-        /* New AI Recommendation Styles */
-        .ai-recommendation-button {
-            background: linear-gradient(135deg, var(--primary), #ff8787);
+        .profile-modal {
+            max-width: 900px;
+            max-height: 75vh;
+        }
+        
+        .profile-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
-            padding: 10px 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-            font-size: 13px;
-        }
-        
-        .ai-recommendation-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(255, 107, 107, 0.3);
-        }
-        
-        .ai-recommendation-button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        .recommendation-modal {
-            max-width: 600px;
-        }
-        
-        .recommendation-card {
-            background: var(--surface-light);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
-            transition: all 0.3s ease;
-        }
-        
-        .recommendation-card:hover {
-            border-color: var(--primary);
-            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.1);
-        }
-        
-        .recommendation-rank {
-            display: inline-block;
-            background: var(--primary);
-            color: white;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-        
-        .recommendation-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: start;
-            margin-bottom: 12px;
-        }
-        
-        .recommendation-unit-name {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text);
-        }
-        
-        .recommendation-code {
-            font-size: 12px;
-            color: var(--text-light);
-            margin-top: 4px;
-        }
-        
-        .recommendation-score {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .score-badge {
-            background: rgba(81, 207, 102, 0.1);
-            color: #69f0ae;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        .recommendation-details {
-            margin-top: 12px;
-            font-size: 13px;
-            color: var(--text-light);
-        }
-        
-        .recommendation-detail-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 6px;
-        }
-        
-        .detail-icon {
-            color: var(--secondary);
-        }
-        
-        .recommendation-action {
-            margin-top: 15px;
-        }
-        
-        .accept-recommendation-btn {
-            width: 100%;
-            padding: 10px;
-            background: rgba(81, 207, 102, 0.1);
-            border: 1px solid #69f0ae;
-            color: #69f0ae;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .accept-recommendation-btn:hover {
-            background: rgba(81, 207, 102, 0.2);
-        }
-        
-        .ai-thinking {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--text-light);
-            font-size: 13px;
-        }
-        
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255, 107, 107, 0.2);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* ... remaining styles ... */
-        .sidebar-menu {
-            list-style: none;
-        }
-        
-        .sidebar-item {
-            margin-bottom: 10px;
-        }
-        
-        .sidebar-link {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px;
-            text-decoration: none;
-            color: var(--text-light);
-            border-radius: 8px;
-            transition: all 0.3s ease;
-        }
-        
-        .sidebar-link:hover {
-            background: var(--surface-light);
-            color: var(--primary);
-        }
-        
-        .sidebar-link.active {
-            background: var(--primary);
-            color: white;
-        }
-        
-        .user-profile {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px;
-            background: var(--surface-light);
-            border-radius: 8px;
-            cursor: pointer;
+            padding: 30px;
+            text-align: center;
             position: relative;
         }
         
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            color: white;
-        }
-        
-        .profile-dropdown {
-            position: absolute;
-            bottom: -120px;
-            left: 0;
-            right: 0;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-            display: none;
-            z-index: 1000;
-        }
-        
-        .profile-dropdown.active {
-            display: block;
-        }
-        
-        .profile-dropdown-item {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            background: none;
-            border: none;
-            color: var(--text);
-            text-align: left;
-            cursor: pointer;
-            border-bottom: 1px solid var(--border);
-            transition: all 0.3s ease;
-        }
-        
-        .profile-dropdown-item:last-child {
-            border-bottom: none;
-        }
-        
-        .profile-dropdown-item:hover {
-            background: var(--surface-light);
-            color: var(--primary);
-        }
-
-        /* Notification System */
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 16px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            z-index: 2000;
-            animation: slideIn 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            max-width: 400px;
-        }
-        
-        @keyframes slideIn {
-            from {
-                transform: translateX(400px);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        
-        .notification.success {
-            background: rgba(81, 207, 102, 0.1);
-            border: 1px solid #69f0ae;
-            color: #69f0ae;
-        }
-        
-        .notification.error {
-            background: rgba(255, 107, 107, 0.1);
-            border: 1px solid #ff8787;
-            color: #ff8787;
-        }
-        
-        .notification.info {
-            background: rgba(77, 171, 247, 0.1);
-            border: 1px solid #4dabf7;
-            color: #4dabf7;
-        }
-        
-        .notification.warning {
-            background: rgba(255, 176, 59, 0.1);
-            border: 1px solid #ffc857;
-            color: #ffc857;
-        }
-
-        /* Profile Modal */
-        .profile-modal {
-            max-width: 800px;
-            max-height: 85vh;
-        }
-
-        .profile-header {
-            text-align: center;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border);
-        }
-
         .profile-avatar {
             width: 80px;
             height: 80px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            background: rgba(255, 255, 255, 0.2);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 700;
-            color: white;
             font-size: 32px;
+            font-weight: bold;
             margin: 0 auto 15px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
         }
-
+        
         .profile-name {
             font-size: 24px;
             font-weight: 700;
-            color: var(--text);
+            margin-bottom: 8px;
         }
-
+        
         .profile-status {
-            font-size: 13px;
-            color: var(--text-light);
-            margin-top: 8px;
-        }
-
-        .profile-content {
-            padding: 20px 0;
-        }
-
-        .section {
-            margin-bottom: 30px;
-        }
-
-        .section-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-        }
-
-        .info-item {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .info-label {
-            font-size: 12px;
-            color: var(--text-light);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
-            font-weight: 600;
-        }
-
-        .info-value {
-            font-size: 14px;
-            color: var(--text);
-        }
-
-        .skills-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .profile-skill-tag {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 500;
-            background: rgba(76, 205, 196, 0.1);
-            color: #72e0d8;
-        }
-
-        .profile-skill-tag.skill-active {
-            background: rgba(81, 207, 102, 0.1);
-            color: #69f0ae;
-        }
-
-        .id-photos {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 15px;
-        }
-
-        .id-photo {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .id-photo-img {
-            width: 100%;
-            height: 250px;
-            object-fit: cover;
-            border-radius: 8px;
-            margin-top: 10px;
-            border: 1px solid var(--border);
-        }
-
-        .primary-button {
-            background: var(--primary);
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            padding: 6px 16px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .profile-content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--border-color);
+            color: var(--primary-color);
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        
+        .info-item {
+            margin-bottom: 12px;
+        }
+        
+        .info-label {
+            font-size: 13px;
+            color: black;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            font-size: 15px;
+            font-weight: 500;
+            color: black;
+        }
+        
+        .skills-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .profile-skill-tag {
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .skill-active {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        
+        .skill-inactive {
+            background: rgba(107, 114, 128, 0.1);
+            color: var(--text-light);
+            border: 1px solid rgba(107, 114, 128, 0.2);
+        }
+        
+        .id-photos {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 16px;
+        }
+        
+        .id-photo {
+            text-align: center;
+        }
+        
+        .id-photo img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .notification {
+            padding: 16px 20px;
+            border-radius: 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transform: translateX(100%);
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 350px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        
+        .notification-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .notification-success .notification-icon {
+            color: var(--success);
+        }
+        
+        .notification-info .notification-icon {
+            color: var(--info);
+        }
+        
+        .notification-warning .notification-icon {
+            color: var(--warning);
+        }
+        
+        .notification-error .notification-icon {
+            color: var(--danger);
+        }
+        
+        .notification-content {
+            flex: 1;
+        }
+        
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .notification-message {
+            font-size: 14px;
+            color: var(--text-light);
+        }
+        
+        .notification-close {
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            color: var(--text-light);
+            flex-shrink: 0;
+        }
+
+        .dashboard-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--background-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        .animation-logo {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 30px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease;
+        }
+
+        .animation-logo-icon img {
+            width: 70px;
+            height: 75px;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+        }
+
+        .animation-logo-text {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .animation-progress {
+            width: 200px;
+            height: 4px;
+            background: var(--gray-200);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .animation-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 2px;
+            transition: width 1s ease;
+            width: 0%;
+        }
+
+        .animation-text {
+            font-size: 16px;
+            color: var(--text-light);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .user-profile {
+            position: relative;
+            cursor: pointer;
+            z-index: 2000;
+        }
+        
+        .user-profile-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            min-width: 180px;
+            z-index: 2001;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .user-profile-dropdown.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .user-profile-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            color: var(--text-color);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .user-profile-dropdown-item:last-child {
+            border-bottom: none;
+        }
+        
+        .user-profile-dropdown-item:hover {
+            background: rgba(220, 38, 38, 0.05);
+        }
+        
+        .user-profile-dropdown-item i {
+            font-size: 18px;
+            width: 20px;
+            text-align: center;
+        }
+        
+        .user-profile-dropdown-item.settings i {
+            color: var(--icon-indigo);
+        }
+        
+        .user-profile-dropdown-item.profile i {
+            color: var(--icon-orange);
+        }
+        
+        .user-profile-dropdown-item.logout i {
+            color: var(--icon-red);
+        }
+
+        .action-button.ai-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .action-button.ai-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .action-button.ai-button i {
+            font-size: 16px;
+        }
+
+        .ai-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .ai-modal.active {
+            display: flex;
+        }
+
+        .ai-modal-content {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .ai-modal-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 20px;
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ai-modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ai-modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .ai-modal-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .ai-modal-body {
+            padding: 20px;
+            color: var(--text-color);
+        }
+
+        .ai-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .ai-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--gray-200);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .ai-loading-text {
+            margin-top: 15px;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        .ai-volunteer-info {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid var(--primary-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .ai-volunteer-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .ai-volunteer-skills {
+            font-size: 13px;
+            color: var(--text-light);
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .ai-skill-badge {
+            background: var(--background-color);
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .ai-recommendations {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .ai-recommendation-card {
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .ai-recommendation-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 6px 15px rgba(220, 38, 38, 0.2);
+        }
+
+        .ai-recommendation-card.selected {
+            border-color: var(--primary-color);
+            background: rgba(220, 38, 38, 0.05);
+        }
+
+        .ai-recommendation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+
+        .ai-unit-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .ai-match-score {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .ai-recommendation-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .ai-detail-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-light);
+        }
+
+        .ai-detail-item i {
+            color: var(--primary-color);
+            font-size: 14px;
+        }
+
+        .ai-matched-skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .ai-matched-skill-tag {
+            background: var(--icon-bg-green);
+            color: var(--success);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .ai-no-match {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-light);
+        }
+
+        .ai-error {
+            background: var(--icon-bg-red);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .ai-modal-footer {
+            padding: 15px 20px;
+            background: rgba(220, 38, 38, 0.02);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            border-radius: 0 0 20px 20px;
+        }
+
+        .ai-button-assign {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
             transition: all 0.3s ease;
         }
 
-        .primary-button:hover {
-            background: var(--primary-dark);
+        .ai-button-assign:hover {
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .ai-button-assign:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .ai-button-cancel {
+            background: var(--gray-200);
+            color: var(--text-color);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .ai-button-cancel:hover {
+            background: var(--gray-300);
+        }
+        
+        @media (max-width: 768px) {
+            .volunteers-table {
+                display: block;
+                overflow-x: auto;
+            }
+            
+            .dashboard-header {
+                padding: 40px 25px 30px;
+            }
+            
+            .dashboard-title {
+                font-size: 32px;
+            }
+            
+            .approve-container {
+                padding: 0 25px 30px;
+            }
+            
+            .stats-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .table-header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .action-button {
+                justify-content: center;
+            }
+            
+            .pagination {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            
+            .pagination-numbers {
+                order: -1;
+                width: 100%;
+                justify-content: center;
+                margin: 8px 0;
+            }
+            
+            .profile-modal {
+                max-width: 95%;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .id-photos {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
+
 </head>
 <body>
+    <div class="dashboard-animation" id="dashboard-animation">
+        <div class="animation-logo">
+            <div class="animation-logo-icon">
+                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo">
+            </div>
+            <span class="animation-logo-text">Fire & Rescue</span>
+        </div>
+        <div class="animation-progress">
+            <div class="animation-progress-fill" id="animation-progress"></div>
+        </div>
+        <div class="animation-text" id="animation-text">Loading Dashboard...</div>
+    </div>
+    
+    <!-- Notification Container -->
+    <div class="notification-container" id="notification-container"></div>
+    
+    <!-- AI Recommendation Modal -->
+    <div class="ai-modal" id="ai-modal">
+        <div class="ai-modal-content">
+            <div class="ai-modal-header">
+                <h2>
+                    <i class='bx bx-sparkles'></i>
+                    AI Unit Recommendation
+                </h2>
+                <button class="ai-modal-close" id="ai-modal-close">&times;</button>
+            </div>
+            <div class="ai-modal-body">
+                <div id="ai-loading" class="ai-loading">
+                    <div class="ai-spinner"></div>
+                    <div class="ai-loading-text">Analyzing skills and finding best matches...</div>
+                </div>
+                
+                <div id="ai-content" style="display: none;">
+                    <div id="ai-volunteer-info" class="ai-volunteer-info"></div>
+                    <div id="ai-error" class="ai-error"></div>
+                    <div id="ai-recommendations" class="ai-recommendations"></div>
+                </div>
+            </div>
+            <div class="ai-modal-footer">
+                <button class="ai-button-cancel" id="ai-button-close">Close</button>
+                <button class="ai-button-assign" id="ai-button-assign" disabled>Assign Selected Unit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile View Modal -->
+    <div class="modal-overlay" id="profile-modal">
+        <div class="modal profile-modal">
+            <div class="modal-header profile-header">
+                <h2 class="modal-title">Volunteer Profile</h2>
+                <button class="modal-close" id="profile-modal-close">&times;</button>
+            </div>
+            <div class="modal-body profile-content" id="profile-modal-body">
+                <!-- Profile content will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button class="action-button view-button" id="profile-close">Close Profile</button>
+            </div>
+        </div>
+    </div>
+    
     <div class="container">
         <!-- Sidebar -->
         <div class="sidebar">
-            <div style="margin-bottom: 40px;">
-                <h2 style="font-size: 24px; font-weight: 700; color: var(--text); margin-bottom: 5px;">FRSM</h2>
-                <p style="font-size: 12px; color: var(--text-light); text-transform: uppercase; letter-spacing: 1px;">System</p>
+            <!-- Logo -->
+            <div class="logo">
+                <div class="logo-icon">
+                    <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo" style="width: 40px; height: 45px;">
+                </div>
+                <span class="logo-text">Fire & Rescue</span>
             </div>
             
-            <ul class="sidebar-menu">
-                <li class="sidebar-item">
-                    <a href="../../dashboard/admin_dashboard.php" class="sidebar-link">
-                        <i class='bx bx-grid-alt'></i>
-                        <span>Dashboard</span>
+              <!-- Menu Section -->
+            <div class="menu-section">
+                <p class="menu-title">FIRE & RESCUE MANAGEMENT</p>
+                
+                <div class="menu-items">
+                    <a href="../employee_dashboard.php" class="menu-item">
+                        <div class="icon-box icon-bg-red">
+                            <i class='bx bxs-dashboard icon-red'></i>
+                        </div>
+                        <span class="font-medium">Dashboard</span>
                     </a>
-                </li>
-                <li class="sidebar-item">
-                    <a href="review_data.php" class="sidebar-link">
-                        <i class='bx bx-list-check'></i>
-                        <span>Review Applications</span>
-                    </a>
-                </li>
-                <li class="sidebar-item">
-                    <a href="approve_applications.php" class="sidebar-link active">
-                        <i class='bx bx-user-check'></i>
-                        <span>Approve & Assign</span>
-                    </a>
-                </li>
-                <li class="sidebar-item">
-                    <a href="../../dashboard/manage_volunteers.php" class="sidebar-link">
-                        <i class='bx bx-group'></i>
-                        <span>Manage Volunteers</span>
-                    </a>
-                </li>
-            </ul>
-            
-            <div style="position: absolute; bottom: 30px; left: 20px; right: 20px;">
-                <div id="user-profile" class="user-profile">
-                    <div class="user-avatar"><?php echo strtoupper(substr($first_name, 0, 1)); ?></div>
-                    <div style="flex: 1;">
-                        <div style="font-size: 14px; font-weight: 600; color: var(--text);"><?php echo htmlspecialchars($first_name); ?></div>
-                        <div style="font-size: 12px; color: var(--text-light);"><?php echo htmlspecialchars($role); ?></div>
+                    
+                    <!-- Fire & Incident Reporting -->
+                    <div class="menu-item" onclick="toggleSubmenu('fire-incident')">
+                        <div class="icon-box icon-bg-orange">
+                            <i class='bx bxs-alarm-exclamation icon-orange'></i>
+                        </div>
+                        <span class="font-medium">Fire & Incident Reporting</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
                     </div>
-                    <i class='bx bx-chevron-down'></i>
+                    <div id="fire-incident" class="submenu">
+                         <a href="../fir/recieve_data.php" class="submenu-item">Receive Data</a>
+                        <a href="../fir/manual_reporting.php" class="submenu-item">Manual Reporting</a>
+                        <a href="../fir/update_status.php" class="submenu-item">Update Status</a>
+                    </div>
+                    
+                    <!-- Dispatch Coordination -->
+                    <div class="menu-item" onclick="toggleSubmenu('dispatch')">
+                        <div class="icon-box icon-bg-yellow">
+                            <i class='bx bxs-truck icon-yellow'></i>
+                        </div>
+                        <span class="font-medium">Dispatch Coordination</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="dispatch" class="submenu">
+                        <a href="../dispatch/select_unit.php" class="submenu-item">Select Unit</a>
+                        <a href="../dispatch/send_dispatch.php" class="submenu-item">Send Dispatch Info</a>
+                        <a href="../dispatch/notify_unit.php" class="submenu-item">Notify Unit</a>
+                        <a href="../dispatch/track_status.php" class="submenu-item">Track Status</a>
+                    </div>
+                    
+                    
+                       <!-- Barangay Volunteer Roster Access -->
+                    <div class="menu-item" onclick="toggleSubmenu('volunteer')">
+                        <div class="icon-box icon-bg-blue">
+                            <i class='bx bxs-user-detail icon-blue'></i>
+                        </div>
+                        <span class="font-medium">Volunteer Roster Access</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="volunteer" class="submenu active">
+                        <a href="review_data.php" class="submenu-item">Review/Aprroved Data Management</a>
+                        <a href="approve_applications.php" class="submenu-item active">Assign Volunteers</a>
+                        <a href="view_availability.php" class="submenu-item">View Availability</a>
+                        <a href="remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
+                        <a href="toggle_volunteer_registration.php" class="submenu-item">Open/Close Registration</a>
+                    </div>
+
+                    <!-- Resource Inventory Updates -->
+                    <div class="menu-item" onclick="toggleSubmenu('inventory')">
+                        <div class="icon-box icon-bg-green">
+                            <i class='bx bxs-cube icon-green'></i>
+                        </div>
+                        <span class="font-medium">Resource Inventory</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="inventory" class="submenu">
+                        <a href="../inventory/log_usage.php" class="submenu-item">Log Usage</a>
+                        <a href="../inventory/report_damages.php" class="submenu-item">Report Damages</a>
+                        <a href="../inventory/request_supplies.php" class="submenu-item">Request Supplies</a>
+                        <a href="../inventory/tag_resources.php" class="submenu-item">Tag Resources</a>
+                    </div>
+                    
+                    <!-- Shift & Duty Scheduling -->
+                    <div class="menu-item" onclick="toggleSubmenu('schedule')">
+                        <div class="icon-box icon-bg-purple">
+                            <i class='bx bxs-calendar icon-purple'></i>
+                        </div>
+                        <span class="font-medium">Shift & Duty Scheduling</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="schedule" class="submenu">
+                        <a href="../schedule/view_shifts.php" class="submenu-item">View Shifts</a>
+                        <a href="../schedule/confirm_availability.php" class="submenu-item">Confirm Availability</a>
+                        <a href="../schedule/request_change.php" class="submenu-item">Request Change</a>
+                        <a href="../schedule/mark_attendance.php" class="submenu-item">Mark Attendance</a>
+                    </div>
+                    
+                    <!-- Training & Certification Logging -->
+                    <div class="menu-item" onclick="toggleSubmenu('training')">
+                        <div class="icon-box icon-bg-teal">
+                            <i class='bx bxs-graduation icon-teal'></i>
+                        </div>
+                        <span class="font-medium">Training & Certification</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="training" class="submenu">
+                        <a href="../training/submit_training.php" class="submenu-item">Submit Training</a>
+                        <a href="../training/upload_certificates.php" class="submenu-item">Upload Certificates</a>
+                        <a href="../training/request_training.php" class="submenu-item">Request Training</a>
+                        <a href="../training/view_events.php" class="submenu-item">View Events</a>
+                    </div>
+                    
+                    <!-- Inspection Logs -->
+                    <div class="menu-item" onclick="toggleSubmenu('inspection')">
+                        <div class="icon-box icon-bg-cyan">
+                            <i class='bx bxs-check-shield icon-cyan'></i>
+                        </div>
+                        <span class="font-medium">Inspection Logs</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="inspection" class="submenu">
+                        <a href="../inspection/conduct_inspections.php" class="submenu-item">Conduct Inspections</a>
+                        <a href="../inspection/submit_findings.php" class="submenu-item">Submit Findings</a>
+                        <a href="../inspection/upload_photos.php" class="submenu-item">Upload Photos</a>
+                        <a href="../inspection/tag_violations.php" class="submenu-item">Tag Violations</a>
+                    </div>
+                    
+                    <!-- Post-Incident Reporting -->
+                    <div class="menu-item" onclick="toggleSubmenu('postincident')">
+                        <div class="icon-box icon-bg-pink">
+                            <i class='bx bxs-file-doc icon-pink'></i>
+                        </div>
+                        <span class="font-medium">Post-Incident Reporting</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="postincident" class="submenu">
+                        <a href="../postincident/upload_reports.php" class="submenu-item">Upload Reports</a>
+                        <a href="../postincident/add_notes.php" class="submenu-item">Add Notes</a>
+                        <a href="../postincident/attach_equipment.php" class="submenu-item">Attach Equipment</a>
+                        <a href="../postincident/mark_completed.php" class="submenu-item">Mark Completed</a>
+                    </div>
                 </div>
-                <div id="user-profile-dropdown" class="profile-dropdown">
-                    <button class="profile-dropdown-item" id="theme-toggle">
-                        <i class='bx bx-moon'></i> Dark Mode
-                    </button>
-                    <button class="profile-dropdown-item" onclick="window.location.href='../../auth/logout.php'">
-                        <i class='bx bx-log-out'></i> Logout
-                    </button>
+                
+                <p class="menu-title" style="margin-top: 32px;">GENERAL</p>
+                
+                <div class="menu-items">
+                    <a href="../settings.php" class="menu-item">
+                        <div class="icon-box icon-bg-indigo">
+                            <i class='bx bxs-cog icon-indigo'></i>
+                        </div>
+                        <span class="font-medium">Settings</span>
+                    </a>
+                    
+                    <a href="../profile/profile.php" class="menu-item">
+                        <div class="icon-box icon-bg-orange">
+                            <i class='bx bxs-user icon-orange'></i>
+                        </div>
+                        <span class="font-medium">Profile</span>
+                    </a>
+                    
+                    <a href="../../includes/logout.php" class="menu-item">
+                        <div class="icon-box icon-bg-red">
+                            <i class='bx bx-log-out icon-red'></i>
+                        </div>
+                        <span class="font-medium">Logout</span>
+                    </a>
                 </div>
             </div>
         </div>
         
         <!-- Main Content -->
         <div class="main-content">
+            <!-- Header -->
             <div class="header">
-                <h1 class="header-title">Approve & Assign Volunteers</h1>
-                <div class="header-actions">
-                    <button class="header-button" id="search-button" title="Search">
-                        <i class='bx bx-search'></i>
-                    </button>
-                    <button class="header-button" id="refresh-button" title="Refresh">
-                        <i class='bx bx-refresh'></i>
-                    </button>
-                    <button class="header-button" id="export-button" title="Export">
-                        <i class='bx bx-download'></i>
-                    </button>
+                <div class="header-content">
+                    <div class="search-container">
+                        <div class="search-box">
+                            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                            <input type="text" placeholder="Search approved volunteers..." class="search-input" id="search-input">
+                            <kbd class="search-shortcut">/</kbd>
+                        </div>
+                    </div>
+                    
+                    <div class="header-actions">
+                        <button class="theme-toggle" id="theme-toggle">
+                            <i class='bx bx-moon'></i>
+                            <span>Dark Mode</span>
+                        </button>
+                        <div class="time-display" id="time-display">
+                            <i class='bx bx-time time-icon'></i>
+                            <span id="current-time">Loading...</span>
+                        </div>
+                        <div class="user-profile" id="user-profile">
+                            <img src="../../img/rei.jfif" alt="User" class="user-avatar">
+                            <div class="user-info">
+                                <p class="user-name"><?php echo $full_name; ?></p>
+                                <p class="user-email"><?php echo $role; ?></p>
+                            </div>
+                            <div class="user-profile-dropdown" id="user-profile-dropdown">
+                                <a href="../settings.php" class="user-profile-dropdown-item settings">
+                                    <i class='bx bxs-cog'></i>
+                                    <span>Settings</span>
+                                </a>
+                                <a href="../profile/profile.php" class="user-profile-dropdown-item profile">
+                                    <i class='bx bxs-user'></i>
+                                    <span>Profile</span>
+                                </a>
+                                <a href="../../includes/logout.php" class="user-profile-dropdown-item logout">
+                                    <i class='bx bx-log-out'></i>
+                                    <span>Logout</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             
-            <div class="content">
+            <!-- Dashboard Content -->
+            <div class="dashboard-content">
+                <div class="dashboard-header">
+                    <div>
+                        <h1 class="dashboard-title">Assign Units</h1>
+                        <p class="dashboard-subtitle">Assign approved volunteers to response units with enhanced security</p>
+                    </div>
+                    <div class="dashboard-actions">
+                        <button class="primary-button" id="refresh-button">
+                            <i class='bx bx-refresh'></i>
+                            Refresh Data
+                        </button>
+                        <button class="secondary-button" id="export-button">
+                            <i class='bx bx-export'></i>
+                            Export Assignments
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Approve Applications Section -->
                 <div class="approve-container">
                     <!-- Enhanced Stats Cards -->
                     <div class="stats-container">
@@ -1267,12 +1925,12 @@ $count_stmt = null;
                                                         <i class='bx bx-show'></i>
                                                         View
                                                     </button>
-                                                    <!-- Added AI Recommendation Button -->
+                                                    <!-- <CHANGE> Added AI Recommend button -->
+                                                    <button class="action-button ai-button" onclick="getAIRecommendation(<?php echo $volunteer['id']; ?>, '<?php echo htmlspecialchars($volunteer['full_name']); ?>')">
+                                                        <i class='bx bx-sparkles'></i>
+                                                        AI Suggest
+                                                    </button>
                                                     <?php if (empty($volunteer['unit_name'])): ?>
-                                                        <button class="ai-recommendation-button" onclick="getAIRecommendation(<?php echo $volunteer['id']; ?>, '<?php echo htmlspecialchars($volunteer['full_name']); ?>')">
-                                                            <i class='bx bx-brain'></i>
-                                                            AI Suggest
-                                                        </button>
                                                         <select class="unit-select" id="unit-select-<?php echo $volunteer['id']; ?>">
                                                             <option value="">Select Unit</option>
                                                             <?php foreach ($units as $unit): ?>
@@ -1281,12 +1939,12 @@ $count_stmt = null;
                                                                 </option>
                                                             <?php endforeach; ?>
                                                         </select>
-                                                        <button class="action-button assign-button" onclick="confirmAssignToUnit(<?php echo $volunteer['id']; ?>)">
+                                                        <button class="action-button assign-button" onclick="assignToUnit(<?php echo $volunteer['id']; ?>)">
                                                             <i class='bx bx-user-plus'></i>
                                                             Assign
                                                         </button>
                                                     <?php else: ?>
-                                                        <button class="action-button reassign-button" onclick="confirmReassignUnit(<?php echo $volunteer['id']; ?>)">
+                                                        <button class="action-button reassign-button" onclick="reassignUnit(<?php echo $volunteer['id']; ?>)">
                                                             <i class='bx bx-transfer'></i>
                                                             Reassign
                                                         </button>
@@ -1360,663 +2018,779 @@ $count_stmt = null;
             </div>
         </div>
     </div>
+  <script>
+    let selectedUnitId = null;
+    let selectedVolunteerId = null;
     
-    <!-- Search Modal -->
-    <div class="modal-overlay" id="search-modal">
-        <div class="modal" style="max-width: 600px;">
-            <div class="modal-header">
-                <h2 class="modal-title">Search Volunteers</h2>
-                <button class="modal-close" onclick="document.getElementById('search-modal').classList.remove('active')">&times;</button>
+    // Get AI Recommendation for a volunteer
+    function getAIRecommendation(volunteerId, volunteerName) {
+        console.log('🚀 Getting AI Recommendation for:', volunteerId, volunteerName);
+        
+        selectedVolunteerId = volunteerId;
+        selectedUnitId = null;
+        
+        const modal = document.getElementById('ai-modal');
+        const loading = document.getElementById('ai-loading');
+        const content = document.getElementById('ai-content');
+        
+        modal.classList.add('active');
+        loading.style.display = 'flex';
+        content.style.display = 'none';
+        
+        // Clear previous content
+        document.getElementById('ai-volunteer-info').innerHTML = '';
+        document.getElementById('ai-recommendations').innerHTML = '';
+        document.getElementById('ai-error').style.display = 'none';
+        
+        // Show AI loading message
+        loading.innerHTML = `
+            <div class="ai-spinner"></div>
+            <div class="ai-loading-text">
+                <div>🤖 Connecting to Google Dialogflow AI...</div>
+                <div style="font-size: 12px; margin-top: 8px; opacity: 0.8;">Analyzing volunteer skills and unit requirements</div>
             </div>
-            <div class="modal-body">
-                <div class="modal-detail">
-                    <input type="text" class="modal-input" id="search-input" placeholder="Search by name, email, or phone...">
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Password Verification Modal -->
-    <div class="modal-overlay" id="password-modal">
-        <div class="modal">
-            <div class="modal-header">
-                <h2 class="modal-title">Security Verification</h2>
-                <button class="modal-close" id="password-modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="modal-detail">
-                    <label class="modal-label">Enter your password to confirm this action:</label>
-                    <input type="password" class="modal-input" id="confirm-password" placeholder="Enter your password">
-                    <input type="hidden" id="confirm-action">
-                    <input type="hidden" id="confirm-volunteer-id">
-                    <input type="hidden" id="confirm-unit-id">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="action-button view-button" id="password-cancel">Cancel</button>
-                <button class="action-button assign-button" id="password-confirm">Confirm Action</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Profile View Modal -->
-    <div class="modal-overlay" id="profile-modal">
-        <div class="modal profile-modal">
-            <div class="modal-header profile-header">
-                <h2 class="modal-title">Volunteer Profile</h2>
-                <button class="modal-close" id="profile-modal-close">&times;</button>
-            </div>
-            <div class="modal-body profile-content" id="profile-modal-body">
-                <!-- Profile content will be loaded here -->
-            </div>
-            <div class="modal-footer">
-                <button class="action-button view-button" id="profile-close">Close Profile</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- AI Recommendation Modal -->
-    <div class="modal-overlay" id="recommendation-modal">
-        <div class="modal recommendation-modal">
-            <div class="modal-header">
-                <h2 class="modal-title"><i class='bx bx-brain'></i> AI Unit Recommendations</h2>
-                <button class="modal-close" id="recommendation-modal-close">&times;</button>
-            </div>
-            <div class="modal-body" id="recommendation-content">
-                <div style="text-align: center; padding: 40px 20px;">
-                    <div class="spinner" style="width: 40px; height: 40px; display: inline-block;"></div>
-                    <p style="margin-top: 20px; color: var(--text-light);">AI is analyzing volunteer skills...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        let currentAssignment = {
-            volunteerId: null,
-            unitId: null,
-            action: null
-        };
-
-        document.addEventListener('DOMContentLoaded', function() {
-            initEventListeners();
+        `;
+        
+        // Use URLSearchParams for proper form data
+        const formData = new URLSearchParams();
+        formData.append('volunteer_id', volunteerId);
+        
+        fetch('ai/get_ai_recommendation.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: formData
+        })
+        .then(response => {
+            console.log('📥 Response status:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('✅ AI Response:', data);
+            
+            const loading = document.getElementById('ai-loading');
+            const content = document.getElementById('ai-content');
+            
+            loading.style.display = 'none';
+            content.style.display = 'block';
+            
+            if (data.success && data.recommendations) {
+                displayAIRecommendations(data.recommendations, data.volunteer);
+                showNotification('success', 'AI Analysis Complete', 'Dialogflow AI provided recommendations');
+            } else {
+                showAIError(data.message || 'No recommendations from AI');
+            }
+        })
+        .catch(error => {
+            console.error('❌ AI Request failed:', error);
+            showAIError('Failed to connect to AI service: ' + error.message);
         });
+    }
 
-        function initEventListeners() {
-            // Theme toggle
-            const themeToggle = document.getElementById('theme-toggle');
-            const themeIcon = themeToggle.querySelector('i');
-            const themeText = themeToggle.querySelector('span');
-            
-            themeToggle.addEventListener('click', function() {
-                document.body.classList.toggle('dark-mode');
-                
-                if (document.body.classList.contains('dark-mode')) {
-                    themeIcon.className = 'bx bx-sun';
-                    themeText.textContent = 'Light Mode';
-                } else {
-                    themeIcon.className = 'bx bx-moon';
-                    themeText.textContent = 'Dark Mode';
-                }
-            });
-            
-            // Refresh button
-            document.getElementById('refresh-button').addEventListener('click', function() {
-                showNotification('info', 'Refreshing Data', 'Fetching the latest volunteer assignments');
-                location.reload();
-            });
-            
-            // Export button
-            document.getElementById('export-button').addEventListener('click', function() {
-                showNotification('info', 'Export Started', 'Preparing assignment report for download');
-                // In real implementation, trigger export process
-            });
-            
-            // Search functionality
-            document.getElementById('search-input').addEventListener('input', function(e) {
-                const searchTerm = e.target.value.toLowerCase();
-                const rows = document.querySelectorAll('.volunteers-table tbody tr');
-                
-                rows.forEach(row => {
-                    const volunteerName = row.querySelector('.volunteer-name').textContent.toLowerCase();
-                    const volunteerEmail = row.querySelector('.volunteer-email').textContent.toLowerCase();
-                    const contactNumber = row.cells[1].textContent.toLowerCase();
-                    
-                    if (volunteerName.includes(searchTerm) || volunteerEmail.includes(searchTerm) || contactNumber.includes(searchTerm)) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-            });
-            
-            // Password modal events
-            document.getElementById('password-modal-close').addEventListener('click', closePasswordModal);
-            document.getElementById('password-cancel').addEventListener('click', closePasswordModal);
-            document.getElementById('password-confirm').addEventListener('click', executeConfirmedAction);
-            
-            // Profile modal events
-            document.getElementById('profile-modal-close').addEventListener('click', closeProfileModal);
-            document.getElementById('profile-close').addEventListener('click', closeProfileModal);
-            
-            document.getElementById('recommendation-modal-close').addEventListener('click', closeRecommendationModal);
-            
-            // Enter key in password field
-            document.getElementById('confirm-password').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    executeConfirmedAction();
-                }
-            });
-            
-            // Close modals when clicking outside
-            document.addEventListener('click', function(e) {
-                if (e.target.classList.contains('modal-overlay')) {
-                    closePasswordModal();
-                    closeProfileModal();
-                    closeRecommendationModal();
-                }
-            });
-            
-            // Escape key to close modals
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    closePasswordModal();
-                    closeProfileModal();
-                    closeRecommendationModal();
-                }
-            });
-            
-            // User profile dropdown functionality
-            const userProfile = document.getElementById('user-profile');
-            const userProfileDropdown = document.getElementById('user-profile-dropdown');
-            
-            userProfile.addEventListener('click', function(e) {
-                e.stopPropagation();
-                userProfileDropdown.classList.toggle('active');
-            });
-            
-            // Close dropdown when clicking elsewhere
-            document.addEventListener('click', function() {
-                userProfileDropdown.classList.remove('active');
-            });
-            
-            // Search button
-            document.getElementById('search-button').addEventListener('click', function() {
-                document.getElementById('search-modal').classList.add('active');
-                document.getElementById('search-input').focus();
-            });
-        }
+    // Display AI Recommendations
+    function displayAIRecommendations(recommendations, volunteerInfo) {
+        const volunteerInfo_div = document.getElementById('ai-volunteer-info');
+        const recommendationsDiv = document.getElementById('ai-recommendations');
         
-        function getAIRecommendation(volunteerId, volunteerName) {
-            const modal = document.getElementById('recommendation-modal');
-            modal.classList.add('active');
-            
-            // Fetch recommendations from the API
-            fetch('get_recommendation_api.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    volunteer_id: volunteerId
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.recommendations) {
-                    displayRecommendations(data.recommendations, volunteerId);
-                } else {
-                    showRecommendationError('Failed to get recommendations. Please try again.');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showRecommendationError('Error getting AI recommendations. Please try again.');
-            });
-        }
+        console.log('🎯 Displaying AI recommendations:', recommendations);
         
-        function displayRecommendations(recommendations, volunteerId) {
-            const contentDiv = document.getElementById('recommendation-content');
-            let html = '<div style="margin-bottom: 20px;">';
-            
-            recommendations.forEach((rec, index) => {
-                const rank = index + 1;
-                html += `
-                    <div class="recommendation-card">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
-                            <div style="flex: 1;">
-                                <div style="display: inline-block; background: ${rank === 1 ? '#51cf66' : rank === 2 ? '#4dabf7' : '#ffc857'}; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; margin-bottom: 10px; margin-right: 10px;">${rank}</div>
-                                <div class="recommendation-unit-name">${rec.unit_name}</div>
-                                <div class="recommendation-code">${rec.unit_code}</div>
-                            </div>
-                            <div class="score-badge">${rec.score}% Match</div>
-                        </div>
-                        <div class="recommendation-details">
-                            <div class="recommendation-detail-item">
-                                <span class="detail-icon">📍</span>
-                                <span>${rec.unit_type} Unit - ${rec.location}</span>
-                            </div>
-                            <div class="recommendation-detail-item">
-                                <span class="detail-icon">👥</span>
-                                <span>${rec.current_count}/${rec.capacity} capacity</span>
-                            </div>
-                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
-                                <div style="font-size: 12px; font-weight: 600; color: var(--text-light); margin-bottom: 8px;">Matched Skills:</div>
-                                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                                    ${rec.matched_skills.map(skill => `<span style="background: rgba(81, 207, 102, 0.2); color: #69f0ae; padding: 4px 10px; border-radius: 4px; font-size: 12px;">✓ ${skill}</span>`).join('')}
+        // Show volunteer info
+        const skillsHtml = recommendations.length > 0 && recommendations[0].matched_skills.length > 0
+            ? '<div class="ai-volunteer-skills">' +
+              recommendations[0].matched_skills
+                .map(skill => `<span class="ai-skill-badge">🔧 ${skill}</span>`).join('') +
+              '</div>'
+            : '<div class="ai-volunteer-skills"><span class="ai-skill-badge">⏳ Analyzing skills...</span></div>';
+        
+        volunteerInfo_div.innerHTML = `
+            <div class="ai-volunteer-name">👤 ${volunteerInfo.name}</div>
+            ${skillsHtml}
+            <div style="font-size: 12px; color: var(--text-light); margin-top: 8px; display: flex; align-items: center; gap: 5px;">
+                <i class='bx bx-chip' style="color: #4285f4;"></i>
+                <span>${recommendations[0]?.ai_model || 'Google Dialogflow AI'}</span>
+            </div>
+        `;
+        
+        // Show recommendations
+        if (recommendations.length > 0) {
+            recommendationsDiv.innerHTML = recommendations.map((rec, index) => {
+                const badgeColor = rec.score >= 80 ? '#0f9d58' : rec.score >= 60 ? '#f4b400' : '#db4437';
+                const rankIcon = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
+                
+                return `
+                    <div class="ai-recommendation-card" onclick="selectUnit(${rec.unit_id}, this)">
+                        <div class="ai-recommendation-header">
+                            <div>
+                                <div class="ai-unit-name">${rankIcon} ${rec.unit_name}</div>
+                                <div style="font-size: 12px; color: var(--text-light);">
+                                    📋 ${rec.unit_code} • 🏷️ ${rec.unit_type}
                                 </div>
                             </div>
+                            <span class="ai-match-score" style="background: linear-gradient(135deg, ${badgeColor}, ${badgeColor}99);">
+                                ${rec.score}% Match
+                            </span>
                         </div>
-                        <div class="recommendation-action">
-                            <button class="accept-recommendation-btn" onclick="acceptRecommendation(${volunteerId}, ${rec.unit_id}, '${rec.unit_name}')">
-                                Accept This Recommendation
-                            </button>
+                        <div class="ai-recommendation-details">
+                            <div class="ai-detail-item">
+                                <i class='bx bx-map' style="color: #4285f4;"></i>
+                                <span>📍 ${rec.location}</span>
+                            </div>
+                            <div class="ai-detail-item">
+                                <i class='bx bx-group' style="color: #0f9d58;"></i>
+                                <span>👥 ${rec.current_count}/${rec.capacity} Members</span>
+                            </div>
+                            <div class="ai-detail-item">
+                                <i class='bx bx-chip' style="color: #db4437;"></i>
+                                <span>🤖 ${rec.ai_confidence}% AI Confidence</span>
+                            </div>
+                        </div>
+                        <div class="ai-recommendation-details">
+                            <div class="ai-detail-item">
+                                <i class='bx bx-brain' style="color: #9c27b0;"></i>
+                                <span style="font-size: 12px; line-height: 1.4;">💡 ${rec.ai_reasoning}</span>
+                            </div>
+                        </div>
+                        <div class="ai-matched-skills">
+                            ${rec.matched_skills.map(skill => 
+                                `<span class="ai-matched-skill-tag">✅ ${skill}</span>`
+                            ).join('')}
                         </div>
                     </div>
                 `;
-            });
-            
-            html += '</div>';
-            contentDiv.innerHTML = html;
-        }
-        
-        function acceptRecommendation(volunteerId, unitId, unitName) {
-            const selectElement = document.getElementById(`unit-select-${volunteerId}`);
-            if (selectElement) {
-                selectElement.value = unitId;
-                closeRecommendationModal();
-                showNotification('info', 'Unit Selected', `${unitName} has been selected. Click Assign to confirm.`);
-            }
-        }
-        
-        function showRecommendationError(message) {
-            const contentDiv = document.getElementById('recommendation-content');
-            contentDiv.innerHTML = `
-                <div style="text-align: center; padding: 40px 20px;">
-                    <i class='bx bx-error' style="font-size: 48px; color: var(--error); margin-bottom: 20px;"></i>
-                    <p style="color: var(--text-light);">${message}</p>
+            }).join('');
+        } else {
+            recommendationsDiv.innerHTML = `
+                <div class="ai-no-match">
+                    <i class='bx bx-search-alt' style="font-size: 48px; color: var(--text-light); margin-bottom: 16px;"></i>
+                    <h3>No AI Matches Found</h3>
+                    <p>Dialogflow AI couldn't find suitable units based on current skills and availability.</p>
                 </div>
             `;
         }
         
-        function closeRecommendationModal() {
-            document.getElementById('recommendation-modal').classList.remove('active');
+        document.getElementById('ai-error').style.display = 'none';
+        document.getElementById('ai-button-assign').disabled = true;
+    }
+
+    // Select Unit from AI Recommendation
+    function selectUnit(unitId, element) {
+        selectedUnitId = unitId;
+        
+        // Remove previous selection
+        document.querySelectorAll('.ai-recommendation-card').forEach(card => {
+            card.classList.remove('selected');
+            card.style.transform = 'scale(1)';
+        });
+        
+        // Add selection to clicked card
+        element.classList.add('selected');
+        element.style.transform = 'scale(1.02)';
+        
+        // Enable assign button
+        document.getElementById('ai-button-assign').disabled = false;
+        
+        // Show selection feedback
+        const selectedUnit = element.querySelector('.ai-unit-name').textContent;
+        console.log('✅ Selected unit:', selectedUnit, 'ID:', unitId);
+    }
+
+    // Show AI Error
+    function showAIError(message) {
+        const loading = document.getElementById('ai-loading');
+        const content = document.getElementById('ai-content');
+        
+        loading.style.display = 'none';
+        content.style.display = 'block';
+        
+        const errorDiv = document.getElementById('ai-error');
+        errorDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <i class='bx bx-error-circle' style="font-size: 24px; color: #db4437;"></i>
+                <strong>Dialogflow AI Service Error</strong>
+            </div>
+            <div style="font-size: 14px; line-height: 1.5;">${message}</div>
+        `;
+        errorDiv.style.display = 'block';
+        
+        document.getElementById('ai-recommendations').innerHTML = `
+            <div class="ai-no-match">
+                <i class='bx bx-wifi-off' style="font-size: 48px; color: #db4437; margin-bottom: 16px;"></i>
+                <h3>AI Service Unavailable</h3>
+                <p>${message}</p>
+                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                    <button class="action-button ai-button" onclick="retryAIRecommendation()">
+                        <i class='bx bx-refresh'></i>
+                        Retry AI Analysis
+                    </button>
+                    <button class="action-button view-button" onclick="closeAIModal()">
+                        <i class='bx bx-x'></i>
+                        Close
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        showNotification('error', 'AI Service Error', 'Dialogflow AI is currently unavailable');
+    }
+
+    // Retry AI Recommendation
+    function retryAIRecommendation() {
+        if (selectedVolunteerId) {
+            const volunteerName = document.querySelector(`tr[data-id="${selectedVolunteerId}"] .volunteer-name`).textContent;
+            getAIRecommendation(selectedVolunteerId, volunteerName);
+        }
+    }
+
+    // Close AI Modal
+    function closeAIModal() {
+        document.getElementById('ai-modal').classList.remove('active');
+        selectedUnitId = null;
+        selectedVolunteerId = null;
+        
+        // Reset button state
+        document.getElementById('ai-button-assign').disabled = true;
+    }
+
+    // Assign to Unit
+    function assignToUnit(volunteerId) {
+        const unitSelect = document.getElementById(`unit-select-${volunteerId}`);
+        const unitId = unitSelect.value;
+        
+        if (!unitId) {
+            showNotification('error', 'Selection Required', 'Please select a unit first');
+            return;
         }
         
-        function confirmAssignToUnit(volunteerId) {
-            const unitSelect = document.getElementById(`unit-select-${volunteerId}`);
-            const unitId = unitSelect.value;
-            
-            if (!unitId) {
-                showNotification('error', 'Selection Required', 'Please select a unit first');
-                return;
-            }
-            
-            // Get unit name for confirmation message
-            const unitName = unitSelect.options[unitSelect.selectedIndex].text;
-            const volunteerName = document.querySelector(`tr[data-id="${volunteerId}"] .volunteer-name`).textContent;
-            
-            currentAssignment = {
-                volunteerId: volunteerId,
-                unitId: unitId,
-                action: 'assign'
-            };
-            
-            showPasswordModal(`Assign ${volunteerName} to ${unitName}`);
+        const assignButton = document.querySelector(`tr[data-id="${volunteerId}"] .assign-button`);
+        if (assignButton) {
+            assignButton.disabled = true;
+            assignButton.innerHTML = '<i class="bx bx-loader-circle bx-spin"></i> Assigning...';
         }
         
-        function confirmReassignUnit(volunteerId) {
-            const volunteerName = document.querySelector(`tr[data-id="${volunteerId}"] .volunteer-name`).textContent;
-            
-            currentAssignment = {
-                volunteerId: volunteerId,
-                unitId: null,
-                action: 'reassign'
-            };
-            
-            showPasswordModal(`Reassign ${volunteerName} to a different unit`);
-        }
-        
-        function showPasswordModal(actionText) {
-            document.getElementById('confirm-action').value = currentAssignment.action;
-            document.getElementById('confirm-volunteer-id').value = currentAssignment.volunteerId;
-            document.getElementById('confirm-unit-id').value = currentAssignment.unitId;
-            
-            document.getElementById('password-modal').classList.add('active');
-            document.getElementById('confirm-password').value = '';
-            document.getElementById('confirm-password').focus();
-        }
-        
-        function closePasswordModal() {
-            document.getElementById('password-modal').classList.remove('active');
-            currentAssignment = { volunteerId: null, unitId: null, action: null };
-        }
-        
-        function executeConfirmedAction() {
-            const password = document.getElementById('confirm-password').value;
-            
-            if (!password) {
-                showNotification('error', 'Password Required', 'Please enter your password to confirm this action');
-                return;
-            }
-            
-            // Verify password first
-            verifyPassword(password)
-                .then(isValid => {
-                    if (isValid) {
-                        if (currentAssignment.action === 'assign') {
-                            assignToUnit(currentAssignment.volunteerId, currentAssignment.unitId);
-                        } else if (currentAssignment.action === 'reassign') {
-                            reassignUnit(currentAssignment.volunteerId);
-                        }
-                        closePasswordModal();
-                    } else {
-                        showNotification('error', 'Invalid Password', 'The password you entered is incorrect');
-                        document.getElementById('confirm-password').value = '';
-                        document.getElementById('confirm-password').focus();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    showNotification('error', 'Verification Failed', 'Unable to verify password. Please try again.');
-                });
-        }
-        
-        function verifyPassword(password) {
-            return fetch('verify_password.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+        fetch('assign_volunteer_unit.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    password: password
-                })
+            body: JSON.stringify({
+                volunteer_id: volunteerId,
+                unit_id: unitId,
+                assigned_by: <?php echo $user_id; ?>
             })
-            .then(response => response.json())
-            .then(data => data.valid);
-        }
-        
-        function assignToUnit(volunteerId, unitId) {
-            const assignButton = document.querySelector(`tr[data-id="${volunteerId}"] .assign-button`);
-            if (assignButton) {
-                assignButton.disabled = true;
-                assignButton.innerHTML = '<i class="bx bx-loader-circle bx-spin"></i> Assigning...';
-            }
-            
-            fetch('assign_volunteer_unit.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    volunteer_id: volunteerId,
-                    unit_id: unitId,
-                    assigned_by: <?php echo $user_id; ?>
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('success', 'Assignment Successful', 'Volunteer has been securely assigned to the unit');
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1500);
-                } else {
-                    showNotification('error', 'Assignment Failed', data.message || 'Failed to assign volunteer to unit');
-                    if (assignButton) {
-                        assignButton.disabled = false;
-                        assignButton.innerHTML = '<i class="bx bx-user-plus"></i> Assign';
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showNotification('error', 'Error', 'Failed to assign volunteer to unit');
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('success', 'Assignment Successful', 'Volunteer has been assigned to the unit');
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showNotification('error', 'Assignment Failed', data.message || 'Failed to assign volunteer to unit');
                 if (assignButton) {
                     assignButton.disabled = false;
                     assignButton.innerHTML = '<i class="bx bx-user-plus"></i> Assign';
                 }
-            });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('error', 'Error', 'Failed to assign volunteer to unit');
+            if (assignButton) {
+                assignButton.disabled = false;
+                assignButton.innerHTML = '<i class="bx bx-user-plus"></i> Assign';
+            }
+        });
+    }
+    
+    // Reassign Unit
+    function reassignUnit(volunteerId) {
+        const reassignButton = document.querySelector(`tr[data-id="${volunteerId}"] .reassign-button`);
+        if (reassignButton) {
+            reassignButton.disabled = true;
+            reassignButton.innerHTML = '<i class="bx bx-loader-circle bx-spin"></i> Processing...';
         }
         
-        function reassignUnit(volunteerId) {
-            const reassignButton = document.querySelector(`tr[data-id="${volunteerId}"] .reassign-button`);
-            if (reassignButton) {
-                reassignButton.disabled = true;
-                reassignButton.innerHTML = '<i class="bx bx-loader-circle bx-spin"></i> Processing...';
-            }
-            
-            fetch('remove_volunteer_assignment.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+        fetch('remove_volunteer_assignment.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    volunteer_id: volunteerId
-                })
+            body: JSON.stringify({
+                volunteer_id: volunteerId
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('info', 'Assignment Removed', 'Volunteer is now unassigned and can be reassigned');
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1500);
-                } else {
-                    showNotification('error', 'Error', data.message || 'Failed to remove assignment');
-                    if (reassignButton) {
-                        reassignButton.disabled = false;
-                        reassignButton.innerHTML = '<i class="bx bx-transfer"></i> Reassign';
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showNotification('error', 'Error', 'Failed to remove assignment');
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('info', 'Assignment Removed', 'Volunteer is now unassigned and can be reassigned');
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showNotification('error', 'Error', data.message || 'Failed to remove assignment');
                 if (reassignButton) {
                     reassignButton.disabled = false;
                     reassignButton.innerHTML = '<i class="bx bx-transfer"></i> Reassign';
                 }
-            });
-        }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('error', 'Error', 'Failed to remove assignment');
+            if (reassignButton) {
+                reassignButton.disabled = false;
+                reassignButton.innerHTML = '<i class="bx bx-transfer"></i> Reassign';
+            }
+        });
+    }
+    
+    // View Volunteer Profile
+    function viewVolunteerProfile(volunteerId) {
+        // Show loading state
+        document.getElementById('profile-modal-body').innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+                <i class='bx bx-loader-circle bx-spin' style="font-size: 48px; color: var(--primary-color);"></i>
+                <p style="margin-top: 16px; color: var(--text-light);">Loading volunteer profile...</p>
+            </div>
+        `;
         
-        function viewVolunteerProfile(volunteerId) {
-            fetch(`get_volunteer_details.php?id=${volunteerId}`)
-                .then(response => response.json())
-                .then(volunteer => {
-                    populateProfileModal(volunteer);
-                    document.getElementById('profile-modal').classList.add('active');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
+        // Show profile modal
+        document.getElementById('profile-modal').classList.add('active');
+        
+        // Fetch volunteer details
+        fetch(`get_volunteer_details.php?id=${volunteerId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    populateProfileModal(data.volunteer);
+                } else {
                     showNotification('error', 'Error', 'Failed to load volunteer profile');
-                });
-        }
+                    closeProfileModal();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('error', 'Error', 'Failed to load volunteer profile');
+                closeProfileModal();
+            });
+    }
+    
+    // Populate Profile Modal
+    function populateProfileModal(volunteer) {
+        const modalBody = document.getElementById('profile-modal-body');
         
-        function populateProfileModal(volunteer) {
-            const modalBody = document.getElementById('profile-modal-body');
+        // Format ID photo paths
+        const getImagePath = (filename) => {
+            if (!filename) return null;
+            return `../../uploads/volunteer_id_photos/${filename.split('/').pop()}`;
+        };
+        
+        const frontPhoto = getImagePath(volunteer.id_front_photo);
+        const backPhoto = getImagePath(volunteer.id_back_photo);
+        
+        let html = `
+            <div class="profile-header">
+                <div class="profile-avatar">
+                    ${volunteer.full_name.charAt(0).toUpperCase()}
+                </div>
+                <h1 class="profile-name">${volunteer.full_name}</h1>
+                <div class="profile-status">
+                    <i class='bx bx-badge-check'></i>
+                    ${volunteer.status.charAt(0).toUpperCase() + volunteer.status.slice(1)} Volunteer
+                    ${volunteer.unit_name ? `• Assigned to ${volunteer.unit_name}` : ''}
+                </div>
+            </div>
             
-            // Format ID photo paths
-            const getImagePath = (filename) => {
-                if (!filename) return null;
-                const paths = [
-                    `../../${filename}`,
-                    `../${filename}`,
-                    filename,
-                    `../../uploads/volunteer_id_photos/${filename.split('/').pop()}`,
-                    `../uploads/volunteer_id_photos/${filename.split('/').pop()}`
-                ];
-                return paths[0]; 
-            };
-            
-            const frontPhoto = getImagePath(volunteer.id_front_photo);
-            const backPhoto = getImagePath(volunteer.id_back_photo);
-            
-            let html = `
-                <div class="profile-header">
-                    <div class="profile-avatar">
-                        ${volunteer.full_name.charAt(0).toUpperCase()}
+            <div class="profile-content">
+                <!-- Personal Information -->
+                <div class="section">
+                    <h2 class="section-title">Personal Information</h2>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">Full Name</div>
+                            <div class="info-value">${volunteer.full_name}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Date of Birth</div>
+                            <div class="info-value">${volunteer.date_of_birth}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Gender</div>
+                            <div class="info-value">${volunteer.gender}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Civil Status</div>
+                            <div class="info-value">${volunteer.civil_status}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Email</div>
+                            <div class="info-value">${volunteer.email}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Contact Number</div>
+                            <div class="info-value">${volunteer.contact_number}</div>
+                        </div>
                     </div>
-                    <h1 class="profile-name">${volunteer.full_name}</h1>
-                    <div class="profile-status">
-                        <i class='bx bx-badge-check'></i>
-                        ${volunteer.status.charAt(0).toUpperCase() + volunteer.status.slice(1)} Volunteer
-                        ${volunteer.unit_name ? `• Assigned to ${volunteer.unit_name}` : ''}
+                    <div class="info-item">
+                        <div class="info-label">Address</div>
+                        <div class="info-value">${volunteer.address ? volunteer.address.replace(/\n/g, '<br>') : 'N/A'}</div>
                     </div>
                 </div>
                 
-                <div class="profile-content">
-                    <!-- Personal Information -->
-                    <div class="section">
-                        <h2 class="section-title">Personal Information</h2>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <div class="info-label">Full Name</div>
-                                <div class="info-value">${volunteer.full_name}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Date of Birth</div>
-                                <div class="info-value">${volunteer.date_of_birth}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Gender</div>
-                                <div class="info-value">${volunteer.gender}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Civil Status</div>
-                                <div class="info-value">${volunteer.civil_status}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Email</div>
-                                <div class="info-value">${volunteer.email}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Contact Number</div>
-                                <div class="info-value">${volunteer.contact_number}</div>
-                            </div>
+                <!-- Skills & Qualifications -->
+                <div class="section">
+                    <h2 class="section-title">Skills & Qualifications</h2>
+                    <div class="skills-container">
+        `;
+        
+        // Only show skills with value 1
+        if (volunteer.skills_basic_firefighting == 1) {
+            html += `<span class="profile-skill-tag skill-active">Basic Firefighting</span>`;
+        }
+        if (volunteer.skills_first_aid_cpr == 1) {
+            html += `<span class="profile-skill-tag skill-active">First Aid/CPR</span>`;
+        }
+        if (volunteer.skills_search_rescue == 1) {
+            html += `<span class="profile-skill-tag skill-active">Search & Rescue</span>`;
+        }
+        if (volunteer.skills_driving == 1) {
+            html += `<span class="profile-skill-tag skill-active">Driving</span>`;
+        }
+        if (volunteer.skills_communication == 1) {
+            html += `<span class="profile-skill-tag skill-active">Communication</span>`;
+        }
+        if (volunteer.skills_mechanical == 1) {
+            html += `<span class="profile-skill-tag skill-active">Mechanical</span>`;
+        }
+        if (volunteer.skills_logistics == 1) {
+            html += `<span class="profile-skill-tag skill-active">Logistics</span>`;
+        }
+        
+        html += `
+                    </div>
+                </div>
+                
+                <!-- Additional Information -->
+                <div class="section">
+                    <h2 class="section-title">Additional Information</h2>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">Education</div>
+                            <div class="info-value">${volunteer.education ? volunteer.education : 'N/A'}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Address</div>
-                            <div class="info-value">${volunteer.address.replace(/\n/g, '<br>')}</div>
+                            <div class="info-label">Physical Fitness</div>
+                            <div class="info-value">${volunteer.physical_fitness ? volunteer.physical_fitness : 'N/A'}</div>
                         </div>
-                    </div>
-                    
-                    <!-- Skills & Qualifications -->
-                    <div class="section">
-                        <h2 class="section-title">Skills & Qualifications</h2>
-                        <div class="skills-container">
-            `;
-            
-            // Only show skills with value 1
-            if (volunteer.skills_basic_firefighting == 1) {
-                html += `<span class="profile-skill-tag skill-active">Basic Firefighting</span>`;
-            }
-            if (volunteer.skills_first_aid_cpr == 1) {
-                html += `<span class="profile-skill-tag skill-active">First Aid/CPR</span>`;
-            }
-            if (volunteer.skills_search_rescue == 1) {
-                html += `<span class="profile-skill-tag skill-active">Search & Rescue</span>`;
-            }
-            if (volunteer.skills_driving == 1) {
-                html += `<span class="profile-skill-tag skill-active">Driving</span>`;
-            }
-            if (volunteer.skills_communication == 1) {
-                html += `<span class="profile-skill-tag skill-active">Communication</span>`;
-            }
-            if (volunteer.skills_mechanical == 1) {
-                html += `<span class="profile-skill-tag skill-active">Mechanical</span>`;
-            }
-            if (volunteer.skills_logistics == 1) {
-                html += `<span class="profile-skill-tag skill-active">Logistics</span>`;
-            }
-            
-            html += `
+                        <div class="info-item">
+                            <div class="info-label">Languages Spoken</div>
+                            <div class="info-value">${volunteer.languages_spoken ? volunteer.languages_spoken : 'N/A'}</div>
                         </div>
-                    </div>
-                    
-                    <!-- Additional Information -->
-                    <div class="section">
-                        <h2 class="section-title">Additional Information</h2>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <div class="info-label">Education</div>
-                                <div class="info-value">${volunteer.education}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Physical Fitness</div>
-                                <div class="info-value">${volunteer.physical_fitness}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Languages Spoken</div>
-                                <div class="info-value">${volunteer.languages_spoken}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Application Date</div>
-                                <div class="info-value">${volunteer.application_date}</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Identification -->
-                    <div class="section">
-                        <h2 class="section-title">Identification</h2>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <div class="info-label">Valid ID Type</div>
-                                <div class="info-value">${volunteer.valid_id_type}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Valid ID Number</div>
-                                <div class="info-value">${volunteer.valid_id_number}</div>
-                            </div>
-                        </div>
-                        <div class="id-photos">
-                            <div class="id-photo">
-                                <div class="info-label">ID Front Photo</div>
-                                ${frontPhoto ? 
-                                    `<img src="${frontPhoto}" alt="ID Front" class="id-photo-img" onerror="this.style.display='none';">` : 
-                                    '<div style="padding: 40px; text-align: center; color: var(--text-light); background: rgba(255,255,255,0.1); border-radius: 10px;">No ID Front Photo Uploaded</div>'}
-                            </div>
-                            <div class="id-photo">
-                                <div class="info-label">ID Back Photo</div>
-                                ${backPhoto ? 
-                                    `<img src="${backPhoto}" alt="ID Back" class="id-photo-img" onerror="this.style.display='none';">` : 
-                                    '<div style="padding: 40px; text-align: center; color: var(--text-light); background: rgba(255,255,255,0.1); border-radius: 10px;">No ID Back Photo Uploaded</div>'}
-                            </div>
+                        <div class="info-item">
+                            <div class="info-label">Application Date</div>
+                            <div class="info-value">${volunteer.application_date}</div>
                         </div>
                     </div>
                 </div>
-            `;
-            
-            modalBody.innerHTML = html;
-        }
-        
-        function closeProfileModal() {
-            document.getElementById('profile-modal').classList.remove('active');
-        }
-        
-        function showNotification(type, title, message) {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.innerHTML = `
-                <i class='bx ${
-                    type === 'success' ? 'bx-check-circle' :
-                    type === 'error' ? 'bx-error-circle' :
-                    type === 'warning' ? 'bx-exclamation-circle' :
-                    'bx-info-circle'
-                }'></i>
-                <div>
-                    <strong>${title}</strong>
-                    <p>${message}</p>
+                
+                <!-- Identification -->
+                <div class="section">
+                    <h2 class="section-title">Identification</h2>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">Valid ID Type</div>
+                            <div class="info-value">${volunteer.valid_id_type ? volunteer.valid_id_type : 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Valid ID Number</div>
+                            <div class="info-value">${volunteer.valid_id_number ? volunteer.valid_id_number : 'N/A'}</div>
+                        </div>
+                    </div>
+                    <div class="id-photos">
+                        <div class="id-photo">
+                            <div class="info-label">ID Front Photo</div>
+                            ${frontPhoto ? 
+                                `<img src="${frontPhoto}" alt="ID Front" class="id-photo-img" onerror="this.onerror=null; this.src='../../img/placeholder-id.png'; this.alt='ID Front Placeholder';">` : 
+                                '<div style="padding: 40px; text-align: center; color: var(--text-light); background: var(--card-bg); border-radius: 10px;">No ID Front Photo Uploaded</div>'}
+                        </div>
+                        <div class="id-photo">
+                            <div class="info-label">ID Back Photo</div>
+                            ${backPhoto ? 
+                                `<img src="${backPhoto}" alt="ID Back" class="id-photo-img" onerror="this.onerror=null; this.src='../../img/placeholder-id.png'; this.alt='ID Back Placeholder';">` : 
+                                '<div style="padding: 40px; text-align: center; color: var(--text-light); background: var(--card-bg); border-radius: 10px;">No ID Back Photo Uploaded</div>'}
+                        </div>
+                    </div>
                 </div>
-            `;
-            document.body.appendChild(notification);
-            
+            </div>
+        `;
+        
+        modalBody.innerHTML = html;
+    }
+    
+    // Close Profile Modal
+    function closeProfileModal() {
+        document.getElementById('profile-modal').classList.remove('active');
+    }
+    
+    // Show Notification
+    function showNotification(type, title, message) {
+        const container = document.getElementById('notification-container');
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        
+        let icon = 'bx-info-circle';
+        if (type === 'success') icon = 'bx-check-circle';
+        if (type === 'error') icon = 'bx-error';
+        if (type === 'warning') icon = 'bx-error-circle';
+        
+        notification.innerHTML = `
+            <i class='bx ${icon} notification-icon'></i>
+            <div class="notification-content">
+                <div class="notification-title">${title}</div>
+                <div class="notification-message">${message}</div>
+            </div>
+            <button class="notification-close">&times;</button>
+        `;
+        
+        container.appendChild(notification);
+        
+        // Add close event
+        notification.querySelector('.notification-close').addEventListener('click', function() {
+            notification.classList.remove('show');
             setTimeout(() => {
-                notification.style.animation = 'slideOut 0.3s ease forwards';
-                setTimeout(() => notification.remove(), 300);
-            }, 5000);
+                container.removeChild(notification);
+            }, 300);
+        });
+        
+        // Show notification
+        setTimeout(() => {
+            notification.classList.add('show');
+        }, 100);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        container.removeChild(notification);
+                    }
+                }, 300);
+            }
+        }, 5000);
+    }
+    
+    // Toggle Submenu
+    function toggleSubmenu(id) {
+        const submenu = document.getElementById(id);
+        const arrow = submenu.previousElementSibling.querySelector('.dropdown-arrow');
+        
+        submenu.classList.toggle('active');
+        if (arrow) {
+            arrow.classList.toggle('rotated');
         }
-    </script>
+    }
+    
+    // Update Time
+    function updateTime() {
+        const now = new Date();
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const gmt8 = new Date(utc + (8 * 3600000));
+        
+        const hours = gmt8.getHours().toString().padStart(2, '0');
+        const minutes = gmt8.getMinutes().toString().padStart(2, '0');
+        const seconds = gmt8.getSeconds().toString().padStart(2, '0');
+        
+        const timeString = `${hours}:${minutes}:${seconds} UTC+8`;
+        document.getElementById('current-time').textContent = timeString;
+    }
+    
+    // Initialize Event Listeners
+    function initEventListeners() {
+        // Theme toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = themeToggle.querySelector('i');
+        const themeText = themeToggle.querySelector('span');
+        
+        themeToggle.addEventListener('click', function() {
+            document.body.classList.toggle('dark-mode');
+            
+            if (document.body.classList.contains('dark-mode')) {
+                themeIcon.className = 'bx bx-sun';
+                themeText.textContent = 'Light Mode';
+            } else {
+                themeIcon.className = 'bx bx-moon';
+                themeText.textContent = 'Dark Mode';
+            }
+        });
+        
+        // Refresh button
+        document.getElementById('refresh-button').addEventListener('click', function() {
+            showNotification('info', 'Refreshing Data', 'Fetching the latest volunteer assignments');
+            location.reload();
+        });
+        
+        // Export button
+        document.getElementById('export-button').addEventListener('click', function() {
+            showNotification('info', 'Export Started', 'Preparing assignment report for download');
+            // In real implementation, trigger export process
+        });
+        
+        // Search functionality
+        document.getElementById('search-input').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('.volunteers-table tbody tr');
+            
+            rows.forEach(row => {
+                const volunteerName = row.querySelector('.volunteer-name').textContent.toLowerCase();
+                const volunteerEmail = row.querySelector('.volunteer-email').textContent.toLowerCase();
+                const contactNumber = row.cells[1].textContent.toLowerCase();
+                
+                if (volunteerName.includes(searchTerm) || volunteerEmail.includes(searchTerm) || contactNumber.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+        
+        // Profile modal events
+        document.getElementById('profile-modal-close').addEventListener('click', closeProfileModal);
+        document.getElementById('profile-close').addEventListener('click', closeProfileModal);
+        
+        // AI Modal Event Listeners
+        document.getElementById('ai-modal-close').addEventListener('click', closeAIModal);
+        document.getElementById('ai-button-close').addEventListener('click', closeAIModal);
+        document.getElementById('ai-button-assign').addEventListener('click', function() {
+            if (selectedUnitId && selectedVolunteerId) {
+                // Direct assignment without password confirmation
+                assignToUnitFromAI(selectedVolunteerId, selectedUnitId);
+                closeAIModal();
+            }
+        });
+        
+        // Close modals when clicking outside
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeProfileModal();
+            }
+            if (e.target.id === 'ai-modal') {
+                closeAIModal();
+            }
+        });
+        
+        // Escape key to close modals
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeProfileModal();
+                closeAIModal();
+            }
+        });
+        
+        // User profile dropdown functionality
+        const userProfile = document.getElementById('user-profile');
+        const userProfileDropdown = document.getElementById('user-profile-dropdown');
+        
+        userProfile.addEventListener('click', function(e) {
+            e.stopPropagation();
+            userProfileDropdown.classList.toggle('active');
+        });
+        
+        // Close dropdown when clicking elsewhere
+        document.addEventListener('click', function() {
+            userProfileDropdown.classList.remove('active');
+        });
+    }
+
+    // Assign to Unit from AI Recommendation
+    function assignToUnitFromAI(volunteerId, unitId) {
+        const assignButton = document.querySelector(`tr[data-id="${volunteerId}"] .assign-button`);
+        if (assignButton) {
+            assignButton.disabled = true;
+            assignButton.innerHTML = '<i class="bx bx-loader-circle bx-spin"></i> Assigning...';
+        }
+        
+        fetch('assign_volunteer_unit.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                },
+            body: JSON.stringify({
+                volunteer_id: volunteerId,
+                unit_id: unitId,
+                assigned_by: <?php echo $user_id; ?>
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('success', 'AI Assignment Successful', 'Volunteer has been assigned to the recommended unit');
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showNotification('error', 'Assignment Failed', data.message || 'Failed to assign volunteer to unit');
+                if (assignButton) {
+                    assignButton.disabled = false;
+                    assignButton.innerHTML = '<i class="bx bx-user-plus"></i> Assign';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('error', 'Error', 'Failed to assign volunteer to unit');
+            if (assignButton) {
+                assignButton.disabled = false;
+                assignButton.innerHTML = '<i class="bx bx-user-plus"></i> Assign';
+            }
+        });
+    }
+    
+    // DOM Content Loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        const animationOverlay = document.getElementById('dashboard-animation');
+        const animationProgress = document.getElementById('animation-progress');
+        const animationText = document.getElementById('animation-text');
+        const animationLogo = document.querySelector('.animation-logo');
+        
+        // Show logo and text immediately
+        setTimeout(() => {
+            animationLogo.style.opacity = '1';
+            animationLogo.style.transform = 'translateY(0)';
+        }, 100);
+        
+        setTimeout(() => {
+            animationText.style.opacity = '1';
+        }, 300);
+        
+        // Faster loading - 1 second only
+        setTimeout(() => {
+            animationProgress.style.width = '100%';
+        }, 100);
+        
+        setTimeout(() => {
+            animationOverlay.style.opacity = '0';
+            setTimeout(() => {
+                animationOverlay.style.display = 'none';
+            }, 300);
+        }, 1000);
+        
+        // Initialize event listeners
+        initEventListeners();
+        
+        // Show welcome notification
+        showNotification('success', 'System Ready', 'Volunteer assignment system with Dialogflow AI is now active');
+    });
+
+    // Initialize time and set interval
+    updateTime();
+    setInterval(updateTime, 1000);
+</script>
 </body>
 </html>

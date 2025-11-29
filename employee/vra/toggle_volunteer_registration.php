@@ -81,6 +81,7 @@ $stmt = null;
     <link rel="icon" type="image/png" sizes="32x32" href="../img/frsm-logo.png">
     <link rel="stylesheet" href="../../css/dashboard.css">
     <style>
+
         :root {
             --primary-color: #dc2626;
             --primary-dark: #b91c1c;
@@ -89,14 +90,9 @@ $stmt = null;
             --background-color: #ffffff;
             --text-color: #1f2937;
             --text-light: #6b7280;
-            --border-color: rgba(255, 255, 255, 0.2);
-            --card-bg: rgba(255, 255, 255, 0.15);
-            --sidebar-bg: rgba(255, 255, 255, 0.15);
-
-            --glass-bg: rgba(255, 255, 255, 0.25);
-            --glass-border: rgba(255, 255, 255, 0.3);
-            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-            --glass-blur: blur(12px);
+            --border-color: #e5e7eb;
+            --card-bg: #f9fafb;
+            --sidebar-bg: #ffffff;
             
             --icon-red: #ef4444;
             --icon-blue: #3b82f6;
@@ -128,7 +124,6 @@ $stmt = null;
             --chart-purple: #8b5cf6;
             --chart-pink: #ec4899;
 
-            /* Additional variables for consistency */
             --primary: var(--primary-color);
             --primary-dark: var(--primary-dark);
             --secondary: var(--secondary-color);
@@ -149,21 +144,15 @@ $stmt = null;
             --gray-900: #111827;
         }
         
-        /* Dark mode variables */
         .dark-mode {
             --background-color: #0f172a;
             --text-color: #f1f5f9;
             --text-light: #94a3b8;
-            --border-color: rgba(255, 255, 255, 0.1);
-            --card-bg: rgba(30, 41, 59, 0.4);
-            --sidebar-bg: rgba(30, 41, 59, 0.4);
-            
-            --glass-bg: rgba(30, 41, 59, 0.6);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            --border-color: #1e293b;
+            --card-bg: #1e293b;
+            --sidebar-bg: #0f172a;
         }
 
-        /* Font and size from reference */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             font-size: 14px;
@@ -185,7 +174,6 @@ $stmt = null;
             font-size: 16px;
         }
 
-        /* COMPLETELY NEW LAYOUT DESIGN */
         .dashboard-content {
             padding: 0;
             min-height: 100vh;
@@ -200,6 +188,7 @@ $stmt = null;
             overflow: hidden;
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--border-color);
         }
 
         .dark-mode .dashboard-header {
@@ -222,7 +211,6 @@ $stmt = null;
             color: var(--text-color);
         }
 
-        /* NEW: Control Center Layout */
         .control-center {
             display: grid;
             grid-template-columns: 1fr 400px;
@@ -232,15 +220,13 @@ $stmt = null;
         }
 
         .main-controls {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 25px;
             padding: 40px;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
 
         .main-controls::before {
@@ -296,15 +282,15 @@ $stmt = null;
         }
 
         .toggle-section {
-            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            background: #f8fafc;
             border-radius: 20px;
             padding: 30px;
             margin: 30px 0;
-            border: 2px dashed #e5e7eb;
+            border: 2px solid #e5e7eb;
         }
 
         .dark-mode .toggle-section {
-            background: linear-gradient(135deg, #1e293b, #334155);
+            background: #1e293b;
             border-color: #475569;
         }
 
@@ -367,7 +353,6 @@ $stmt = null;
             transform: none !important;
         }
 
-        /* NEW: Side Panel */
         .side-panel {
             display: flex;
             flex-direction: column;
@@ -375,13 +360,11 @@ $stmt = null;
         }
 
         .info-card {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 20px;
             padding: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
 
         .info-card h3 {
@@ -399,7 +382,7 @@ $stmt = null;
             justify-content: space-between;
             align-items: center;
             padding: 12px 0;
-            border-bottom: 1px solid var(--gray-200);
+            border-bottom: 1px solid #e5e7eb;
         }
 
         .dark-mode .info-item {
@@ -420,16 +403,13 @@ $stmt = null;
             font-weight: 600;
         }
 
-        /* NEW: Impact Preview */
         .impact-preview {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 25px;
             padding: 40px;
             margin: 0 40px 40px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
 
         .impact-title {
@@ -455,6 +435,7 @@ $stmt = null;
             border-radius: 20px;
             padding: 30px;
             text-align: center;
+            border: 1px solid #e5e7eb;
             border-left: 5px solid var(--primary-color);
             transition: all 0.3s ease;
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
@@ -494,7 +475,6 @@ $stmt = null;
             line-height: 1.6;
         }
 
-        /* NEW: Alert System */
         .alert-message {
             background: linear-gradient(135deg, #d1fae5, #a7f3d0);
             color: #065f46;
@@ -527,7 +507,6 @@ $stmt = null;
             border-color: #ef4444;
         }
 
-        /* NEW: Quick Stats */
         .quick-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -536,14 +515,12 @@ $stmt = null;
         }
 
         .stat-item {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
+            background: var(--card-bg);
             padding: 20px;
             border-radius: 15px;
             text-align: center;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-            border: 1px solid var(--glass-border);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
         }
 
         .stat-number {
@@ -561,7 +538,6 @@ $stmt = null;
             letter-spacing: 0.5px;
         }
 
-        /* NEW: Confirmation Modal */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -569,7 +545,6 @@ $stmt = null;
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(5px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -585,7 +560,8 @@ $stmt = null;
         }
 
         .modal {
-            background: var(--background-color);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 20px;
             box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
             width: 90%;
@@ -600,14 +576,10 @@ $stmt = null;
 
         .modal-header {
             padding: 25px 30px 20px;
-            border-bottom: 1px solid var(--gray-200);
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             gap: 15px;
-        }
-
-        .dark-mode .modal-header {
-            border-bottom-color: #334155;
         }
 
         .modal-icon {
@@ -648,7 +620,7 @@ $stmt = null;
         .password-input {
             width: 100%;
             padding: 15px;
-            border: 2px solid var(--gray-300);
+            border: 2px solid #e5e7eb;
             border-radius: 12px;
             font-size: 1rem;
             transition: all 0.3s ease;
@@ -672,11 +644,7 @@ $stmt = null;
             display: flex;
             gap: 15px;
             justify-content: flex-end;
-            border-top: 1px solid var(--gray-200);
-        }
-
-        .dark-mode .modal-footer {
-            border-top-color: #334155;
+            border-top: 1px solid var(--border-color);
         }
 
         .btn-modal {
@@ -689,20 +657,20 @@ $stmt = null;
         }
 
         .btn-modal-cancel {
-            background: var(--gray-200);
+            background: #e5e7eb;
             color: var(--text-color);
         }
 
         .dark-mode .btn-modal-cancel {
-            background: #334155;
+            background: #475569;
         }
 
         .btn-modal-cancel:hover {
-            background: var(--gray-300);
+            background: #d1d5db;
         }
 
         .dark-mode .btn-modal-cancel:hover {
-            background: #475569;
+            background: #4b5563;
         }
 
         .btn-modal-confirm {
@@ -730,97 +698,6 @@ $stmt = null;
             background: linear-gradient(135deg, #991b1b, #7f1d1d);
         }
 
-        /* Responsive Design */
-        @media (max-width: 1024px) {
-            .control-center {
-                grid-template-columns: 1fr;
-            }
-            
-            .side-panel {
-                order: -1;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .dashboard-header {
-                padding: 40px 25px 30px;
-                border-radius: 0 0 20px 20px;
-            }
-            
-            .dashboard-title {
-                font-size: 2.2rem;
-            }
-            
-            .control-center {
-                padding: 0 25px;
-            }
-            
-            .main-controls {
-                padding: 30px 25px;
-            }
-            
-            .toggle-buttons {
-                grid-template-columns: 1fr;
-            }
-            
-            .impact-preview {
-                margin: 0 25px 30px;
-                padding: 30px 25px;
-            }
-            
-            .impact-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* Animation Enhancements */
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-
-        .status-icon.pulse {
-            animation: pulse 2s infinite;
-        }
-
-        .btn-toggle:active {
-            transform: scale(0.98);
-        }
-
-        /* NEW: Status Badge */
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            border-radius: 25px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            margin-left: 15px;
-        }
-
-        .status-badge.open {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .dark-mode .status-badge.open {
-            background: #064e3b;
-            color: #a7f3d0;
-        }
-
-        .status-badge.closed {
-            background: #fee2e2;
-            color: #dc2626;
-        }
-
-        .dark-mode .status-badge.closed {
-            background: #7f1d1d;
-            color: #fecaca;
-        }
-
-        /* Notification Styles */
         .notification-container {
             position: fixed;
             top: 20px;
@@ -834,11 +711,8 @@ $stmt = null;
         .notification {
             padding: 16px 20px;
             border-radius: 12px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             gap: 12px;
@@ -846,6 +720,7 @@ $stmt = null;
             opacity: 0;
             transition: all 0.3s ease;
             max-width: 350px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .notification.show {
@@ -897,7 +772,6 @@ $stmt = null;
             flex-shrink: 0;
         }
 
-        /* User Profile Dropdown */
         .user-profile {
             position: relative;
             cursor: pointer;
@@ -908,11 +782,9 @@ $stmt = null;
             top: 100%;
             right: 0;
             margin-top: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             border-radius: 12px;
             padding: 8px;
             min-width: 200px;
@@ -955,7 +827,6 @@ $stmt = null;
             margin: 8px 0;
         }
 
-        /* Notification Bell */
         .notification-bell {
             position: relative;
         }
@@ -976,17 +847,14 @@ $stmt = null;
             font-weight: 600;
         }
 
-        /* Notification Dropdown */
         .notification-dropdown {
             position: absolute;
             top: 100%;
             right: 0;
             margin-top: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             border-radius: 12px;
             width: 320px;
             max-height: 400px;
@@ -1085,7 +953,6 @@ $stmt = null;
             opacity: 0.5;
         }
 
-        /* Loading Animation */
         .dashboard-animation {
             position: fixed;
             top: 0;
@@ -1128,7 +995,7 @@ $stmt = null;
         .animation-progress {
             width: 200px;
             height: 4px;
-            background: var(--gray-200);
+            background: #e5e7eb;
             border-radius: 2px;
             overflow: hidden;
             margin-bottom: 20px;
@@ -1147,6 +1014,93 @@ $stmt = null;
             color: var(--text-light);
             opacity: 0;
             transition: opacity 0.5s ease;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-left: 15px;
+        }
+
+        .status-badge.open {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .dark-mode .status-badge.open {
+            background: #064e3b;
+            color: #a7f3d0;
+        }
+
+        .status-badge.closed {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .dark-mode .status-badge.closed {
+            background: #7f1d1d;
+            color: #fecaca;
+        }
+
+        @media (max-width: 1024px) {
+            .control-center {
+                grid-template-columns: 1fr;
+            }
+            
+            .side-panel {
+                order: -1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-header {
+                padding: 40px 25px 30px;
+                border-radius: 0 0 20px 20px;
+            }
+            
+            .dashboard-title {
+                font-size: 2.2rem;
+            }
+            
+            .control-center {
+                padding: 0 25px;
+            }
+            
+            .main-controls {
+                padding: 30px 25px;
+            }
+            
+            .toggle-buttons {
+                grid-template-columns: 1fr;
+            }
+            
+            .impact-preview {
+                margin: 0 25px 30px;
+                padding: 30px 25px;
+            }
+            
+            .impact-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .status-icon.pulse {
+            animation: pulse 2s infinite;
+        }
+
+        .btn-toggle:active {
+            transform: scale(0.98);
         }
     </style>
 </head>
@@ -1221,9 +1175,9 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="fire-incident" class="submenu">
-                        <a href="../incident/receive_data.php" class="submenu-item">Receive Data</a>
-                        <a href="../incident/manual_reporting.php" class="submenu-item">Manual Reporting</a>
-                        <a href="../incident/update_status.php" class="submenu-item">Update Status</a>
+                         <a href="../fir/recieve_data.php" class="submenu-item">Receive Data</a>
+                        <a href="../fir/manual_reporting.php" class="submenu-item">Manual Reporting</a>
+                        <a href="../fir/update_status.php" class="submenu-item">Update Status</a>
                     </div>
                     
                     <!-- Dispatch Coordination -->
@@ -1357,7 +1311,7 @@ $stmt = null;
                         <span class="font-medium">Settings</span>
                     </a>
                     
-                    <a href="../profile.php" class="menu-item">
+                    <a href="../profile/profile.php" class="menu-item">
                         <div class="icon-box icon-bg-orange">
                             <i class='bx bxs-user icon-orange'></i>
                         </div>
@@ -1458,7 +1412,7 @@ $stmt = null;
                                 <p class="user-email"><?php echo $role; ?></p>
                             </div>
                             <div class="user-profile-dropdown" id="user-dropdown">
-                                <a href="../profile.php" class="dropdown-item">
+                                <a href="../profile/profile.php" class="dropdown-item">
                                     <i class='bx bx-user'></i>
                                     <span>Profile</span>
                                 </a>

@@ -1,12 +1,8 @@
 <?php
 /**
- * DIALOGFLOW WEBHOOK HANDLER
+ * DIALOGFLOW WEBHOOK HANDLER - Fixed Version
  * Processes requests from Dialogflow and recommends units based on volunteer skills
- * 
- * SETUP INSTRUCTIONS:
- * 1. Place your dialogflow-credentials.json in /credentials/ folder
- * 2. Ensure database connection is configured in ../../config/db_connection.php
- * 3. Set the webhook URL in Dialogflow to: https://your-domain.com/dialogflow_webhook.php
+ * Now uses unified logic matching database schema exactly
  */
 
 header('Content-Type: application/json');
@@ -18,16 +14,12 @@ require_once '../../config/db_connection.php';
 $input = file_get_contents('php://input');
 $request = json_decode($input, true);
 
-// Log the request for debugging (remove in production)
-error_log('[DIALOGFLOW] Incoming Request: ' . print_r($request, true));
-
 try {
     // Extract information from the request
     $session = $request['session'] ?? null;
     $intent = $request['queryResult']['intent']['displayName'] ?? null;
     $parameters = $request['queryResult']['parameters'] ?? [];
     $volunteer_id = $parameters['volunteer_id'] ?? null;
-    $text = $request['queryResult']['queryText'] ?? '';
     
     // Initialize response structure
     $response = [
@@ -40,33 +32,27 @@ try {
     // Route based on intent
     switch ($intent) {
         case 'get_unit_recommendation':
-            error_log('[DIALOGFLOW] Processing intent: get_unit_recommendation');
-            $response = getUnitRecommendation($volunteer_id, $pdo);
+            $response = getUnitRecommendation($volunteer_id, $pdo, $request);
             break;
             
         case 'confirm_assignment':
-            error_log('[DIALOGFLOW] Processing intent: confirm_assignment');
             $response = confirmAssignment($parameters, $pdo);
             break;
             
         case 'show_my_skills':
-            error_log('[DIALOGFLOW] Processing intent: show_my_skills');
             $response = getVolunteerSkills($volunteer_id, $pdo);
             break;
             
         default:
-            error_log('[DIALOGFLOW] Unknown intent: ' . $intent);
-            $response['fulfillmentText'] = 'I did not understand that request. Please try again with options like: "Recommend me a unit" or "Show my skills"';
+            $response['fulfillmentText'] = 'I did not understand that request. Please try again.';
     }
     
     // Send response back to Dialogflow
     echo json_encode($response);
-    error_log('[DIALOGFLOW] Response sent: ' . json_encode($response));
     
 } catch (Exception $e) {
-    error_log('[DIALOGFLOW] Error occurred: ' . $e->getMessage());
-    error_log('[DIALOGFLOW] Stack trace: ' . $e->getTraceAsString());
-    
+    // <CHANGE> Return JSON error instead of HTML
+    error_log('[DIALOGFLOW] Error: ' . $e->getMessage());
     $errorResponse = [
         'fulfillmentText' => 'Sorry, there was an error processing your request. Please try again later.',
         'source' => 'dialogflow-webhook'
@@ -79,13 +65,13 @@ exit();
 
 /**
  * Get unit recommendation based on volunteer skills
- * Analyzes volunteer's qualifications and finds best matching units
+ * <CHANGE> Now uses unified logic with corrected field mappings
  */
-function getUnitRecommendation($volunteer_id, $pdo) {
+function getUnitRecommendation($volunteer_id, $pdo, $request) {
     try {
         if (!$volunteer_id) {
             return [
-                'fulfillmentText' => 'I need your volunteer ID to provide recommendations. Please provide it.',
+                'fulfillmentText' => 'I need your volunteer ID to provide recommendations.',
                 'source' => 'dialogflow-webhook'
             ];
         }
@@ -98,7 +84,7 @@ function getUnitRecommendation($volunteer_id, $pdo) {
         
         if (!$volunteer) {
             return [
-                'fulfillmentText' => 'Volunteer ID ' . htmlspecialchars($volunteer_id) . ' not found or not approved yet.',
+                'fulfillmentText' => 'Volunteer not found or not approved yet.',
                 'source' => 'dialogflow-webhook'
             ];
         }
@@ -133,11 +119,9 @@ function getUnitRecommendation($volunteer_id, $pdo) {
         
         // Build recommendation message
         $message = "Based on your skills, I recommend: **" . htmlspecialchars($unit['unit_name']) . "** (" . htmlspecialchars($unit['unit_code']) . ")\n\n";
-        $message .= "📍 Unit Type: " . htmlspecialchars($unit['unit_type']) . "\n";
-        $message .= "📍 Location: " . htmlspecialchars($unit['location']) . "\n";
-        $message .= "📍 Available Spots: " . $available_spots . "/" . $unit['capacity'] . "\n";
-        $message .= "⭐ Match Score: " . $topRecommendation['score'] . "%\n\n";
-        $message .= "Skills Match:\n" . $topRecommendation['matchDetails'] . "\n\n";
+        $message .= "Location: " . htmlspecialchars($unit['location']) . "\n";
+        $message .= "Available Spots: " . $available_spots . "/" . $unit['capacity'] . "\n";
+        $message .= "Match Score: " . $topRecommendation['score'] . "%\n\n";
         $message .= "Would you like to accept this recommendation?";
         
         return [
@@ -149,24 +133,13 @@ function getUnitRecommendation($volunteer_id, $pdo) {
                     ]
                 ]
             ],
-            'outputContexts' => [
-                [
-                    'name' => preg_replace('/\/sessions\/[^\/]+/', '/sessions/recommended', $request['session'] ?? '') . '/contexts/recommended_unit',
-                    'lifespanCount' => 5,
-                    'parameters' => [
-                        'unit_id' => $topRecommendation['unit_id'],
-                        'volunteer_id' => $volunteer_id,
-                        'unit_name' => $unit['unit_name']
-                    ]
-                ]
-            ],
             'source' => 'dialogflow-webhook'
         ];
         
     } catch (Exception $e) {
         error_log('[DIALOGFLOW] Error in getUnitRecommendation: ' . $e->getMessage());
         return [
-            'fulfillmentText' => 'Error processing recommendation: ' . htmlspecialchars($e->getMessage()),
+            'fulfillmentText' => 'Error processing recommendation.',
             'source' => 'dialogflow-webhook'
         ];
     }
@@ -174,45 +147,44 @@ function getUnitRecommendation($volunteer_id, $pdo) {
 
 /**
  * Calculate unit recommendations based on volunteer skills
- * Uses weighted scoring based on skill-to-unit mapping
+ * <CHANGE> Unified logic - matches get_ai_recommendation.php exactly
  */
 function calculateUnitRecommendations($volunteer, $pdo) {
     try {
-        // Define skill-to-unit mapping with weights
+        // <CHANGE> All fields use BINARY (0/1) - no string fields
         $skillMapping = [
             'Fire' => [
                 'skills_basic_firefighting' => 40,
-                'skills_physical_fitness_excellent' => 20,
-                'skills_driving' => 10,
-                'skills_communication' => 10,
-                'skills_first_aid_cpr' => 20
+                'skills_driving' => 15,
+                'skills_communication' => 15,
+                'skills_first_aid_cpr' => 20,
+                'skills_mechanical' => 10
             ],
             'Rescue' => [
                 'skills_search_rescue' => 40,
                 'skills_driving' => 15,
                 'skills_communication' => 15,
-                'skills_physical_fitness_excellent' => 20,
-                'skills_first_aid_cpr' => 10
+                'skills_basic_firefighting' => 15,
+                'skills_first_aid_cpr' => 15
             ],
             'EMS' => [
                 'skills_first_aid_cpr' => 50,
                 'skills_communication' => 20,
                 'skills_driving' => 15,
-                'skills_physical_fitness_excellent' => 15
+                'skills_basic_firefighting' => 15
             ],
             'Logistics' => [
                 'skills_logistics' => 40,
                 'skills_mechanical' => 20,
-                'skills_driving' => 15,
-                'skills_communication' => 15,
-                'skills_physical_fitness_good' => 10
+                'skills_driving' => 20,
+                'skills_communication' => 20
             ],
             'Command' => [
                 'skills_communication' => 40,
                 'skills_logistics' => 20,
                 'skills_first_aid_cpr' => 15,
                 'skills_basic_firefighting' => 15,
-                'skills_search_rescue' => 10
+                'skills_driving' => 10
             ]
         ];
         
@@ -234,24 +206,23 @@ function calculateUnitRecommendations($volunteer, $pdo) {
                 $skillWeights = $skillMapping[$unitType];
                 
                 foreach ($skillWeights as $skillField => $weight) {
-                    $hasSkill = false;
-                    
-                    // Check for physical fitness bonuses
-                    if ($skillField === 'skills_physical_fitness_excellent' && $volunteer['physical_fitness'] === 'Excellent') {
-                        $hasSkill = true;
-                        $matchDetails .= "✓ Physical Fitness (Excellent)\n";
-                    } elseif ($skillField === 'skills_physical_fitness_good' && in_array($volunteer['physical_fitness'], ['Good', 'Excellent'])) {
-                        $hasSkill = true;
-                        $matchDetails .= "✓ Physical Fitness (" . $volunteer['physical_fitness'] . ")\n";
-                    } elseif ($volunteer[$skillField] == 1) {
-                        $hasSkill = true;
+                    // <CHANGE> Check binary field (0/1)
+                    if (isset($volunteer[$skillField]) && (int)$volunteer[$skillField] === 1) {
+                        $score += $weight;
                         $skillName = ucwords(str_replace(['skills_', '_'], ['', ' '], $skillField));
                         $matchDetails .= "✓ " . $skillName . "\n";
                     }
-                    
-                    if ($hasSkill) {
-                        $score += $weight;
-                    }
+                }
+            }
+            
+            // <CHANGE> Physical fitness bonus from ENUM field
+            if (!empty($volunteer['physical_fitness'])) {
+                if ($volunteer['physical_fitness'] === 'Excellent') {
+                    $score += 15;
+                    $matchDetails .= "✓ Physical Fitness (Excellent)\n";
+                } elseif ($volunteer['physical_fitness'] === 'Good') {
+                    $score += 8;
+                    $matchDetails .= "✓ Physical Fitness (Good)\n";
                 }
             }
             
@@ -260,6 +231,7 @@ function calculateUnitRecommendations($volunteer, $pdo) {
                 $recommendations[] = [
                     'unit_id' => $unit['id'],
                     'unit_name' => $unit['unit_name'],
+                    'unit_code' => $unit['unit_code'],
                     'unit_type' => $unitType,
                     'score' => min(100, $score),
                     'matchDetails' => trim($matchDetails)
@@ -291,7 +263,7 @@ function confirmAssignment($parameters, $pdo) {
         
         if (!$unit_id || !$volunteer_id) {
             return [
-                'fulfillmentText' => 'Missing required information for assignment. Please provide volunteer ID and unit ID.',
+                'fulfillmentText' => 'Missing required information for assignment.',
                 'source' => 'dialogflow-webhook'
             ];
         }
@@ -304,7 +276,7 @@ function confirmAssignment($parameters, $pdo) {
         
         if ($existing) {
             return [
-                'fulfillmentText' => 'You are already assigned to a unit. Please contact admin to reassign.',
+                'fulfillmentText' => 'You are already assigned to a unit. Please contact admin.',
                 'source' => 'dialogflow-webhook'
             ];
         }
@@ -326,9 +298,7 @@ function confirmAssignment($parameters, $pdo) {
         $unitStmt->execute([$unit_id]);
         $unit = $unitStmt->fetch(PDO::FETCH_ASSOC);
         
-        $message = "✅ Assignment confirmed! You have been successfully assigned to **" . htmlspecialchars($unit['unit_name']) . "** (" . htmlspecialchars($unit['unit_code']) . ").\n\n";
-        $message .= "You will receive further details via email shortly.\n";
-        $message .= "Welcome to the team!";
+        $message = "Assignment confirmed! You have been assigned to " . htmlspecialchars($unit['unit_name']) . " (" . htmlspecialchars($unit['unit_code']) . "). Welcome to the team!";
         
         return [
             'fulfillmentText' => $message,
@@ -338,7 +308,7 @@ function confirmAssignment($parameters, $pdo) {
     } catch (Exception $e) {
         error_log('[DIALOGFLOW] Error in confirmAssignment: ' . $e->getMessage());
         return [
-            'fulfillmentText' => 'Error confirming assignment: ' . htmlspecialchars($e->getMessage()),
+            'fulfillmentText' => 'Error confirming assignment.',
             'source' => 'dialogflow-webhook'
         ];
     }
@@ -356,28 +326,26 @@ function getVolunteerSkills($volunteer_id, $pdo) {
         
         if (!$volunteer) {
             return [
-                'fulfillmentText' => 'Volunteer ID ' . htmlspecialchars($volunteer_id) . ' not found.',
+                'fulfillmentText' => 'Volunteer not found.',
                 'source' => 'dialogflow-webhook'
             ];
         }
         
         $skills = [];
         
-        if ($volunteer['skills_basic_firefighting']) $skills[] = '🔥 Basic Firefighting';
-        if ($volunteer['skills_first_aid_cpr']) $skills[] = '🏥 First Aid/CPR';
-        if ($volunteer['skills_search_rescue']) $skills[] = '🔍 Search & Rescue';
-        if ($volunteer['skills_driving']) $skills[] = '🚗 Driving';
-        if ($volunteer['skills_communication']) $skills[] = '📢 Communication';
-        if ($volunteer['skills_mechanical']) $skills[] = '⚙️ Mechanical';
-        if ($volunteer['skills_logistics']) $skills[] = '📦 Logistics';
+        // <CHANGE> Check binary fields correctly
+        if ((int)$volunteer['skills_basic_firefighting'] === 1) $skills[] = 'Basic Firefighting';
+        if ((int)$volunteer['skills_first_aid_cpr'] === 1) $skills[] = 'First Aid/CPR';
+        if ((int)$volunteer['skills_search_rescue'] === 1) $skills[] = 'Search & Rescue';
+        if ((int)$volunteer['skills_driving'] === 1) $skills[] = 'Driving';
+        if ((int)$volunteer['skills_communication'] === 1) $skills[] = 'Communication';
+        if ((int)$volunteer['skills_mechanical'] === 1) $skills[] = 'Mechanical';
+        if ((int)$volunteer['skills_logistics'] === 1) $skills[] = 'Logistics';
         
-        $skillsList = !empty($skills) ? implode("\n", $skills) : "No specialized skills recorded.";
+        $skillsList = !empty($skills) ? implode(", ", $skills) : "No specialized skills recorded.";
         
-        $message = "**Your Skills & Qualifications:**\n\n";
-        $message .= $skillsList . "\n\n";
-        $message .= "📚 Education: " . htmlspecialchars($volunteer['education']) . "\n";
-        $message .= "💪 Physical Fitness: " . htmlspecialchars($volunteer['physical_fitness']) . "\n";
-        $message .= "🌍 Languages: " . htmlspecialchars($volunteer['languages_spoken']);
+        $message = "Your Skills: " . $skillsList . "\n";
+        $message .= "Physical Fitness: " . htmlspecialchars($volunteer['physical_fitness'] ?? 'Not recorded');
         
         return [
             'fulfillmentText' => $message,
@@ -387,7 +355,7 @@ function getVolunteerSkills($volunteer_id, $pdo) {
     } catch (Exception $e) {
         error_log('[DIALOGFLOW] Error in getVolunteerSkills: ' . $e->getMessage());
         return [
-            'fulfillmentText' => 'Error retrieving skills: ' . htmlspecialchars($e->getMessage()),
+            'fulfillmentText' => 'Error retrieving skills.',
             'source' => 'dialogflow-webhook'
         ];
     }
