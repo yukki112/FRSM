@@ -1,0 +1,7 @@
+# app/.gitignore
+face_env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
