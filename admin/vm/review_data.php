@@ -1384,7 +1384,7 @@ $status_counts_stmt = null;
                         <a href="#" class="submenu-item">Monitor Attendance</a>
                     </div>
                     
-                    <!-- Training & Certification Monitoring -->
+                   <!-- Training & Certification Monitoring -->
                     <div class="menu-item" onclick="toggleSubmenu('training-management')">
                         <div class="icon-box icon-bg-teal">
                             <i class='bx bxs-graduation icon-teal'></i>
@@ -1395,10 +1395,10 @@ $status_counts_stmt = null;
                         </svg>
                     </div>
                     <div id="training-management" class="submenu">
-                        <a href="#" class="submenu-item">View Records</a>
-                        <a href="#" class="submenu-item">Approve Completions</a>
-                        <a href="#" class="submenu-item">Assign Training</a>
-                        <a href="#" class="submenu-item">Track Expiry</a>
+                        <a href="../tc/approve_completions.php" class="submenu-item">Approve Completions</a>
+                        <a href="../tc/view_training_records.php" class="submenu-item">View Records</a>
+                        <a href="../tc/assign_training.php" class="submenu-item">Assign Training</a>
+                        <a href="../tc/track_expiry.php" class="submenu-item">Track Expiry</a>
                     </div>
                     
                     <!-- Inspection Logs for Establishments -->

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Face Registration</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        video, canvas { width: 100%; max-width: 640px; border: 2px solid #ccc; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Face Registration</h1>
+        
+        <div>
+            <label for="userId">User ID:</label>
+            <input type="number" id="userId" value="8" placeholder="Enter user ID">
+            <small>(Get your ID from phpMyAdmin: SELECT id FROM users WHERE email='your@email.com')</small>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <video id="video" autoplay playsinline style="transform: scaleX(-1);"></video>
+            <canvas id="canvas" style="display: none;"></canvas>
+        </div>
+        
+        <div>
+            <button id="startBtn">Start Camera</button>
+            <button id="captureBtn" disabled>Capture & Register</button>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:5001';
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startBtn = document.getElementById('startBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const status = document.getElementById('status');
+        const userIdInput = document.getElementById('userId');
+        const resultDiv = document.getElementById('result');
+        
+        let videoStream = null;
+        
+        startBtn.addEventListener('click', async () => {
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480, facingMode: 'user' } 
+                });
+                video.srcObject = videoStream;
+                startBtn.disabled = true;
+                captureBtn.disabled = false;
+                showStatus('Camera started. Click "Capture & Register"', 'info');
+            } catch (error) {
+                showStatus('Camera error: ' + error.message, 'error');
+            }
+        });
+        
+        captureBtn.addEventListener('click', async () => {
+            const userId = userIdInput.value;
+            if (!userId) {
+                showStatus('Please enter a User ID', 'error');
+                return;
+            }
+            
+            // Capture image
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            
+            showStatus('Registering face...', 'info');
+            captureBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/face/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: parseInt(userId),
+                        image: imageBase64.split(',')[1]
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus('✓ Face registered successfully!', 'success');
+                    resultDiv.innerHTML = `
+                        <h3>Registration Details:</h3>
+                        <p><strong>User ID:</strong> ${data.user_id}</p>
+                        <p><strong>Email:</strong> ${data.user_email || 'N/A'}</p>
+                        <p><strong>Face Hash:</strong> ${data.face_hash}</p>
+                        <p><strong>Features:</strong> ${data.features} dimensions</p>
+                        <p>You can now test face login on the login page.</p>
+                    `;
+                } else {
+                    showStatus('✗ Error: ' + data.error, 'error');
+                    captureBtn.disabled = false;
+                }
+            } catch (error) {
+                showStatus('Connection error: ' + error.message, 'error');
+                captureBtn.disabled = false;
+            }
+        });
+        
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+    </script>
+</body>
+</html>

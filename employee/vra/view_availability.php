@@ -57,7 +57,17 @@ if (!empty($availability_filter) && $availability_filter !== 'all') {
 }
 
 if (!empty($search_term)) {
-    $where_conditions[] = "(full_name LIKE ? OR email LIKE ? OR contact_number LIKE ?)";
+    // Search in constructed full name and individual fields
+    $where_conditions[] = "(
+        CONCAT(
+            first_name, 
+            CASE WHEN middle_name IS NOT NULL AND middle_name != '' THEN CONCAT(' ', middle_name) ELSE '' END,
+            ' ',
+            last_name
+        ) LIKE ? 
+        OR email LIKE ? 
+        OR contact_number LIKE ?
+    )";
     $params[] = "%$search_term%";
     $params[] = "%$search_term%";
     $params[] = "%$search_term%";
@@ -68,26 +78,39 @@ if (!empty($where_conditions)) {
     $where_clause = "WHERE " . implode(" AND ", $where_conditions);
 }
 
-// Count total volunteers for pagination
+// Count total volunteers for pagination - FIXED QUERY
 $count_query = "SELECT COUNT(*) as total FROM volunteers $where_clause";
 $count_stmt = $pdo->prepare($count_query);
 $count_stmt->execute($params);
 $total_volunteers = $count_stmt->fetch()['total'];
 $total_pages = ceil($total_volunteers / $limit);
 
-// Fetch volunteers with filters and pagination
-// Convert limit and offset to integers for proper binding
-$volunteers_query = "SELECT * FROM volunteers $where_clause ORDER BY created_at DESC LIMIT ? OFFSET ?";
+// Fetch volunteers with filters and pagination - FIXED QUERY
+$volunteers_query = "SELECT 
+                        *,
+                        -- Construct full name if empty
+                        CASE 
+                            WHEN full_name IS NULL OR full_name = '' 
+                            THEN CONCAT(
+                                first_name, 
+                                CASE WHEN middle_name IS NOT NULL AND middle_name != '' THEN CONCAT(' ', middle_name) ELSE '' END,
+                                ' ',
+                                last_name
+                            )
+                            ELSE full_name 
+                        END as display_full_name
+                     FROM volunteers 
+                     $where_clause 
+                     ORDER BY created_at DESC 
+                     LIMIT ? OFFSET ?";
 $volunteers_stmt = $pdo->prepare($volunteers_query);
 
-// Bind parameters - need to specify types for LIMIT and OFFSET
 $param_types = array_fill(0, count($params), PDO::PARAM_STR);
-$param_types[] = PDO::PARAM_INT; // For LIMIT
-$param_types[] = PDO::PARAM_INT; // For OFFSET
+$param_types[] = PDO::PARAM_INT;
+$param_types[] = PDO::PARAM_INT;
 
 $all_params = array_merge($params, [$limit, $offset]);
 
-// Execute with parameter types
 foreach ($all_params as $key => $value) {
     $volunteers_stmt->bindValue($key + 1, $value, $param_types[$key] ?? PDO::PARAM_STR);
 }
@@ -95,14 +118,22 @@ foreach ($all_params as $key => $value) {
 $volunteers_stmt->execute();
 $volunteers = $volunteers_stmt->fetchAll();
 
-// Get counts for each status
-$status_counts_query = "SELECT volunteer_status, COUNT(*) as count FROM volunteers GROUP BY volunteer_status";
+// Get counts for each status - FIXED QUERY
+$status_counts_query = "SELECT 
+                            volunteer_status, 
+                            COUNT(*) as count 
+                        FROM volunteers 
+                        GROUP BY volunteer_status";
 $status_counts_stmt = $pdo->prepare($status_counts_query);
 $status_counts_stmt->execute();
 $status_counts = $status_counts_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-// Get availability counts
-$availability_counts_query = "SELECT emergency_response, COUNT(*) as count FROM volunteers GROUP BY emergency_response";
+// Get availability counts - FIXED QUERY
+$availability_counts_query = "SELECT 
+                                emergency_response, 
+                                COUNT(*) as count 
+                              FROM volunteers 
+                              GROUP BY emergency_response";
 $availability_counts_stmt = $pdo->prepare($availability_counts_query);
 $availability_counts_stmt->execute();
 $availability_counts = $availability_counts_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -1171,70 +1202,6 @@ $count_stmt = null;
             opacity: 0.5;
         }
 
-        .dashboard-animation {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--background-color);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease;
-        }
-
-        .animation-logo {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 30px;
-            opacity: 0;
-            transform: translateY(20px);
-            transition: all 0.5s ease;
-        }
-
-        .animation-logo-icon img {
-            width: 70px;
-            height: 75px;
-            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
-        }
-
-        .animation-logo-text {
-            font-size: 28px;
-            font-weight: 800;
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .animation-progress {
-            width: 200px;
-            height: 4px;
-            background: var(--gray-200);
-            border-radius: 2px;
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-
-        .animation-progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-            border-radius: 2px;
-            transition: width 1s ease;
-            width: 0%;
-        }
-
-        .animation-text {
-            font-size: 16px;
-            color: var(--text-light);
-            opacity: 0;
-            transition: opacity 0.5s ease;
-        }
-
-        /* Enhanced Design Elements */
         .quick-actions {
             display: flex;
             gap: 12px;
@@ -1372,7 +1339,6 @@ $count_stmt = null;
             font-size: 13px;
         }
 
-        /* Enhanced Status Modal Styles */
         .status-modal-content {
             padding: 20px;
         }
@@ -1546,7 +1512,6 @@ $count_stmt = null;
             margin-top: 2px;
         }
 
-        /* Enhanced Filter Tabs */
         .filter-tabs {
             display: flex;
             gap: 8px;
@@ -1656,19 +1621,6 @@ $count_stmt = null;
     </style>
 </head>
 <body>
-    <div class="dashboard-animation" id="dashboard-animation">
-        <div class="animation-logo">
-            <div class="animation-logo-icon">
-                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo">
-            </div>
-            <span class="animation-logo-text">Fire & Rescue</span>
-        </div>
-        <div class="animation-progress">
-            <div class="animation-progress-fill" id="animation-progress"></div>
-        </div>
-        <div class="animation-text" id="animation-text">Loading Availability...</div>
-    </div>
-    
     <!-- Notification Container -->
     <div class="notification-container" id="notification-container"></div>
     
@@ -1761,7 +1713,7 @@ $count_stmt = null;
                 <button class="modal-close" id="view-modal-close">&times;</button>
             </div>
             <div class="modal-body" id="view-modal-body">
-                <!-- Content will be loaded dynamically -->
+                <!-- Content will be loaded dynamically via AJAX -->
             </div>
             <div class="modal-footer">
                 <button class="modal-button modal-secondary" id="view-modal-close-btn">Close</button>
@@ -1805,7 +1757,7 @@ $count_stmt = null;
                     </div>
                     <div id="fire-incident" class="submenu">
                         <a href="../fir/recieve_data.php" class="submenu-item">Receive Data</a>
-                        <a href="../fir/manual_reporting.php" class="submenu-item">Manual Reporting</a>
+                       
                         <a href="../fir/update_status.php" class="submenu-item">Update Status</a>
                     </div>
                     
@@ -1820,10 +1772,10 @@ $count_stmt = null;
                         </svg>
                     </div>
                     <div id="dispatch" class="submenu">
-                        <a href="../dispatch/select_unit.php" class="submenu-item">Select Unit</a>
-                        <a href="../dispatch/send_dispatch.php" class="submenu-item">Send Dispatch Info</a>
-                        <a href="../dispatch/notify_unit.php" class="submenu-item">Notify Unit</a>
-                        <a href="../dispatch/track_status.php" class="submenu-item">Track Status</a>
+                        <a href="../dc/select_unit.php" class="submenu-item">Select Unit</a>
+                        <a href="../dc/send_dispatch.php" class="submenu-item">Send Dispatch Info</a>
+                       
+                        <a href="../dc/track_status.php" class="submenu-item">Track Status</a>
                     </div>
                     
                     <!-- Barangay Volunteer Roster Access -->
@@ -1872,10 +1824,10 @@ $count_stmt = null;
                         </svg>
                     </div>
                     <div id="schedule" class="submenu">
-                        <a href="../schedule/view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="../schedule/confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="../schedule/request_change.php" class="submenu-item">Request Change</a>
-                        <a href="../schedule/mark_attendance.php" class="submenu-item">Mark Attendance</a>
+                        <a href="../sds/view_shifts.php" class="submenu-item">View Shifts</a>
+                        <a href="../sds/confirm_availability.php" class="submenu-item">Confirm Availability</a>
+                        <a href="../sds/request_change.php" class="submenu-item">Request Change</a>
+
                     </div>
                     
                     <!-- Training & Certification Logging -->
@@ -2243,10 +2195,10 @@ $count_stmt = null;
                                 <div class="table-row" data-id="<?php echo $volunteer['id']; ?>">
                                     <div class="table-cell">
                                         <div class="volunteer-avatar">
-                                            <?php echo strtoupper(substr($volunteer['full_name'], 0, 1)); ?>
+                                            <?php echo strtoupper(substr($volunteer['display_full_name'], 0, 1)); ?>
                                         </div>
                                         <div class="volunteer-info">
-                                            <div class="volunteer-name"><?php echo htmlspecialchars($volunteer['full_name']); ?></div>
+                                            <div class="volunteer-name"><?php echo htmlspecialchars($volunteer['display_full_name']); ?></div>
                                             <div class="volunteer-email"><?php echo htmlspecialchars($volunteer['email']); ?></div>
                                         </div>
                                     </div>
@@ -2300,7 +2252,7 @@ $count_stmt = null;
                                                 <i class='bx bx-show'></i>
                                                 View
                                             </button>
-                                            <button class="action-button update-button" onclick="updateStatus(<?php echo $volunteer['id']; ?>, '<?php echo $volunteer['full_name']; ?>', '<?php echo $volunteer['volunteer_status']; ?>', '<?php echo $volunteer['email']; ?>')">
+                                            <button class="action-button update-button" onclick="updateStatus(<?php echo $volunteer['id']; ?>, '<?php echo htmlspecialchars($volunteer['display_full_name']); ?>', '<?php echo $volunteer['volunteer_status']; ?>', '<?php echo htmlspecialchars($volunteer['email']); ?>')">
                                                 <i class='bx bx-edit'></i>
                                                 Status
                                             </button>
@@ -2326,10 +2278,10 @@ $count_stmt = null;
                                 <div class="volunteer-card" data-id="<?php echo $volunteer['id']; ?>">
                                     <div class="volunteer-header">
                                         <div class="volunteer-avatar">
-                                            <?php echo strtoupper(substr($volunteer['full_name'], 0, 1)); ?>
+                                            <?php echo strtoupper(substr($volunteer['display_full_name'], 0, 1)); ?>
                                         </div>
                                         <div class="volunteer-info">
-                                            <div class="volunteer-name"><?php echo htmlspecialchars($volunteer['full_name']); ?></div>
+                                            <div class="volunteer-name"><?php echo htmlspecialchars($volunteer['display_full_name']); ?></div>
                                             <div class="volunteer-email"><?php echo htmlspecialchars($volunteer['email']); ?></div>
                                         </div>
                                     </div>
@@ -2384,7 +2336,7 @@ $count_stmt = null;
                                             <i class='bx bx-show'></i>
                                             View
                                         </button>
-                                        <button class="card-action-button update-button" onclick="updateStatus(<?php echo $volunteer['id']; ?>, '<?php echo $volunteer['full_name']; ?>', '<?php echo $volunteer['volunteer_status']; ?>', '<?php echo $volunteer['email']; ?>')">
+                                        <button class="card-action-button update-button" onclick="updateStatus(<?php echo $volunteer['id']; ?>, '<?php echo htmlspecialchars($volunteer['display_full_name']); ?>', '<?php echo $volunteer['volunteer_status']; ?>', '<?php echo htmlspecialchars($volunteer['email']); ?>')">
                                             <i class='bx bx-edit'></i>
                                             Status
                                         </button>
@@ -2455,38 +2407,15 @@ $count_stmt = null;
         let currentView = 'table';
         
         document.addEventListener('DOMContentLoaded', function() {
-            const animationOverlay = document.getElementById('dashboard-animation');
-            const animationProgress = document.getElementById('animation-progress');
-            const animationText = document.getElementById('animation-text');
-            const animationLogo = document.querySelector('.animation-logo');
-            
-            // Show logo and text immediately
-            setTimeout(() => {
-                animationLogo.style.opacity = '1';
-                animationLogo.style.transform = 'translateY(0)';
-            }, 100);
-            
-            setTimeout(() => {
-                animationText.style.opacity = '1';
-            }, 300);
-            
-            // Faster loading - 1 second only
-            setTimeout(() => {
-                animationProgress.style.width = '100%';
-            }, 100);
-            
-            setTimeout(() => {
-                animationOverlay.style.opacity = '0';
-                setTimeout(() => {
-                    animationOverlay.style.display = 'none';
-                }, 300);
-            }, 1000);
+            // Show welcome notification immediately since loading screen is removed
+            showNotification('success', 'System Ready', 'Volunteer availability system is now active');
             
             // Initialize event listeners
             initEventListeners();
             
-            // Show welcome notification
-            showNotification('success', 'System Ready', 'Volunteer availability system is now active');
+            // Initialize time display
+            updateTime();
+            setInterval(updateTime, 1000);
         });
         
         function initEventListeners() {
@@ -2741,75 +2670,213 @@ $count_stmt = null;
             
             document.getElementById('view-modal').classList.add('active');
             
-            // In a real implementation, you would fetch volunteer details from the server
-            // For now, we'll simulate with a timeout
-            setTimeout(() => {
-                document.getElementById('view-modal-body').innerHTML = `
-                    <div class="modal-section">
-                        <h3 class="modal-section-title">Personal Information</h3>
-                        <div class="modal-grid">
-                            <div class="modal-detail">
-                                <div class="modal-detail-label">Full Name</div>
-                                <div class="modal-detail-value">Volunteer Name</div>
+            // Fetch volunteer details via AJAX
+            fetch('get_volunteer_details.php?id=' + id)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const volunteer = data.volunteer;
+                        
+                        // Format available days and hours
+                        const availableDays = volunteer.available_days ? volunteer.available_days.split(',').map(day => day.trim()).join(', ') : 'Not specified';
+                        const availableHours = volunteer.available_hours ? volunteer.available_hours.split(',').map(hour => hour.trim()).join(', ') : 'Not specified';
+                        
+                        // Get skills list
+                        const skills = [];
+                        if (volunteer.skills_basic_firefighting) skills.push('Firefighting');
+                        if (volunteer.skills_first_aid_cpr) skills.push('First Aid/CPR');
+                        if (volunteer.skills_search_rescue) skills.push('Search & Rescue');
+                        if (volunteer.skills_driving) skills.push('Driving');
+                        if (volunteer.skills_communication) skills.push('Communication');
+                        if (volunteer.skills_mechanical) skills.push('Mechanical');
+                        if (volunteer.skills_logistics) skills.push('Logistics');
+                        
+                        // Get education level
+                        const educationLevels = {
+                            'Elementary': 'Elementary',
+                            'High School': 'High School',
+                            'High School Graduate': 'High School Graduate',
+                            'College Undergraduate': 'College Undergraduate',
+                            'College Graduate': 'College Graduate',
+                            'Vocational': 'Vocational',
+                            'Post Graduate': 'Post Graduate'
+                        };
+                        const education = educationLevels[volunteer.education] || volunteer.education;
+                        
+                        // Get areas of interest
+                        const interests = [];
+                        if (volunteer.area_interest_fire_suppression) interests.push('Fire Suppression');
+                        if (volunteer.area_interest_rescue_operations) interests.push('Rescue Operations');
+                        if (volunteer.area_interest_ems) interests.push('EMS');
+                        if (volunteer.area_interest_disaster_response) interests.push('Disaster Response');
+                        if (volunteer.area_interest_admin_logistics) interests.push('Admin/Logistics');
+                        
+                        // Build the modal content with REAL volunteer data
+                        document.getElementById('view-modal-body').innerHTML = `
+                            <div class="modal-section">
+                                <h3 class="modal-section-title">Personal Information</h3>
+                                <div class="modal-grid">
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Full Name</div>
+                                        <div class="modal-detail-value">${escapeHtml(volunteer.full_name)}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Email Address</div>
+                                        <div class="modal-detail-value">${escapeHtml(volunteer.email)}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Phone Number</div>
+                                        <div class="modal-detail-value">${escapeHtml(volunteer.contact_number)}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Date of Birth</div>
+                                        <div class="modal-detail-value">${formatDate(volunteer.date_of_birth)}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Gender</div>
+                                        <div class="modal-detail-value">${escapeHtml(volunteer.gender)}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Civil Status</div>
+                                        <div class="modal-detail-value">${escapeHtml(volunteer.civil_status)}</div>
+                                    </div>
+                                </div>
+                                <div class="modal-detail" style="margin-top: 12px;">
+                                    <div class="modal-detail-label">Complete Address</div>
+                                    <div class="modal-detail-value">${escapeHtml(volunteer.address)}</div>
+                                </div>
                             </div>
-                            <div class="modal-detail">
-                                <div class="modal-detail-label">Email</div>
-                                <div class="modal-detail-value">volunteer@example.com</div>
-                            </div>
-                            <div class="modal-detail">
-                                <div class="modal-detail-label">Phone</div>
-                                <div class="modal-detail-value">+1 (555) 123-4567</div>
-                            </div>
-                            <div class="modal-detail">
-                                <div class="modal-detail-label">Address</div>
-                                <div class="modal-detail-value">123 Main St, City, State</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="modal-section">
-                        <h3 class="modal-section-title">Availability</h3>
-                        <div class="modal-grid">
-                            <div class="modal-detail">
-                                <div class="modal-detail-label">Status</div>
-                                <div class="status-badge status-active">Active</div>
-                            </div>
-                            <div class="modal-detail">
-                                <div class="modal-detail-label">Emergency Response</div>
-                                <div class="availability-badge availability-available">Available</div>
-                            </div>
-                            <div class="modal-detail">
-                                <div class="modal-detail-label">Available Days</div>
-                                <div class="modal-detail-value">Monday, Wednesday, Friday</div>
-                            </div>
-                            <div class="modal-detail">
-                                <div class="modal-detail-label">Available Hours</div>
-                                <div class="modal-detail-value">Morning, Afternoon</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="modal-section">
-                        <h3 class="modal-section-title">Skills & Training</h3>
-                        <div class="modal-grid">
-                            <div class="modal-detail">
-                                <div class="modal-detail-label">Skills</div>
-                                <div class="modal-detail-value">
-                                    <div class="skills-list">
-                                        <span class="skill-tag">Firefighting</span>
-                                        <span class="skill-tag">First Aid</span>
-                                        <span class="skill-tag">Rescue</span>
+                            
+                            <div class="modal-section">
+                                <h3 class="modal-section-title">Volunteer Details</h3>
+                                <div class="modal-grid">
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Volunteer Status</div>
+                                        <div class="status-badge status-${volunteer.volunteer_status.toLowerCase().replace(' ', '-')}">${volunteer.volunteer_status}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Emergency Response</div>
+                                        <div class="availability-badge availability-${volunteer.emergency_response === 'Yes' ? 'available' : 'unavailable'}">
+                                            ${volunteer.emergency_response === 'Yes' ? 'Available' : 'Not Available'}
+                                        </div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Application Date</div>
+                                        <div class="modal-detail-value">${formatDate(volunteer.application_date)}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Valid ID Type</div>
+                                        <div class="modal-detail-value">${escapeHtml(volunteer.valid_id_type)} - ${escapeHtml(volunteer.valid_id_number)}</div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="modal-detail">
-                                <div class="modal-detail-label">Training</div>
-                                <div class="modal-detail-value">Basic Firefighting, First Aid/CPR</div>
+                            
+                            <div class="modal-section">
+                                <h3 class="modal-section-title">Availability & Preferences</h3>
+                                <div class="modal-grid">
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Available Days</div>
+                                        <div class="modal-detail-value">${availableDays}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Available Hours</div>
+                                        <div class="modal-detail-value">${availableHours}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Education Level</div>
+                                        <div class="modal-detail-value">${education}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Physical Fitness</div>
+                                        <div class="modal-detail-value">${escapeHtml(volunteer.physical_fitness)}</div>
+                                    </div>
+                                </div>
                             </div>
+                            
+                            <div class="modal-section">
+                                <h3 class="modal-section-title">Skills & Training</h3>
+                                <div class="modal-grid">
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Skills</div>
+                                        <div class="modal-detail-value">
+                                            <div class="skills-list">
+                                                ${skills.length > 0 ? skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('') : '<span class="skill-tag">No skills listed</span>'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Areas of Interest</div>
+                                        <div class="modal-detail-value">
+                                            <div class="skills-list" style="background-color: rgba(59, 130, 246, 0.1);">
+                                                ${interests.length > 0 ? interests.map(interest => `<span class="skill-tag" style="background-color: rgba(59, 130, 246, 0.2);">${interest}</span>`).join('') : '<span class="skill-tag" style="background-color: rgba(59, 130, 246, 0.2);">No interests specified</span>'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-detail" style="margin-top: 12px;">
+                                    <div class="modal-detail-label">Specialized Training</div>
+                                    <div class="modal-detail-value">${volunteer.specialized_training ? escapeHtml(volunteer.specialized_training) : 'None specified'}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="modal-section">
+                                <h3 class="modal-section-title">Emergency Contact</h3>
+                                <div class="modal-grid">
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Contact Name</div>
+                                        <div class="modal-detail-value">${escapeHtml(volunteer.emergency_contact_name)}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Relationship</div>
+                                        <div class="modal-detail-value">${escapeHtml(volunteer.emergency_contact_relationship)}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Contact Number</div>
+                                        <div class="modal-detail-value">${escapeHtml(volunteer.emergency_contact_number)}</div>
+                                    </div>
+                                </div>
+                                <div class="modal-detail" style="margin-top: 12px;">
+                                    <div class="modal-detail-label">Contact Address</div>
+                                    <div class="modal-detail-value">${escapeHtml(volunteer.emergency_contact_address)}</div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        document.getElementById('view-modal-body').innerHTML = `
+                            <div style="text-align: center; padding: 40px; color: var(--danger);">
+                                <i class='bx bx-error' style="font-size: 40px;"></i>
+                                <h3>Error Loading Details</h3>
+                                <p>${data.message || 'Failed to load volunteer details. Please try again.'}</p>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching volunteer details:', error);
+                    document.getElementById('view-modal-body').innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: var(--danger);">
+                            <i class='bx bx-error' style="font-size: 40px;"></i>
+                            <h3>Network Error</h3>
+                            <p>Failed to load volunteer details. Please check your connection and try again.</p>
                         </div>
-                    </div>
-                `;
-            }, 1000);
+                    `;
+                });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return 'Not specified';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
         }
         
         function closeViewModal() {
@@ -3039,9 +3106,6 @@ $count_stmt = null;
             const timeString = `${hours}:${minutes}:${seconds} UTC+8`;
             document.getElementById('current-time').textContent = timeString;
         }
-        
-        updateTime();
-        setInterval(updateTime, 1000);
     </script>
 </body>
 </html>

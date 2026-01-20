@@ -987,19 +987,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             line-height: 1.5;
         }
         
-        @media (max-width: 1400px) {
+        /* Loading state */
+        .btn-primary.loading {
+            pointer-events: none;
+            opacity: 0.7;
+            position: relative;
+        }
+
+        .btn-primary.loading::after {
+            content: "";
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            top: 50%;
+            left: 50%;
+            margin-left: -10px;
+            margin-top: -10px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* ========== RESPONSIVE DESIGN ========== */
+        
+        /* Large screens (1200px and above) */
+        @media (min-width: 1200px) {
             .logo-left {
-                left: 60px;
+                left: 180px;
             }
             
             .register-container {
-                right: 60px;
+                right: 100px;
+                width: 500px;
             }
         }
         
-        @media (max-width: 1200px) {
+        /* Medium screens (992px to 1199px) */
+        @media (max-width: 1199px) and (min-width: 992px) {
             .logo-left {
-                left: 40px;
+                left: 80px;
             }
             
             .logo-left img {
@@ -1015,20 +1046,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
             
             .register-container {
-                right: 40px;
+                right: 60px;
                 width: 450px;
             }
         }
         
-        @media (max-width: 768px) {
+        /* Small screens (768px to 991px) */
+        @media (max-width: 991px) and (min-width: 768px) {
             .logo-left {
-                top: 100px;
-                left: 50%;
-                transform: translateX(-50%);
+                left: 40px;
             }
             
             .logo-left img {
-                width: 160px;
+                width: 180px;
             }
             
             .logo-left h1 {
@@ -1039,26 +1069,295 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 font-size: 16px;
             }
             
+            .register-container {
+                right: 40px;
+                width: 420px;
+            }
+            
+            .security-features {
+                padding: 25px;
+            }
+            
+            .security-features h3 {
+                font-size: 18px;
+            }
+            
+            .security-item {
+                font-size: 14px;
+            }
+        }
+        
+        /* Mobile screens (max-width: 767px) */
+        @media (max-width: 767px) {
+            body {
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+            }
+            
+            .logo-left {
+                position: relative;
+                top: auto;
+                left: auto;
+                transform: none;
+                margin-bottom: 30px;
+                text-align: center;
+                width: 100%;
+                animation: fadeIn 1s ease forwards;
+            }
+            
+            .logo-left img {
+                width: 120px;
+                margin-bottom: 15px;
+            }
+            
+            .logo-left h1 {
+                font-size: 28px;
+                margin-bottom: 10px;
+            }
+            
+            .logo-left .tagline {
+                font-size: 14px;
+                margin-bottom: 20px;
+            }
+            
             .security-features {
                 display: none;
             }
             
             .register-container {
-                right: 50%;
-                transform: translate(50%, -50%);
-                width: 90%;
-                max-width: 420px;
-                margin-top: 200px;
+                position: relative;
+                right: auto;
+                top: auto;
+                transform: none;
+                width: 100%;
+                max-width: 400px;
+                margin: 0 auto;
+                padding: 30px 25px;
+                border-radius: 25px;
+                animation: fadeIn 1s ease forwards 0.5s;
             }
             
-            .watermark-logo {
-                width: 600px;
-                height: 600px;
+            .register-logo img {
+                width: 80px;
+            }
+            
+            .register-header h2 {
+                font-size: 26px;
+            }
+            
+            .register-header p {
+                font-size: 14px;
             }
             
             .form-row {
                 flex-direction: column;
                 gap: 22px;
+            }
+            
+            .watermark-logo {
+                width: 400px;
+                height: 400px;
+            }
+            
+            .bg-decoration {
+                display: none;
+            }
+            
+            .dark-mode-toggle {
+                top: 10px;
+                right: 10px;
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+            
+            .back-button {
+                top: 10px;
+                left: 10px;
+                padding: 10px 20px;
+                font-size: 13px;
+            }
+            
+            .terms {
+                flex-direction: column;
+                gap: 15px;
+                padding: 12px;
+            }
+            
+            .terms label {
+                font-size: 13px;
+            }
+        }
+        
+        /* Extra small screens (max-width: 480px) */
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+            
+            .logo-left img {
+                width: 100px;
+            }
+            
+            .logo-left h1 {
+                font-size: 24px;
+            }
+            
+            .logo-left .tagline {
+                font-size: 13px;
+            }
+            
+            .register-container {
+                padding: 25px 20px;
+                border-radius: 20px;
+            }
+            
+            .register-logo img {
+                width: 70px;
+            }
+            
+            .register-header h2 {
+                font-size: 22px;
+            }
+            
+            .register-header p {
+                font-size: 13px;
+            }
+            
+            .form-group input, .form-group select, .form-group textarea {
+                padding: 12px 15px 12px 45px;
+                font-size: 14px;
+            }
+            
+            .input-wrapper i {
+                left: 15px;
+                font-size: 14px;
+            }
+            
+            .password-toggle {
+                right: 45px;
+                font-size: 15px;
+            }
+            
+            .btn-primary {
+                padding: 14px;
+                font-size: 16px;
+            }
+            
+            .login-link {
+                font-size: 13px;
+            }
+            
+            .footer {
+                font-size: 12px;
+            }
+            
+            .dark-mode-toggle {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+                margin-top: 17px;
+            }
+            
+            .back-button {
+                padding: 8px 16px;
+                font-size: 12px;
+            }
+            
+            .terms {
+                padding: 10px;
+            }
+            
+            .terms label {
+                font-size: 12px;
+            }
+        }
+        
+        /* Very small screens (max-width: 360px) */
+        @media (max-width: 360px) {
+            .register-container {
+                padding: 20px 15px;
+            }
+            
+            .form-group input, .form-group select, .form-group textarea {
+                padding: 10px 12px 10px 40px;
+            }
+            
+            .input-wrapper i {
+                left: 12px;
+            }
+            
+            .password-toggle {
+                right: 40px;
+            }
+            
+            .btn-primary {
+                padding: 12px;
+                font-size: 15px;
+            }
+        }
+        
+        /* Landscape orientation for mobile */
+        @media (max-height: 600px) and (max-width: 767px) {
+            body {
+                padding: 10px;
+            }
+            
+            .logo-left {
+                margin-bottom: 15px;
+            }
+            
+            .logo-left img {
+                width: 80px;
+                margin-bottom: 10px;
+            }
+            
+            .logo-left h1 {
+                font-size: 20px;
+                margin-bottom: 5px;
+            }
+            
+            .logo-left .tagline {
+                font-size: 12px;
+                margin-bottom: 10px;
+            }
+            
+            .register-container {
+                max-height: 80vh;
+                overflow-y: auto;
+                padding: 20px 15px;
+            }
+            
+            .register-logo {
+                margin-bottom: 15px;
+            }
+            
+            .register-logo img {
+                width: 60px;
+            }
+            
+            .register-header {
+                margin-bottom: 20px;
+            }
+            
+            .register-header h2 {
+                font-size: 20px;
+            }
+            
+            .register-header p {
+                font-size: 12px;
+            }
+            
+            .form-group {
+                margin-bottom: 15px;
+            }
+            
+            .form-row {
+                margin-bottom: 15px;
             }
         }
     </style>
@@ -1086,8 +1385,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <img src="../img/frsm-logo.png" alt="Fire & Rescue Services Logo">
         <h1>FIRE & RESCUE</h1>
         <p class="tagline">Emergency Services Management</p>
-        
-       
     </div>
     
      
@@ -1295,7 +1592,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <span class="error" style="color: #dc3545; font-size: 13px; margin-top: -10px; margin-bottom: 15px; display: block;"><?php echo $errors['terms']; ?></span>
             <?php endif; ?>
             
-            <button type="submit" class="btn-primary">
+            <button type="submit" class="btn-primary" id="submitBtn">
                 <i class="fas fa-user-plus"></i> Create Account
             </button>
         </form>
@@ -1407,28 +1704,100 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         });
         
         // Form validation
-        document.getElementById('registerForm').addEventListener('submit', function(e) {
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirm_password').value;
+        const form = document.getElementById('registerForm');
+        const submitBtn = document.getElementById('submitBtn');
+        
+        // Real-time validation for all fields
+        const inputs = form.querySelectorAll('input, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('blur', function() {
+                validateField(this);
+            });
+            
+            input.addEventListener('input', function() {
+                // Clear error state when user starts typing
+                if (this.classList.contains('error')) {
+                    this.classList.remove('error');
+                    const errorElement = this.parentNode.parentNode.querySelector('.error');
+                    if (errorElement) {
+                        errorElement.textContent = '';
+                    }
+                }
+            });
+        });
+        
+        // Field validation function
+        function validateField(field) {
+            const value = field.value.trim();
+            let isValid = true;
+            let errorMessage = '';
+            
+            // Required field validation
+            if (field.hasAttribute('required') && value === '') {
+                isValid = false;
+                errorMessage = 'This field is required';
+            }
+            
+            // Update field appearance
+            if (!isValid) {
+                field.classList.add('error');
+            } else if (value !== '') {
+                field.classList.remove('error');
+            }
+            
+            // Update error message
+            let errorElement = field.parentNode.parentNode.querySelector('.error');
+            if (!isValid) {
+                if (!errorElement) {
+                    errorElement = document.createElement('span');
+                    errorElement.className = 'error';
+                    field.parentNode.parentNode.appendChild(errorElement);
+                }
+                errorElement.textContent = errorMessage;
+            } else if (errorElement) {
+                errorElement.textContent = '';
+            }
+            
+            return isValid;
+        }
+        
+        // Form submission
+        form.addEventListener('submit', function(e) {
+            let isValid = true;
+            
+            // Validate all fields
+            inputs.forEach(input => {
+                if (!validateField(input)) {
+                    isValid = false;
+                }
+            });
+            
+            // Check terms agreement
             const agreeTerms = document.getElementById('terms').checked;
-            
-            if (password !== confirmPassword) {
-                e.preventDefault();
-                alert('Passwords do not match');
-                return false;
-            }
-            
             if (!agreeTerms) {
-                e.preventDefault();
-                alert('You must agree to the terms and conditions');
-                return false;
+                isValid = false;
+                const termsError = document.createElement('span');
+                termsError.className = 'error';
+                termsError.textContent = 'You must agree to the terms and conditions';
+                document.querySelector('.terms').appendChild(termsError);
             }
             
-            return true;
+            if (!isValid) {
+                e.preventDefault();
+                // Scroll to first error
+                const firstError = form.querySelector('.error');
+                if (firstError) {
+                    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            } else {
+                // Show loading state
+                submitBtn.classList.add('loading');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner"></i> Creating Account...';
+            }
         });
         
         // Enhanced input animations
-        const inputs = document.querySelectorAll('.form-group input, .form-group select, .form-group textarea');
         inputs.forEach(input => {
             input.addEventListener('focus', function() {
                 this.parentElement.style.transform = 'scale(1.02)';

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h2>Direct Face Match Test</h2>
+    <p>Testing against user ID: <strong id="userId">8</strong></p>
+    
+    <video id="video" width="640" height="480" autoplay></video><br>
+    <button onclick="startCamera()">Start Camera</button>
+    <button onclick="testMatch()" id="testBtn" disabled>Test Match</button>
+    
+    <div id="result" style="margin-top:20px; padding:15px; background:#f5f5f5;"></div>
+    
+    <script>
+        let stream = null;
+        const userId = 8; // Your user ID
+        
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 } 
+                });
+                document.getElementById('video').srcObject = stream;
+                document.getElementById('testBtn').disabled = false;
+                document.getElementById('result').innerHTML = 'Camera ready. Click "Test Match"';
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Camera error: ' + error.message;
+            }
+        }
+        
+        async function testMatch() {
+            const video = document.getElementById('video');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            
+            const imageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            const base64Image = imageBase64.split(',')[1];
+            
+            document.getElementById('result').innerHTML = 'Testing...';
+            
+            try {
+                // Test 1: Direct verification API
+                const verifyResponse = await fetch('http://127.0.0.1:5001/api/face/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        image: base64Image
+                    })
+                });
+                
+                const verifyData = await verifyResponse.json();
+                
+                // Test 2: Debug test endpoint
+                const testResponse = await fetch(`http://127.0.0.1:5001/api/face/test/${userId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image })
+                });
+                
+                const testData = await testResponse.json();
+                
+                // Display results
+                let html = `<h3>Test Results for User ${userId}</h3>`;
+                
+                html += `<h4>1. Direct Verification:</h4>`;
+                html += `<pre>${JSON.stringify(verifyData, null, 2)}</pre>`;
+                
+                html += `<h4>2. Debug Test:</h4>`;
+                html += `<pre>${JSON.stringify(testData, null, 2)}</pre>`;
+                
+                if (verifyData.authenticated) {
+                    html += `<div style="color:green; font-weight:bold;">✓ FACE MATCHED!</div>`;
+                } else {
+                    html += `<div style="color:red; font-weight:bold;">✗ Face NOT matched</div>`;
+                    html += `<p>Similarity: ${verifyData.similarity || testData.similarity || 'N/A'}</p>`;
+                    html += `<p>Threshold needed: 0.85</p>`;
+                }
+                
+                document.getElementById('result').innerHTML = html;
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        // Stop camera on page close
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>

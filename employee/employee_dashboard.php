@@ -44,6 +44,8 @@ $stmt = null;
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="icon" type="image/png" sizes="32x32" href="../img/frsm-logo.png">
     <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/dashboard-analytics.css">
+   
 </head>
 <body>
     <div class="dashboard-animation" id="dashboard-animation">
@@ -93,9 +95,9 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="fire-incident" class="submenu">
-                        <a href="#" class="submenu-item">Receive Data</a>
-                        <a href="#" class="submenu-item">Manual Reporting</a>
-                        <a href="#" class="submenu-item">Update Status</a>
+                        <a href="fir/receive_data.php" class="submenu-item">Receive Data</a>
+                   
+                        <a href="fir/update_status.php" class="submenu-item">Update Status</a>
                     </div>
                     
                     <!-- Dispatch Coordination -->
@@ -109,13 +111,13 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="dispatch" class="submenu">
-                        <a href="#" class="submenu-item">Select Unit</a>
+                        <a href="dc/select_unit.php" class="submenu-item">Select Unit</a>
                         <a href="#" class="submenu-item">Send Dispatch Info</a>
                         <a href="#" class="submenu-item">Notify Unit</a>
                         <a href="#" class="submenu-item">Track Status</a>
                     </div>
                     
-                    <!-- Barangay Volunteer Roster Access -->
+                       <!-- Barangay Volunteer Roster Access -->
                     <div class="menu-item" onclick="toggleSubmenu('volunteer')">
                         <div class="icon-box icon-bg-blue">
                             <i class='bx bxs-user-detail icon-blue'></i>
@@ -126,12 +128,11 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="volunteer" class="submenu">
-                        <a href="vra/review_data.php" class="submenu-item">Review Data</a>
-                        <a href="#" class="submenu-item">Approve Applications</a>
-                        <a href="#" class="submenu-item">Assign Volunteers</a>
-                        <a href="#" class="submenu-item">View Availability</a>
-                        <a href="#" class="submenu-item">Remove Volunteers</a>
-                        <a href="vra/toggle_volunteer_status.php" class="submenu-item">Open/Close Volunteer Registration</a>
+                        <a href="vra/review_data.php" class="submenu-item">Review/Aprroved Data Management</a>
+                        <a href="vra/approve_applications.php" class="submenu-item">Assign Volunteers</a>
+                        <a href="vra/view_availability.php" class="submenu-item">View Availability</a>
+                        <a href="vra/remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
+                        <a href="vra/toggle_volunteer_registration.php" class="submenu-item">Open/Close Registration</a>
                     </div>
                     
                     <!-- Resource Inventory Updates -->
@@ -162,10 +163,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="schedule" class="submenu">
-                        <a href="#" class="submenu-item">View Shifts</a>
-                        <a href="#" class="submenu-item">Confirm Availability</a>
-                        <a href="#" class="submenu-item">Request Change</a>
-                        <a href="#" class="submenu-item">Mark Attendance</a>
+                        <a href="sds/view_shifts.php" class="submenu-item">View Shifts</a>
+                        <a href="sds/confirm_availability.php" class="submenu-item">Confirm Availability</a>
+                        <a href="sds/request_change.php" class="submenu-item">Request Change</a>
+                        <a href="sds/mark_attendance.php" class="submenu-item">Mark Attendance</a>
                     </div>
                     
                     <!-- Training & Certification Logging -->
@@ -220,6 +221,23 @@ $stmt = null;
                     </div>
                 </div>
                 
+
+                <!-- Feedback & Suggestions -->
+                <div class="menu-item" onclick="toggleSubmenu('feedback')">
+                    <div class="icon-box icon-bg-indigo">
+                        <i class='bx bxs-message-square-detail icon-indigo'></i>
+                    </div>
+                    <span class="font-medium">Feedback & Suggestions</span>
+                    <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+                <div id="feedback" class="submenu">
+                    <a href="fb/approve_feedback.php" class="submenu-item">Approve Feedback</a>
+                    <a href="#" class="submenu-item">All Feedback</a>
+                </div>
+
+
                 <p class="menu-title" style="margin-top: 32px;">GENERAL</p>
                 
                 <div class="menu-items">

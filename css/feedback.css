@@ -1,0 +1,419 @@
+/* Feedback Modal Styles */
+.feedback-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.feedback-modal-content {
+    background: linear-gradient(135deg, #1a202c, #0f1419);
+    border-radius: 20px;
+    width: 90%;
+    max-width: 600px;
+    padding: 40px;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.5);
+    border: 2px solid var(--primary-red);
+    position: relative;
+    animation: slideUp 0.4s ease;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.feedback-modal h2 {
+    color: #ffffff;
+    margin-bottom: 15px;
+    font-size: 2rem;
+    font-weight: 800;
+    font-family: 'Bebas Neue', cursive;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.feedback-modal h2 i {
+    color: var(--primary-red);
+    margin-right: 15px;
+}
+
+.feedback-modal > p {
+    color: #cbd5e0;
+    margin-bottom: 30px;
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+
+.feedback-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: var(--primary-red);
+    color: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.feedback-close:hover {
+    background: #c53030;
+    transform: rotate(90deg);
+}
+
+/* Form Styles */
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    color: #e2e8f0;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(229, 62, 62, 0.3);
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-red);
+    box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.2);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color: #a0aec0;
+}
+
+/* FIXED Star Rating */
+.star-rating {
+    display: flex;
+    justify-content: flex-start;
+    flex-direction: row-reverse;
+    gap: 5px;
+}
+
+.star-rating input[type="radio"] {
+    display: none;
+}
+
+.star-rating label {
+    font-size: 40px;
+    color: #4a5568;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    line-height: 1;
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    order: 1;
+}
+
+/* Hover effect - highlight stars to the right */
+.star-rating label:hover,
+.star-rating label:hover ~ label {
+    color: #fbbf24;
+    transform: scale(1.1);
+}
+
+/* Selected stars - this is the key fix */
+.star-rating input[type="radio"]:checked ~ label {
+    color: #fbbf24 !important;
+}
+
+/* Keep selected state after selection */
+.star-rating input[type="radio"]:checked + label {
+    color: #fbbf24;
+}
+
+/* Initial state - show 5 stars as default */
+.star-rating label.selected {
+    color: #fbbf24;
+}
+
+/* Checkbox Group */
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px;
+    background: rgba(229, 62, 62, 0.08);
+    border-radius: 10px;
+    border-left: 4px solid var(--primary-red);
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--primary-red);
+}
+
+.checkbox-group label {
+    margin: 0;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.checkbox-group small {
+    color: #a0aec0;
+    font-size: 0.85rem;
+    margin-left: auto;
+}
+
+/* Submit Button */
+.form-submit {
+    margin-top: 30px;
+}
+
+.form-submit .btn-emergency {
+    width: 100%;
+    padding: 18px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Response Messages */
+.feedback-response {
+    margin-top: 25px;
+    padding: 20px;
+    border-radius: 10px;
+    animation: slideIn 0.5s ease;
+}
+
+.success-message {
+    background: rgba(72, 187, 120, 0.15);
+    border-left: 5px solid #38a169;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.success-message i {
+    font-size: 50px;
+    color: #38a169;
+    margin-bottom: 15px;
+    display: block;
+}
+
+.success-message p {
+    color: #c6f6d5;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+.error-message {
+    background: rgba(245, 101, 101, 0.15);
+    border-left: 5px solid #f56565;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.error-message i {
+    font-size: 50px;
+    color: #f56565;
+    margin-bottom: 15px;
+    display: block;
+}
+
+.error-message p {
+    color: #fed7d7;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+/* Testimonial Rating */
+.testimonial-rating {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 15px;
+}
+
+.testimonial-rating .fa-star {
+    font-size: 18px;
+    color: #4a5568;
+}
+
+.testimonial-rating .fa-star.active {
+    color: #fbbf24;
+}
+
+.rating-number {
+    margin-left: 10px;
+    color: #fbbf24;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .feedback-modal-content {
+        width: 95%;
+        padding: 25px;
+    }
+    
+    .feedback-modal h2 {
+        font-size: 1.7rem;
+    }
+    
+    .star-rating label {
+        font-size: 32px;
+    }
+    
+    .checkbox-group {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .checkbox-group small {
+        margin-left: 0;
+    }
+}
+
+/* Feedback button in hero section */
+.hero-buttons .btn-services:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(229, 62, 62, 0.3);
+}
+
+/* Feedback link in services */
+.service-card button.service-link {
+    background: none;
+    border: none;
+    color: var(--primary-red);
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+    width: 100%;
+}
+
+.service-card button.service-link:hover {
+    color: #ffffff;
+    transform: translateX(5px);
+}
+
+.service-card button.service-link i {
+    margin-left: 5px;
+    transition: transform 0.3s ease;
+}
+
+.service-card button.service-link:hover i {
+    transform: translateX(5px);
+}
+
+/* Add to existing landingpage.css */
+
+/* Feedback Button Styles */
+.btn-feedback {
+    background: linear-gradient(135deg, #ed8936, #dd6b20);
+    color: white;
+    padding: 15px 30px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    margin-top: 20px;
+}
+
+.btn-feedback:hover {
+    background: linear-gradient(135deg, #dd6b20, #c05621);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(237, 137, 54, 0.3);
+}
+
+/* Author Avatar Styles */
+.author-avatar {
+    width: 50px;
+    height: 50px;
+    background: var(--gradient-primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+/* Quick Action Buttons in Chat */
+.quick-action-btn {
+    background: rgba(229, 62, 62, 0.1);
+    border: 1px solid rgba(229, 62, 62, 0.3);
+    color: var(--primary-red);
+    padding: 8px 15px;
+    border-radius: 8px;
+    margin: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.quick-action-btn:hover {
+    background: var(--primary-red);
+    color: white;
+    transform: translateY(-2px);
+}

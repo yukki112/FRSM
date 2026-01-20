@@ -1200,6 +1200,120 @@ $status_counts_stmt = null;
             transition: opacity 0.5s ease;
         }
         
+        /* Credentials Modal */
+        .credentials-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .credentials-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .credentials-content {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            transform: scale(0.9);
+            transition: all 0.3s ease;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .credentials-modal.active .credentials-content {
+            transform: scale(1);
+        }
+        
+        .credentials-header {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .credentials-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--success);
+            margin-bottom: 8px;
+        }
+        
+        .credentials-subtitle {
+            color: var(--text-light);
+            font-size: 14px;
+        }
+        
+        .credentials-info {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .credential-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+        }
+        
+        .credential-item:last-child {
+            border-bottom: none;
+        }
+        
+        .credential-label {
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+        
+        .dark-mode .credential-label {
+            color: var(--gray-300);
+        }
+        
+        .credential-value {
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.05);
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            color: var(--danger);
+            font-weight: 600;
+        }
+        
+        .dark-mode .credential-value {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .credentials-note {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: var(--warning);
+        }
+        
+        .credentials-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+        
         @media (max-width: 768px) {
             .volunteers-grid {
                 grid-template-columns: 1fr;
@@ -1240,26 +1354,67 @@ $status_counts_stmt = null;
             .stats-container {
                 grid-template-columns: 1fr;
             }
+            
+            .credentials-content {
+                width: 95%;
+                padding: 20px;
+            }
+            
+            .credential-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+            
+            .credential-value {
+                width: 100%;
+                text-align: center;
+            }
         }
     </style>
 
 </head>
 <body>
-    <div class="dashboard-animation" id="dashboard-animation">
-        <div class="animation-logo">
-            <div class="animation-logo-icon">
-                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo">
-            </div>
-            <span class="animation-logo-text">Fire & Rescue</span>
-        </div>
-        <div class="animation-progress">
-            <div class="animation-progress-fill" id="animation-progress"></div>
-        </div>
-        <div class="animation-text" id="animation-text">Loading Dashboard...</div>
-    </div>
+ 
     
     <!-- Notification Container -->
     <div class="notification-container" id="notification-container"></div>
+    
+    <!-- Credentials Modal -->
+    <div class="credentials-modal" id="credentials-modal">
+        <div class="credentials-content">
+            <div class="credentials-header">
+                <h3 class="credentials-title">Account Created Successfully!</h3>
+                <p class="credentials-subtitle">Please save these credentials</p>
+            </div>
+            
+            <div class="credentials-info">
+                <div class="credential-item">
+                    <span class="credential-label">Username:</span>
+                    <span class="credential-value" id="credential-username"></span>
+                </div>
+                <div class="credential-item">
+                    <span class="credential-label">Default Password:</span>
+                    <span class="credential-value" id="credential-password"></span>
+                </div>
+            </div>
+            
+            <div class="credentials-note">
+                <strong>Important:</strong> This is the default password. The volunteer should change it immediately after their first login.
+            </div>
+            
+            <div class="credentials-actions">
+                <button class="action-button view-button" id="copy-credentials">
+                    <i class='bx bx-copy'></i>
+                    Copy Credentials
+                </button>
+                <button class="action-button approve-button" id="close-credentials">
+                    <i class='bx bx-check'></i>
+                    Done
+                </button>
+            </div>
+        </div>
+    </div>
     
     <div class="container">
         <!-- Sidebar -->
@@ -1296,7 +1451,7 @@ $status_counts_stmt = null;
                     </div>
                     <div id="fire-incident" class="submenu">
                          <a href="../fir/recieve_data.php" class="submenu-item">Receive Data</a>
-                        <a href="../fir/manual_reporting.php" class="submenu-item">Manual Reporting</a>
+                    
                         <a href="../fir/update_status.php" class="submenu-item">Update Status</a>
                     </div>
                     
@@ -1311,10 +1466,10 @@ $status_counts_stmt = null;
                         </svg>
                     </div>
                     <div id="dispatch" class="submenu">
-                        <a href="../dispatch/select_unit.php" class="submenu-item">Select Unit</a>
-                        <a href="../dispatch/send_dispatch.php" class="submenu-item">Send Dispatch Info</a>
-                        <a href="../dispatch/notify_unit.php" class="submenu-item">Notify Unit</a>
-                        <a href="../dispatch/track_status.php" class="submenu-item">Track Status</a>
+                        <a href="../dc/select_unit.php" class="submenu-item">Select Unit</a>
+                        <a href="../dc/send_dispatch.php" class="submenu-item">Send Dispatch Info</a>
+                    
+                        <a href="../dc/track_status.php" class="submenu-item">Track Status</a>
                     </div>
                     
                     <!-- Barangay Volunteer Roster Access -->
@@ -1363,10 +1518,10 @@ $status_counts_stmt = null;
                         </svg>
                     </div>
                     <div id="schedule" class="submenu">
-                        <a href="../schedule/view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="../schedule/confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="../schedule/request_change.php" class="submenu-item">Request Change</a>
-                        <a href="../schedule/mark_attendance.php" class="submenu-item">Mark Attendance</a>
+                        <a href="../sds/view_shifts.php" class="submenu-item">View Shifts</a>
+                        <a href="../sds/confirm_availability.php" class="submenu-item">Confirm Availability</a>
+                        <a href="../sds/request_change.php" class="submenu-item">Request Change</a>
+                        
                     </div>
                     
                     <!-- Training & Certification Logging -->
@@ -1650,10 +1805,19 @@ $status_counts_stmt = null;
                                 <div class="volunteer-card" data-id="<?php echo $volunteer['id']; ?>">
                                     <div class="volunteer-header">
                                         <div class="volunteer-avatar">
-                                            <?php echo strtoupper(substr($volunteer['full_name'], 0, 1)); ?>
+                                            <?php echo strtoupper(substr($volunteer['first_name'], 0, 1)); ?>
                                         </div>
                                         <div class="volunteer-info">
-                                            <h3 class="volunteer-name"><?php echo htmlspecialchars($volunteer['full_name']); ?></h3>
+                                            <!-- Fixed: Use separate name fields instead of full_name -->
+                                            <h3 class="volunteer-name">
+                                                <?php 
+                                                    echo htmlspecialchars($volunteer['first_name']);
+                                                    if (!empty($volunteer['middle_name'])) {
+                                                        echo ' ' . htmlspecialchars($volunteer['middle_name']);
+                                                    }
+                                                    echo ' ' . htmlspecialchars($volunteer['last_name']);
+                                                ?>
+                                            </h3>
                                             <p class="volunteer-email"><?php echo htmlspecialchars($volunteer['email']); ?></p>
                                         </div>
                                         <div class="volunteer-status status-<?php echo $volunteer['status']; ?>">
@@ -1686,7 +1850,7 @@ $status_counts_stmt = null;
                                             View
                                         </button>
                                         <?php if ($volunteer['status'] === 'pending'): ?>
-                                            <button class="action-button approve-button" onclick="approveApplication(<?php echo $volunteer['id']; ?>)">
+                                            <button class="action-button approve-button" onclick="approveApplication(<?php echo $volunteer['id']; ?>, '<?php echo addslashes($volunteer['first_name']); ?>')">
                                                 <i class='bx bx-check'></i>
                                                 Approve
                                             </button>
@@ -1747,6 +1911,7 @@ $status_counts_stmt = null;
     <script>
         // Global variables
         let currentVolunteerId = null;
+        let currentVolunteerFirstName = null;
         let currentPage = 1;
         const itemsPerPage = 9;
         
@@ -1884,8 +2049,8 @@ $status_counts_stmt = null;
             document.getElementById('modal-close').addEventListener('click', closeModal);
             document.getElementById('modal-close-btn').addEventListener('click', closeModal);
             document.getElementById('modal-approve-btn').addEventListener('click', function() {
-                if (currentVolunteerId) {
-                    approveApplication(currentVolunteerId);
+                if (currentVolunteerId && currentVolunteerFirstName) {
+                    approveApplication(currentVolunteerId, currentVolunteerFirstName);
                 }
             });
             document.getElementById('modal-reject-btn').addEventListener('click', function() {
@@ -1893,6 +2058,10 @@ $status_counts_stmt = null;
                     rejectApplication(currentVolunteerId);
                 }
             });
+            
+            // Credentials modal
+            document.getElementById('copy-credentials').addEventListener('click', copyCredentials);
+            document.getElementById('close-credentials').addEventListener('click', closeCredentialsModal);
             
             // Export and refresh buttons
             document.getElementById('export-button').addEventListener('click', exportReports);
@@ -1910,9 +2079,10 @@ $status_counts_stmt = null;
                     document.getElementById('search-input').focus();
                 }
                 
-                // Escape key to close modal
+                // Escape key to close modals
                 if (e.key === 'Escape') {
                     closeModal();
+                    closeCredentialsModal();
                     userDropdown.classList.remove('show');
                     notificationDropdown.classList.remove('show');
                 }
@@ -1964,6 +2134,7 @@ $status_counts_stmt = null;
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
+                        currentVolunteerFirstName = data.volunteer.first_name;
                         populateModal(data.volunteer);
                     } else {
                         showNotification('error', 'Error', 'Failed to load volunteer details');
@@ -1999,13 +2170,18 @@ $status_counts_stmt = null;
             const frontPhoto = getImagePath(data.id_front_photo);
             const backPhoto = getImagePath(data.id_back_photo);
             
+            // Build full name from separate fields
+            const fullName = data.first_name + 
+                           (data.middle_name ? ' ' + data.middle_name : '') + 
+                           ' ' + data.last_name;
+            
             let html = `
                 <div class="modal-section">
                     <h3 class="modal-section-title">Personal Information</h3>
                     <div class="modal-grid">
                         <div class="modal-detail">
                             <div class="modal-detail-label">Full Name</div>
-                            <div class="modal-detail-value">${data.full_name}</div>
+                            <div class="modal-detail-value">${fullName}</div>
                         </div>
                         <div class="modal-detail">
                             <div class="modal-detail-label">Date of Birth</div>
@@ -2227,12 +2403,13 @@ $status_counts_stmt = null;
         function closeModal() {
             document.getElementById('volunteer-modal').classList.remove('active');
             currentVolunteerId = null;
+            currentVolunteerFirstName = null;
         }
         
-        function approveApplication(id) {
-            if (confirm('Are you sure you want to approve this volunteer application?')) {
+        function approveApplication(id, firstName) {
+            if (confirm('Are you sure you want to approve this volunteer application? This will create a user account with default password.')) {
                 // Show loading state
-                showNotification('info', 'Processing', 'Approving application...');
+                showNotification('info', 'Processing', 'Approving application and creating user account...');
                 
                 fetch('update_volunteer_status.php', {
                     method: 'POST',
@@ -2247,11 +2424,23 @@ $status_counts_stmt = null;
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showNotification('success', 'Application Approved', 'The volunteer application has been approved successfully');
+                        showNotification('success', 'Application Approved', 'Volunteer application approved successfully');
+                        
+                        // If credentials were generated, show them
+                        if (data.credentials) {
+                            showCredentials(data.credentials.username, data.credentials.default_password);
+                        } else {
+                            // Generate default password for display
+                            const firstLetter = firstName.charAt(0).toUpperCase();
+                            const defaultPassword = `#${firstLetter}0000`;
+                            const username = data.username || 'Generated from email';
+                            showCredentials(username, defaultPassword);
+                        }
+                        
                         closeModal();
                         setTimeout(() => {
                             location.reload();
-                        }, 1500);
+                        }, 3000);
                     } else {
                         showNotification('error', 'Error', data.message || 'Failed to approve application');
                     }
@@ -2295,6 +2484,31 @@ $status_counts_stmt = null;
                     showNotification('error', 'Error', 'Failed to reject application');
                 });
             }
+        }
+        
+        function showCredentials(username, password) {
+            document.getElementById('credential-username').textContent = username;
+            document.getElementById('credential-password').textContent = password;
+            document.getElementById('credentials-modal').classList.add('active');
+        }
+        
+        function closeCredentialsModal() {
+            document.getElementById('credentials-modal').classList.remove('active');
+        }
+        
+        function copyCredentials() {
+            const username = document.getElementById('credential-username').textContent;
+            const password = document.getElementById('credential-password').textContent;
+            const text = `Username: ${username}\nPassword: ${password}`;
+            
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    showNotification('success', 'Copied!', 'Credentials copied to clipboard');
+                })
+                .catch(err => {
+                    console.error('Failed to copy: ', err);
+                    showNotification('error', 'Error', 'Failed to copy credentials');
+                });
         }
         
         function exportReports() {

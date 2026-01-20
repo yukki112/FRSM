@@ -92,9 +92,8 @@ $stmt = null;
             </svg>
         </div>
         <div id="fire-incident" class="submenu">
-            <a href="#" class="submenu-item">Active Incidents</a>
-            <a href="#" class="submenu-item">Incident Reports</a>
-            <a href="#" class="submenu-item">Response History</a>
+            <a href="fir/active_incidents.php" class="submenu-item">Active Incidents</a>
+            <a href="fir/response_history.php" class="submenu-item">Response History</a>
         </div>
         
         <div class="menu-item" onclick="toggleSubmenu('volunteer')">
@@ -107,9 +106,9 @@ $stmt = null;
             </svg>
         </div>
         <div id="volunteer" class="submenu">
-            <a href="#" class="submenu-item">Volunteer List</a>
-            <a href="#" class="submenu-item">Roles & Skills</a>
-            <a href="#" class="submenu-item">Availability</a>
+            <a href="vr/volunteer_list.php" class="submenu-item">Volunteer List</a>
+            <a href="vr/roles_skills.php" class="submenu-item">Roles & Skills</a>
+            <a href="vr/availability.php" class="submenu-item">Availability</a>
         </div>
         
         <div class="menu-item" onclick="toggleSubmenu('inventory')">
@@ -137,9 +136,10 @@ $stmt = null;
             </svg>
         </div>
         <div id="schedule" class="submenu">
-            <a href="#" class="submenu-item">Shift Calendar</a>
-            <a href="#" class="submenu-item">Duty Assignments</a>
-            <a href="#" class="submenu-item">Attendance Logs</a>
+            <a href="sds/view_shifts.php" class="submenu-item">Shift Calendar</a>
+              <a href="sds/confirm_availability.php" class="submenu-item">Confirm Availability</a>
+            <a href="sds/duty_assignments.php" class="submenu-item">Duty Assignments</a>
+            <a href="sds/attendance_logs.php" class="submenu-item">Attendance Logs</a>
         </div>
         
         <div class="menu-item" onclick="toggleSubmenu('training')">
@@ -152,25 +152,13 @@ $stmt = null;
             </svg>
         </div>
         <div id="training" class="submenu">
-            <a href="#" class="submenu-item">Training Records</a>
-            <a href="#" class="submenu-item">Certification Status</a>
-            <a href="#" class="submenu-item">Upcoming Seminars</a>
+            <a href="tc/view_available_training.php" class="submenu-item">Register for Training</a>
+            <a href="tc/training_records.php" class="submenu-item">Training Records</a>
+            <a href="tc/certification_status.php" class="submenu-item">Certification Status</a>
+            <a href="tc/track_progress.php" class="submenu-item">Track Progress</a>
         </div>
         
-        <div class="menu-item" onclick="toggleSubmenu('inspection')">
-            <div class="icon-box icon-bg-yellow">
-                <i class='bx bxs-check-shield icon-yellow'></i>
-            </div>
-            <span class="font-medium">Establishment Inspections</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="inspection" class="submenu">
-            <a href="#" class="submenu-item">Inspection Scheduler</a>
-            <a href="#" class="submenu-item">Inspection Results</a>
-            <a href="#" class="submenu-item">Violation Notices</a>
-        </div>
+       
         
         <div class="menu-item" onclick="toggleSubmenu('postincident')">
             <div class="icon-box icon-bg-pink">

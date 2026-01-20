@@ -12,6 +12,11 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// Generate form submission token
+if (empty($_SESSION['form_token'])) {
+    $_SESSION['form_token'] = bin2hex(random_bytes(16));
+}
+
 require_once 'config/db_connection.php';
 
 function checkRateLimit($identifier, $max_attempts = 5, $time_window = 3600) {
@@ -37,6 +42,15 @@ function checkRateLimit($identifier, $max_attempts = 5, $time_window = 3600) {
     return true;
 }
 
+function validateFormToken($token) {
+    return isset($_SESSION['form_token']) && hash_equals($_SESSION['form_token'], $token);
+}
+
+function generateNewFormToken() {
+    $_SESSION['form_token'] = bin2hex(random_bytes(16));
+    return $_SESSION['form_token'];
+}
+
 // Check if volunteer registration is open
 $status_query = "SELECT status FROM volunteer_registration_status ORDER BY updated_at DESC LIMIT 1";
 $status_result = $pdo->query($status_query);
@@ -51,6 +65,7 @@ if (!$registration_status || $registration_status['status'] === 'closed') {
 $success_message = '';
 $error_message = '';
 $show_redirect = false;
+$current_form_token = isset($_SESSION['form_token']) ? $_SESSION['form_token'] : ''; // Initialize current_form_token
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Initialize photo variables
@@ -58,13 +73,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id_back_photo = null;
     
     try {
-        if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-            throw new Exception("Security validation failed. Please try again.");
+        // Enhanced security checks
+        if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+            throw new Exception("Security validation failed. Please refresh the page and try again.");
+        }
+
+        if (!isset($_POST['form_token']) || !validateFormToken($_POST['form_token'])) {
+            throw new Exception("Form session expired. Please refresh the page and try again.");
         }
 
         $client_ip = $_SERVER['REMOTE_ADDR'];
-        if (!checkRateLimit($client_ip)) {
-            throw new Exception("Too many submission attempts. Please try again later.");
+        if (!checkRateLimit($client_ip . '_form', 3, 900)) { // 3 attempts per 15 minutes
+            throw new Exception("Too many submission attempts. Please try again in 15 minutes.");
+        }
+
+        // Check for honeypot field
+        if (!empty($_POST['website'])) {
+            throw new Exception("Invalid form submission.");
         }
 
         $email = filter_var(trim($_POST['email'] ?? ''), FILTER_SANITIZE_EMAIL);
@@ -73,10 +98,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("Please enter a valid email address.");
         }
 
+        // Enhanced email domain validation
         $email_domain = strtolower(substr(strrchr($email, "@"), 1));
-        $blocked_domains = ['tempmail.com', '10minutemail.com', 'guerrillamail.com', 'mailinator.com'];
+        $blocked_domains = [
+            'tempmail.com', '10minutemail.com', 'guerrillamail.com', 'mailinator.com',
+            'yopmail.com', 'throwawaymail.com', 'fakeinbox.com', 'temp-mail.org',
+            'trashmail.com', 'disposablemail.com', 'getairmail.com', 'maildrop.cc'
+        ];
         if (in_array($email_domain, $blocked_domains)) {
-            throw new Exception("Please use a permanent email address.");
+            throw new Exception("Please use a permanent email address from a trusted provider.");
+        }
+
+        // Rate limiting per email
+        if (!checkRateLimit($email . '_email', 2, 3600)) {
+            throw new Exception("This email has been used too many times. Please use a different email or try again later.");
         }
 
         $email_check_query = "SELECT id FROM volunteers WHERE email = ? LIMIT 1";
@@ -88,12 +123,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Personal Information - Enhanced sanitization
-        $full_name = preg_replace('/[^a-zA-Z\s\'-]/', '', trim($_POST['full_name'] ?? ''));
+        // FIRST NAME
+        $first_name = preg_replace('/[^a-zA-Z\s\'-]/', '', trim($_POST['first_name'] ?? ''));
+        if (strlen($first_name) < 2 || strlen($first_name) > 50) {
+            throw new Exception("Please enter a valid first name (2-50 characters).");
+        }
+
+        // MIDDLE NAME (optional)
+        $middle_name = preg_replace('/[^a-zA-Z\s\'-]/', '', trim($_POST['middle_name'] ?? ''));
+
+        // LAST NAME
+        $last_name = preg_replace('/[^a-zA-Z\s\'-]/', '', trim($_POST['last_name'] ?? ''));
+        if (strlen($last_name) < 2 || strlen($last_name) > 50) {
+            throw new Exception("Please enter a valid last name (2-50 characters).");
+        }
+
         $date_of_birth = trim($_POST['date_of_birth'] ?? '');
+        $min_age_date = date('Y-m-d', strtotime('-18 years'));
+        if ($date_of_birth > $min_age_date) {
+            throw new Exception("You must be at least 18 years old to volunteer.");
+        }
+
         $gender = in_array($_POST['gender'] ?? '', ['Male', 'Female', 'Other']) ? trim($_POST['gender']) : '';
         $civil_status = in_array($_POST['civil_status'] ?? '', ['Single', 'Married', 'Divorced', 'Widowed']) ? trim($_POST['civil_status']) : '';
+        
         $address = htmlspecialchars(trim($_POST['address'] ?? ''), ENT_QUOTES, 'UTF-8');
+        if (strlen($address) < 10) {
+            throw new Exception("Please provide a complete address.");
+        }
+
         $contact_number = preg_replace('/[^0-9+\-\s]/', '', trim($_POST['contact_number'] ?? ''));
+        if (strlen($contact_number) < 10) {
+            throw new Exception("Please provide a valid contact number.");
+        }
+
         $social_media = htmlspecialchars(trim($_POST['social_media'] ?? ''), ENT_QUOTES, 'UTF-8');
         $valid_id_type = htmlspecialchars(trim($_POST['valid_id_type'] ?? ''), ENT_QUOTES, 'UTF-8');
         $valid_id_number = preg_replace('/[^a-zA-Z0-9\-]/', '', trim($_POST['valid_id_number'] ?? ''));
@@ -176,6 +239,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $volunteered_before = in_array($_POST['volunteered_before'] ?? '', ['Yes', 'No']) ? trim($_POST['volunteered_before']) : '';
         $previous_volunteer_experience = htmlspecialchars(trim($_POST['previous_volunteer_experience'] ?? ''), ENT_QUOTES, 'UTF-8');
         $volunteer_motivation = htmlspecialchars(trim($_POST['volunteer_motivation'] ?? ''), ENT_QUOTES, 'UTF-8');
+        if (strlen($volunteer_motivation) < 20) {
+            throw new Exception("Please provide a more detailed motivation statement (minimum 20 characters).");
+        }
+
         $currently_employed = in_array($_POST['currently_employed'] ?? '', ['Yes', 'No']) ? trim($_POST['currently_employed']) : '';
         $occupation = htmlspecialchars(trim($_POST['occupation'] ?? ''), ENT_QUOTES, 'UTF-8');
         $company = htmlspecialchars(trim($_POST['company'] ?? ''), ENT_QUOTES, 'UTF-8');
@@ -223,12 +290,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $signature = htmlspecialchars(trim($_POST['signature'] ?? ''), ENT_QUOTES, 'UTF-8');
         $application_date = date('Y-m-d');
         
+        // Create full name for signature validation (combine first, middle, last)
+        $full_name_for_signature = trim($first_name . ' ' . ($middle_name ? $middle_name . ' ' : '') . $last_name);
+        
         // Set default values for missing database fields
         $id_front_verified = 0;
         $id_back_verified = 0;
         
         // Comprehensive validation
-        if (empty($full_name) || empty($email) || empty($contact_number)) {
+        if (empty($first_name) || empty($last_name) || empty($email) || empty($contact_number)) {
             throw new Exception("Please fill in all required personal information fields.");
         }
 
@@ -248,9 +318,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("Please provide your signature by typing your full name.");
         }
 
-        // CORRECT SQL QUERY - Exactly 49 parameters
+        if ($full_name_for_signature !== $signature) {
+            throw new Exception("Signature must match your full name exactly.");
+        }
+
+        // UPDATED SQL QUERY with separate name fields (51 parameters now)
         $sql = "INSERT INTO volunteers (
-            user_id, full_name, date_of_birth, gender, civil_status, address, contact_number, email, social_media,
+            user_id, first_name, middle_name, last_name, date_of_birth, gender, civil_status, address, contact_number, email, social_media,
             valid_id_type, valid_id_number, id_front_photo, id_back_photo, id_front_verified, id_back_verified,
             emergency_contact_name, emergency_contact_relationship, emergency_contact_number, emergency_contact_address, 
             volunteered_before, previous_volunteer_experience, volunteer_motivation, currently_employed, 
@@ -260,66 +334,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             available_hours, emergency_response, area_interest_fire_suppression, area_interest_rescue_operations, 
             area_interest_ems, area_interest_disaster_response, area_interest_admin_logistics, 
             declaration_agreed, signature, application_date, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         $stmt = $pdo->prepare($sql);
         
-        // CORRECT: Exactly 49 parameters (matching the SQL statement) - INCLUDING date_of_birth
+        // UPDATED: Now 51 parameters (added first_name, middle_name, last_name)
         $result = $stmt->execute([
             NULL, // user_id (1)
-            $full_name, // (2)
-            $date_of_birth, // (3) - THIS WAS MISSING - FIXED!
-            $gender, // (4)
-            $civil_status, // (5)
-            $address, // (6)
-            $contact_number, // (7)
-            $email, // (8)
-            $social_media, // (9)
-            $valid_id_type, // (10)
-            $valid_id_number, // (11)
-            $id_front_photo, // (12)
-            $id_back_photo, // (13)
-            $id_front_verified, // (14)
-            $id_back_verified, // (15)
-            $emergency_contact_name, // (16)
-            $emergency_contact_relationship, // (17)
-            $emergency_contact_number, // (18)
-            $emergency_contact_address, // (19)
-            $volunteered_before, // (20)
-            $previous_volunteer_experience, // (21)
-            $volunteer_motivation, // (22)
-            $currently_employed, // (23)
-            $occupation, // (24)
-            $company, // (25)
-            $education, // (26)
-            $specialized_training, // (27)
-            $physical_fitness, // (28)
-            $languages_spoken, // (29)
-            $skills_basic_firefighting, // (30)
-            $skills_first_aid_cpr, // (31)
-            $skills_search_rescue, // (32)
-            $skills_driving, // (33)
-            $driving_license_no, // (34)
-            $skills_communication, // (35)
-            $skills_mechanical, // (36)
-            $skills_logistics, // (37)
-            $available_days, // (38)
-            $available_hours, // (39)
-            $emergency_response, // (40)
-            $area_interest_fire_suppression, // (41)
-            $area_interest_rescue_operations, // (42)
-            $area_interest_ems, // (43)
-            $area_interest_disaster_response, // (44)
-            $area_interest_admin_logistics, // (45)
-            $declaration_agreed, // (46)
-            $signature, // (47)
-            $application_date, // (48)
-            'pending' // (49)
+            $first_name, // (2)
+            $middle_name, // (3)
+            $last_name, // (4)
+            $date_of_birth, // (5)
+            $gender, // (6)
+            $civil_status, // (7)
+            $address, // (8)
+            $contact_number, // (9)
+            $email, // (10)
+            $social_media, // (11)
+            $valid_id_type, // (12)
+            $valid_id_number, // (13)
+            $id_front_photo, // (14)
+            $id_back_photo, // (15)
+            $id_front_verified, // (16)
+            $id_back_verified, // (17)
+            $emergency_contact_name, // (18)
+            $emergency_contact_relationship, // (19)
+            $emergency_contact_number, // (20)
+            $emergency_contact_address, // (21)
+            $volunteered_before, // (22)
+            $previous_volunteer_experience, // (23)
+            $volunteer_motivation, // (24)
+            $currently_employed, // (25)
+            $occupation, // (26)
+            $company, // (27)
+            $education, // (28)
+            $specialized_training, // (29)
+            $physical_fitness, // (30)
+            $languages_spoken, // (31)
+            $skills_basic_firefighting, // (32)
+            $skills_first_aid_cpr, // (33)
+            $skills_search_rescue, // (34)
+            $skills_driving, // (35)
+            $driving_license_no, // (36)
+            $skills_communication, // (37)
+            $skills_mechanical, // (38)
+            $skills_logistics, // (39)
+            $available_days, // (40)
+            $available_hours, // (41)
+            $emergency_response, // (42)
+            $area_interest_fire_suppression, // (43)
+            $area_interest_rescue_operations, // (44)
+            $area_interest_ems, // (45)
+            $area_interest_disaster_response, // (46)
+            $area_interest_admin_logistics, // (47)
+            $declaration_agreed, // (48)
+            $signature, // (49)
+            $application_date, // (50)
+            'pending' // (51)
         ]);
         
         if (!$result) {
             throw new Exception("Database insertion failed. Please try again.");
         }
+        
+        // Generate new form token after successful submission
+        generateNewFormToken();
         
         $success_message = "Your volunteer application has been submitted successfully! We will review your application and contact you soon.";
         $show_redirect = true;
@@ -335,6 +414,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// Generate new form token for the form
+$current_form_token = $_SESSION['form_token'];
 ?>
 
 <!DOCTYPE html>
@@ -344,25 +426,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Volunteer Application - Barangay Commonwealth Fire & Rescue</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2a4L+S3Hh8y8zMnRLFvDteIm2i+rSJqLh7MZ5QlsN56KwswusTRz0ECYp5wo8o+MnWVrA==" crossorigin="anonymous" referrerpolicy="no-referrer">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Modern, Professional Design System */
+        /* Enhanced color scheme matching index.php - modern dark theme with red accents */
         :root {
             --primary-red: #dc2626;
-            --primary-red-dark: #7f1d1d;
-            --primary-red-light: #fee2e2;
-            --accent-blue: #2563eb;
-            --accent-gold: #f59e0b;
-            --text-dark: #0f172a;
-            --text-gray: #475569;
-            --text-light: #94a3b8;
-            --bg-white: #ffffff;
-            --bg-light: #f8fafc;
-            --border-color: #e2e8f0;
+            --primary-dark: #991b1b;
+            --primary-black: #1f2937;
+            --accent-black: #111827;
+            --light-gray: #f8fafc;
+            --text-color: #1f2937;
+            --text-light: #6b7280;
+            --border-color: #e5e7eb;
+            --shadow-sm: 0 4px 12px rgba(220, 38, 38, 0.1);
+            --shadow-md: 0 8px 24px rgba(220, 38, 38, 0.15);
+            --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.2);
+            --gradient-primary: linear-gradient(135deg, var(--primary-red), #b91c1c);
+            --gradient-dark: linear-gradient(135deg, var(--primary-black) 0%, var(--accent-black) 100%);
             --success-green: #10b981;
-            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
-            --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.1);
-            --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
         }
 
         * {
@@ -372,30 +453,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         body {
-            font-family: 'Inter', 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #f0f4f8 0%, #f8fafc 50%, #fef2f2 100%);
-            color: var(--text-dark);
+            font-family: 'Poppins', 'Inter', sans-serif;
+            color: var(--text-color);
             line-height: 1.6;
             min-height: 100vh;
-            padding: 20px;
+            overflow-x: hidden;
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 50%, #f0f4f8 100%);
         }
 
         .container {
             max-width: 1000px;
             margin: 0 auto;
+            padding: 20px;
         }
 
+        /* Enhanced header with gradient background and improved styling */
         .header {
             text-align: center;
             margin-bottom: 50px;
-            padding: 60px 45px;
-            background: linear-gradient(135deg, var(--bg-white) 0%, rgba(255, 255, 255, 0.95) 100%);
+            padding: 70px 50px;
+            background: var(--gradient-dark);
             border-radius: 20px;
             box-shadow: var(--shadow-lg);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             position: relative;
             overflow: hidden;
+            color: white;
         }
 
         .header::before {
@@ -405,76 +489,99 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             right: -100%;
             width: 600px;
             height: 600px;
-            background: radial-gradient(circle, rgba(220, 38, 38, 0.06) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(220, 38, 38, 0.15), transparent 70%);
             border-radius: 50%;
             pointer-events: none;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(30px); }
         }
 
         .logo {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 20px;
-            margin-bottom: 25px;
+            gap: 25px;
+            margin-bottom: 30px;
             position: relative;
             z-index: 1;
+            flex-wrap: wrap;
         }
 
+        /* Updated logo icon to support image - can now display logo picture */
         .logo-icon {
-            width: 100px;
-            height: 100px;
+            width: 110px;
+            height: 110px;
             border-radius: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-size: 50px;
-            background: linear-gradient(135deg, var(--primary-red) 0%, #b91c1c 100%);
-            box-shadow: 0 20px 40px rgba(220, 38, 38, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            background: var(--gradient-primary);
+            box-shadow: 0 20px 50px rgba(220, 38, 38, 0.4);
             position: relative;
             border: 3px solid rgba(255, 255, 255, 0.2);
             flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 5px;
+        }
+
+        .logo-icon i {
+            transition: all 0.3s ease;
+        }
+
+        .logo-icon:hover i {
+            transform: scale(1.1) rotate(5deg);
         }
 
         .logo-text h1 {
-            font-size: 2.2rem;
+            font-size: 2.5rem;
             font-weight: 800;
-            background: linear-gradient(135deg, var(--primary-red), var(--primary-red-dark));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: #ffffff;
             margin-bottom: 8px;
             letter-spacing: -0.5px;
         }
 
         .logo-text p {
-            font-size: 1rem;
-            color: var(--text-light);
-            font-weight: 500;
-            letter-spacing: 0.3px;
+            font-size: 1.1rem;
+            color: #ef4444;
+            font-weight: 600;
+            letter-spacing: 0.5px;
         }
 
         .header > .subtitle {
-            color: var(--text-gray);
-            font-size: 1rem;
-            margin-top: 25px;
+            color: #d1d5db;
+            font-size: 1.05rem;
+            margin-top: 30px;
             position: relative;
             z-index: 1;
-            font-weight: 500;
+            font-weight: 400;
         }
 
+        /* Modernized form styling with better spacing and gradients */
         .application-form {
-            background: var(--bg-white);
+            background: #ffffff;
             border-radius: 20px;
-            padding: 55px;
+            padding: 60px;
             box-shadow: var(--shadow-lg);
             margin-bottom: 50px;
             border: 1px solid var(--border-color);
+            position: relative;
         }
 
         .form-section {
-            margin-bottom: 55px;
-            padding-bottom: 45px;
+            margin-bottom: 60px;
+            padding-bottom: 50px;
             border-bottom: 1px solid var(--border-color);
         }
 
@@ -485,35 +592,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .section-header {
             display: flex;
             align-items: center;
-            gap: 20px;
-            margin-bottom: 40px;
+            gap: 25px;
+            margin-bottom: 45px;
         }
 
+        /* Enhanced section icon with gradient background */
         .section-icon {
-            width: 80px;
-            height: 80px;
+            width: 90px;
+            height: 90px;
             border-radius: 16px;
-            background: linear-gradient(135deg, var(--primary-red-light), #fecaca);
+            background: linear-gradient(135deg, #fef2f2, #fee2e2);
             display: flex;
             align-items: center;
             justify-content: center;
             color: var(--primary-red);
-            font-size: 32px;
+            font-size: 36px;
             box-shadow: var(--shadow-sm);
             flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+
+        .section-header:hover .section-icon {
+            transform: scale(1.1) rotate(5deg);
+            box-shadow: 0 12px 30px rgba(220, 38, 38, 0.2);
         }
 
         .section-title {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: var(--text-dark);
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary-black);
             letter-spacing: -0.3px;
         }
 
         .form-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 28px;
+            gap: 30px;
         }
 
         .form-group {
@@ -528,50 +642,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         label {
             display: block;
             margin-bottom: 12px;
-            font-weight: 600;
-            color: var(--text-dark);
+            font-weight: 700;
+            color: var(--text-color);
             font-size: 0.95rem;
         }
 
         .required::after {
             content: " *";
             color: var(--primary-red);
-            font-weight: 700;
+            font-weight: 800;
         }
 
         input, select, textarea {
             width: 100%;
-            padding: 13px 16px;
+            padding: 14px 18px;
             border: 2px solid var(--border-color);
             border-radius: 10px;
-            font-family: 'Inter', sans-serif;
+            font-family: 'Poppins', 'Inter', sans-serif;
             font-size: 0.95rem;
             transition: all 0.25s ease;
-            background: var(--bg-white);
-            color: var(--text-dark);
+            background: #ffffff;
+            color: var(--text-color);
         }
 
         input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: var(--primary-red);
             box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
-            background: var(--bg-white);
+            background: #ffffff;
         }
 
-        /* Fixed ID Photo section alignment and styling */
+        /* Honeypot field */
+        .hp-field {
+            display: none !important;
+        }
+
+        /* Enhanced reCAPTCHA styling to match new design */
+        .recaptcha-section {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 35px;
+            border-radius: 16px;
+            border: 2px solid var(--border-color);
+            margin: 40px 0;
+            text-align: center;
+        }
+
+        .recaptcha-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--text-color);
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .recaptcha-title i {
+            color: var(--primary-red);
+            font-size: 28px;
+        }
+
+        .g-recaptcha {
+            display: inline-block;
+            margin: 0 auto;
+        }
+
+        .recaptcha-note {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            margin-top: 15px;
+            line-height: 1.5;
+        }
+
+        /* Improved ID photo section with enhanced styling */
         .id-photo-section {
-            background: linear-gradient(135deg, var(--primary-red-light) 0%, #fef2f2 100%);
-            padding: 40px;
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            padding: 45px;
             border-radius: 16px;
             border: 2px solid var(--primary-red);
-            margin-bottom: 35px;
+            margin-bottom: 40px;
         }
 
         .id-photo-title {
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: var(--text-dark);
-            margin-bottom: 25px;
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--text-color);
+            margin-bottom: 30px;
             display: flex;
             align-items: center;
             gap: 12px;
@@ -579,28 +736,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .id-photo-title i {
             color: var(--primary-red);
-            font-size: 28px;
-            min-width: 28px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+            font-size: 30px;
         }
 
         .photo-input-tabs {
             display: flex;
             gap: 12px;
-            margin-bottom: 30px;
+            margin-bottom: 35px;
             flex-wrap: wrap;
         }
 
         .photo-tab-btn {
             background: white;
             border: 2px solid var(--border-color);
-            padding: 12px 24px;
+            padding: 13px 28px;
             border-radius: 10px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
-            color: var(--text-gray);
+            color: var(--text-light);
             transition: all 0.25s ease;
             flex: 1;
             min-width: 150px;
@@ -615,22 +768,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: var(--primary-red);
             color: white;
             border-color: var(--primary-red);
-            box-shadow: 0 8px 16px rgba(220, 38, 38, 0.25);
+            box-shadow: 0 8px 20px rgba(220, 38, 38, 0.3);
         }
 
         .photo-tab-btn:hover {
             border-color: var(--primary-red);
+            transform: translateY(-2px);
         }
 
         .photo-upload-methods {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 18px;
+            gap: 20px;
             margin-bottom: 30px;
         }
 
         .upload-method {
-            padding: 20px;
+            padding: 25px;
             border: 2px solid var(--border-color);
             border-radius: 12px;
             cursor: pointer;
@@ -642,34 +796,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .upload-method:hover {
             border-color: var(--primary-red);
             box-shadow: var(--shadow-sm);
-            background: var(--primary-red-light);
+            background: #fef2f2;
         }
 
         .upload-method.active {
-            background: var(--primary-red-light);
+            background: #fef2f2;
             border-color: var(--primary-red);
-            box-shadow: 0 6px 16px rgba(220, 38, 38, 0.15);
+            box-shadow: 0 8px 20px rgba(220, 38, 38, 0.15);
         }
 
         .upload-method-icon {
-            font-size: 32px;
+            font-size: 36px;
             color: var(--primary-red);
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
 
         .upload-method-title {
-            font-weight: 700;
-            color: var(--text-dark);
-            margin-bottom: 5px;
+            font-weight: 800;
+            color: var(--text-color);
+            margin-bottom: 6px;
             font-size: 0.95rem;
         }
 
         .upload-method-desc {
             font-size: 0.85rem;
-            color: var(--text-gray);
+            color: var(--text-light);
         }
 
-        /* Fixed id-photos-grid layout for proper alignment */
         .id-photos-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -681,7 +834,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: white;
             border: 2px dashed var(--border-color);
             border-radius: 14px;
-            padding: 30px;
+            padding: 35px;
             text-align: center;
             cursor: pointer;
             transition: all 0.25s ease;
@@ -691,7 +844,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .photo-upload-box:hover {
             border-color: var(--primary-red);
-            background: var(--primary-red-light);
+            background: #fef2f2;
             box-shadow: var(--shadow-sm);
         }
 
@@ -700,21 +853,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .upload-icon {
-            font-size: 45px;
+            font-size: 48px;
             color: var(--primary-red);
             margin-bottom: 15px;
         }
 
         .upload-text {
-            font-weight: 700;
-            color: var(--text-dark);
+            font-weight: 800;
+            color: var(--text-color);
             margin-bottom: 6px;
             font-size: 1rem;
         }
 
         .upload-hint {
             font-size: 0.85rem;
-            color: var(--text-gray);
+            color: var(--text-light);
         }
 
         .camera-container {
@@ -722,7 +875,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: white;
             border: 2px solid var(--border-color);
             border-radius: 14px;
-            padding: 25px;
+            padding: 30px;
             margin-bottom: 25px;
         }
 
@@ -735,23 +888,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             height: auto;
             border-radius: 10px;
             background: #000;
-            margin-bottom: 18px;
+            margin-bottom: 20px;
             transform: scaleX(-1);
         }
 
         .camera-controls {
             display: flex;
             gap: 12px;
-            margin-bottom: 18px;
+            margin-bottom: 20px;
             justify-content: center;
             flex-wrap: wrap;
         }
 
         .camera-btn {
-            padding: 12px 24px;
+            padding: 13px 28px;
             border: none;
             border-radius: 10px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
             transition: all 0.25s ease;
             display: flex;
@@ -766,18 +919,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .camera-btn-primary:hover {
-            background: var(--primary-red-dark);
+            background: #b91c1c;
             transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(220, 38, 38, 0.25);
+            box-shadow: 0 8px 20px rgba(220, 38, 38, 0.3);
         }
 
         .camera-btn-secondary {
             background: #e2e8f0;
-            color: var(--text-dark);
+            color: var(--text-color);
         }
 
         .camera-btn-secondary:hover {
             background: #cbd5e1;
+            transform: translateY(-2px);
         }
 
         .permission-icon {
@@ -787,22 +941,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .camera-permission-request {
             background: #fef3c7;
-            border: 2px solid var(--accent-gold);
+            border: 2px solid var(--primary-red);
             border-radius: 12px;
             padding: 16px;
-            margin-bottom: 18px;
+            margin-bottom: 20px;
             color: #92400e;
             display: flex;
             align-items: center;
             gap: 12px;
-            font-weight: 500;
+            font-weight: 600;
         }
 
         #frontCapturedPhoto, #backCapturedPhoto {
             width: 100%;
             height: auto;
             border-radius: 10px;
-            margin-bottom: 18px;
+            margin-bottom: 20px;
             display: none;
             border: 2px solid var(--success-green);
         }
@@ -811,11 +965,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: white;
             border: 2px solid var(--border-color);
             border-radius: 12px;
-            padding: 18px;
-            margin-top: 18px;
+            padding: 20px;
+            margin-top: 20px;
             display: flex;
             align-items: flex-start;
-            gap: 18px;
+            gap: 20px;
         }
 
         .size-box {
@@ -837,17 +991,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .size-text {
             font-size: 0.85rem;
-            color: var(--text-gray);
+            color: var(--text-light);
             line-height: 1.6;
         }
 
         .size-text strong {
-            color: var(--text-dark);
-            font-weight: 600;
+            color: var(--text-color);
+            font-weight: 700;
         }
 
         .photo-preview {
-            margin-top: 18px;
+            margin-top: 20px;
             display: none;
             position: relative;
         }
@@ -867,10 +1021,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             right: 12px;
             background: var(--success-green);
             color: white;
-            padding: 6px 12px;
+            padding: 8px 14px;
             border-radius: 20px;
             font-size: 0.8rem;
-            font-weight: 600;
+            font-weight: 700;
             display: flex;
             align-items: center;
             gap: 6px;
@@ -880,15 +1034,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .checkbox-group {
             display: flex;
             flex-wrap: wrap;
-            gap: 14px;
-            margin-top: 16px;
+            gap: 15px;
+            margin-top: 18px;
         }
 
         .checkbox-item {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 14px 18px;
+            padding: 15px 18px;
             background: white;
             border: 2px solid var(--border-color);
             border-radius: 10px;
@@ -900,8 +1054,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .checkbox-item:hover {
             border-color: var(--primary-red);
-            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.1);
-            background: var(--primary-red-light);
+            box-shadow: 0 4px 14px rgba(220, 38, 38, 0.1);
+            background: #fef2f2;
         }
 
         .checkbox-item input[type="checkbox"] {
@@ -944,29 +1098,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .checkbox-item label {
             margin-bottom: 0;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             user-select: none;
-            color: var(--text-gray);
+            color: var(--text-light);
         }
 
         .checkbox-item input[type="checkbox"]:checked + label {
             color: var(--primary-red);
-            font-weight: 600;
+            font-weight: 700;
         }
 
         .days-grid, .hours-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 14px;
-            margin-top: 16px;
+            gap: 15px;
+            margin-top: 18px;
         }
 
         .day-checkbox, .hour-checkbox {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 13px 16px;
+            padding: 14px 18px;
             background: white;
             border: 2px solid var(--border-color);
             border-radius: 10px;
@@ -976,8 +1130,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .day-checkbox:hover, .hour-checkbox:hover {
             border-color: var(--primary-red);
-            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.1);
-            background: var(--primary-red-light);
+            box-shadow: 0 4px 14px rgba(220, 38, 38, 0.1);
+            background: #fef2f2;
         }
 
         .day-checkbox input[type="checkbox"], .hour-checkbox input[type="checkbox"] {
@@ -1001,7 +1155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .day-checkbox label, .hour-checkbox label {
             margin-bottom: 0;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             user-select: none;
         }
@@ -1010,7 +1164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: white;
             border: 2px solid var(--border-color);
             border-radius: 10px;
-            padding: 13px 16px;
+            padding: 14px 18px;
             transition: all 0.25s ease;
         }
 
@@ -1039,15 +1193,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .declaration-box {
             background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-            padding: 32px;
+            padding: 35px;
             border-radius: 16px;
             border-left: 5px solid var(--primary-red);
-            margin: 35px 0;
+            margin: 40px 0;
             box-shadow: var(--shadow-sm);
         }
 
         .declaration-text {
-            color: var(--text-gray);
+            color: var(--text-light);
             line-height: 1.8;
             margin-bottom: 25px;
             font-size: 0.95rem;
@@ -1055,38 +1209,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .submit-section {
             text-align: center;
-            margin-top: 55px;
+            margin-top: 60px;
         }
 
+        /* Enhanced submit button with gradient and improved hover effect */
         .btn-submit {
-            background: linear-gradient(135deg, var(--primary-red), #b91c1c);
+            background: var(--gradient-primary);
             color: white;
-            padding: 16px 55px;
+            padding: 18px 60px;
             border: none;
             border-radius: 50px;
             font-size: 1.1rem;
-            font-weight: 700;
+            font-weight: 800;
             cursor: pointer;
             transition: all 0.25s ease;
             display: inline-flex;
             align-items: center;
             gap: 12px;
-            box-shadow: 0 12px 32px rgba(220, 38, 38, 0.3);
+            box-shadow: 0 12px 35px rgba(220, 38, 38, 0.35);
             text-transform: uppercase;
-            letter-spacing: 0.6px;
+            letter-spacing: 0.7px;
         }
 
         .btn-submit:hover {
-            background: linear-gradient(135deg, #b91c1c, var(--primary-red-dark));
-            transform: translateY(-3px);
-            box-shadow: 0 18px 45px rgba(220, 38, 38, 0.4);
+            background: linear-gradient(135deg, #b91c1c, var(--primary-dark));
+            transform: translateY(-4px);
+            box-shadow: 0 18px 50px rgba(220, 38, 38, 0.45);
+        }
+
+        .btn-submit:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .alert {
-            padding: 18px 24px;
+            padding: 20px 28px;
             border-radius: 12px;
-            margin-bottom: 30px;
-            font-weight: 600;
+            margin-bottom: 35px;
+            font-weight: 700;
             display: flex;
             align-items: center;
             gap: 14px;
@@ -1150,108 +1312,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        @keyframes bounce {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
         .redirect-content {
             background: white;
-            border-radius: 20px;
             padding: 60px 50px;
-            text-align: center;
+            border-radius: 20px;
             max-width: 500px;
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
-            animation: slideUp 0.4s ease;
+            text-align: center;
+            box-shadow: var(--shadow-lg);
+            animation: slideUp 0.5s ease;
         }
 
-        .success-icon {
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 32px;
-            background: linear-gradient(135deg, var(--success-green), #059669);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .redirect-icon {
             font-size: 60px;
-            color: white;
-            box-shadow: 0 15px 40px rgba(16, 185, 129, 0.35);
-            animation: bounce 0.6s ease;
+            color: var(--success-green);
+            margin-bottom: 20px;
+            animation: bounce 0.6s ease infinite;
         }
 
-        .redirect-content h3 {
-            color: var(--text-dark);
-            margin-bottom: 18px;
-            font-size: 2.2rem;
-            font-weight: 700;
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
         }
 
-        .redirect-content p {
-            color: var(--text-gray);
-            margin-bottom: 25px;
-            line-height: 1.8;
-        }
-
-        .redirect-timer {
-            font-size: 3.5rem;
-            font-weight: 700;
-            color: var(--primary-red);
-            margin: 32px 0;
-            font-family: 'Courier New', monospace;
+        .redirect-message {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--text-color);
+            margin-bottom: 15px;
         }
 
         .redirect-text {
             color: var(--text-light);
-            font-size: 0.95rem;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .redirect-timer {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary-red);
+            margin: 20px 0;
+        }
+
+        .redirect-link {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 14px 40px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 700;
+            display: inline-block;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(220, 38, 38, 0.3);
+        }
+
+        .redirect-link:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(220, 38, 38, 0.4);
         }
 
         .back-home {
             text-align: center;
-            margin-top: 40px;
-            margin-bottom: 20px;
+            margin: 40px 0;
         }
 
         .back-home a {
-            color: var(--primary-red);
-            text-decoration: none;
-            font-weight: 700;
             display: inline-flex;
             align-items: center;
             gap: 10px;
-            transition: all 0.25s ease;
-            font-size: 1rem;
+            padding: 14px 28px;
+            background: var(--primary-black);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
         }
 
         .back-home a:hover {
-            gap: 14px;
-            transform: translateX(-3px);
+            background: var(--accent-black);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
         }
 
-        @media (max-width: 768px) {
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .id-photos-grid {
-                grid-template-columns: 1fr;
-                gap: 25px;
-            }
-
-            .photo-upload-methods {
-                grid-template-columns: 1fr;
-            }
-
-            .checkbox-item {
-                min-width: unset;
-            }
-
+        @media (max-width: 1024px) {
             .application-form {
-                padding: 30px 20px;
+                padding: 40px 30px;
             }
 
             .header {
-                padding: 40px 25px;
+                padding: 50px 30px;
             }
 
             .logo {
@@ -1260,13 +1410,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             .logo-icon {
-                width: 80px;
-                height: 80px;
+                width: 90px;
+                height: 90px;
                 font-size: 40px;
             }
 
             .logo-text h1 {
-                font-size: 1.8rem;
+                font-size: 2rem;
             }
 
             .section-header {
@@ -1297,15 +1447,129 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .photo-tab-btn {
                 max-width: none;
             }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header {
+                padding: 40px 20px;
+                margin-bottom: 30px;
+            }
+
+            .logo-icon {
+                width: 70px;
+                height: 70px;
+                font-size: 32px;
+            }
+
+            .logo-text h1 {
+                font-size: 1.5rem;
+            }
+
+            .application-form {
+                padding: 25px 15px;
+                margin-bottom: 30px;
+            }
+
+            .section-title {
+                font-size: 1.5rem;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .photo-upload-methods {
+                grid-template-columns: 1fr;
+            }
+
+            .days-grid, .hours-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .checkbox-item {
+                min-width: auto;
+            }
+
+            .redirect-content {
+                padding: 30px 20px;
+            }
+            
+            .id-photo-section {
+                padding: 25px;
+            }
+            
+            .camera-controls {
+                flex-direction: column;
+            }
+            
+            .camera-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header {
+                padding: 30px 15px;
+            }
+            
+            .application-form {
+                padding: 20px 10px;
+            }
+            
+            .section-header {
+                gap: 15px;
+            }
+            
+            .section-icon {
+                width: 70px;
+                height: 70px;
+                font-size: 28px;
+            }
+            
+            .section-title {
+                font-size: 1.3rem;
+            }
+            
+            .id-photo-section {
+                padding: 20px 15px;
+            }
+            
+            .photo-input-tabs {
+                flex-direction: column;
+            }
+            
+            .photo-tab-btn {
+                max-width: 100%;
+            }
+            
+            .declaration-box {
+                padding: 20px;
+            }
+            
+            .btn-submit {
+                padding: 15px 40px;
+                font-size: 1rem;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
+        <!-- Enhanced header with gradient background and logo image support -->
         <div class="header">
             <div class="logo">
                 <div class="logo-icon">
+                    <!-- Replace with: <img src="path/to/your/logo.png" alt="Logo"> -->
                     <i class="fas fa-fire-extinguisher"></i>
                 </div>
                 <div class="logo-text">
@@ -1334,6 +1598,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <form method="POST" class="application-form" id="volunteerForm" enctype="multipart/form-data" novalidate>
             <!-- CSRF Token for security -->
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+            
+            <!-- Form session token -->
+            <input type="hidden" name="form_token" value="<?php echo htmlspecialchars($current_form_token); ?>">
+            
+            <!-- Honeypot field for spam bots -->
+            <input type="text" name="website" class="hp-field" autocomplete="off">
 
             <!-- Section 1: Personal Information -->
             <div class="form-section">
@@ -1345,14 +1615,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 
                 <div class="form-grid">
-                    <div class="form-group full-width">
-                        <label for="full_name" class="required">Full Name</label>
-                        <input type="text" id="full_name" name="full_name" required>
+                    <!-- UPDATED: Changed from single full_name to three separate fields -->
+                    <div class="form-group">
+                        <label for="first_name" class="required">First Name</label>
+                        <input type="text" id="first_name" name="first_name" required maxlength="50">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="middle_name">Middle Name</label>
+                        <input type="text" id="middle_name" name="middle_name" maxlength="50">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="last_name" class="required">Last Name</label>
+                        <input type="text" id="last_name" name="last_name" required maxlength="50">
                     </div>
                     
                     <div class="form-group">
                         <label for="date_of_birth" class="required">Date of Birth</label>
-                        <input type="date" id="date_of_birth" name="date_of_birth" required>
+                        <input type="date" id="date_of_birth" name="date_of_birth" required max="<?php echo date('Y-m-d', strtotime('-18 years')); ?>">
                     </div>
                     
                     <div class="form-group">
@@ -1378,22 +1659,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     <div class="form-group full-width">
                         <label for="address" class="required">Complete Address</label>
-                        <textarea id="address" name="address" rows="3" required></textarea>
+                        <textarea id="address" name="address" rows="3" required maxlength="500"></textarea>
                     </div>
                     
                     <div class="form-group">
                         <label for="contact_number" class="required">Contact Number</label>
-                        <input type="tel" id="contact_number" name="contact_number" required>
+                        <input type="tel" id="contact_number" name="contact_number" required maxlength="20">
                     </div>
                     
                     <div class="form-group">
                         <label for="email" class="required">Email Address</label>
-                        <input type="email" id="email" name="email" required>
+                        <input type="email" id="email" name="email" required maxlength="100">
                     </div>
                     
                     <div class="form-group">
                         <label for="social_media">Facebook / Social Media</label>
-                        <input type="text" id="social_media" name="social_media">
+                        <input type="text" id="social_media" name="social_media" maxlength="100">
                     </div>
                     
                     <div class="form-group">
@@ -1415,7 +1696,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     <div class="form-group">
                         <label for="valid_id_number" class="required">ID Number</label>
-                        <input type="text" id="valid_id_number" name="valid_id_number" required>
+                        <input type="text" id="valid_id_number" name="valid_id_number" required maxlength="50">
                     </div>
                 </div>
             </div>
@@ -1619,22 +1900,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="emergency_contact_name" class="required">Full Name</label>
-                        <input type="text" id="emergency_contact_name" name="emergency_contact_name" required>
+                        <input type="text" id="emergency_contact_name" name="emergency_contact_name" required maxlength="100">
                     </div>
                     
                     <div class="form-group">
                         <label for="emergency_contact_relationship" class="required">Relationship</label>
-                        <input type="text" id="emergency_contact_relationship" name="emergency_contact_relationship" required>
+                        <input type="text" id="emergency_contact_relationship" name="emergency_contact_relationship" required maxlength="50">
                     </div>
                     
                     <div class="form-group">
                         <label for="emergency_contact_number" class="required">Contact Number</label>
-                        <input type="tel" id="emergency_contact_number" name="emergency_contact_number" required>
+                        <input type="tel" id="emergency_contact_number" name="emergency_contact_number" required maxlength="20">
                     </div>
                     
                     <div class="form-group full-width">
                         <label for="emergency_contact_address" class="required">Address</label>
-                        <textarea id="emergency_contact_address" name="emergency_contact_address" rows="2" required></textarea>
+                        <textarea id="emergency_contact_address" name="emergency_contact_address" rows="2" required maxlength="500"></textarea>
                     </div>
                 </div>
             </div>
@@ -1660,12 +1941,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     <div class="form-group full-width" id="previous_experience_container" style="display: none;">
                         <label for="previous_volunteer_experience">If yes, where and what was your role?</label>
-                        <textarea id="previous_volunteer_experience" name="previous_volunteer_experience" rows="3"></textarea>
+                        <textarea id="previous_volunteer_experience" name="previous_volunteer_experience" rows="3" maxlength="500"></textarea>
                     </div>
                     
                     <div class="form-group full-width">
                         <label for="volunteer_motivation" class="required">Why do you want to join the Fire and Rescue Volunteer Program?</label>
-                        <textarea id="volunteer_motivation" name="volunteer_motivation" rows="3" required></textarea>
+                        <textarea id="volunteer_motivation" name="volunteer_motivation" rows="3" required minlength="20" maxlength="1000"></textarea>
                     </div>
                     
                     <div class="form-group">
@@ -1679,12 +1960,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     <div class="form-group" id="occupation_container" style="display: none;">
                         <label for="occupation">Occupation</label>
-                        <input type="text" id="occupation" name="occupation">
+                        <input type="text" id="occupation" name="occupation" maxlength="100">
                     </div>
                     
                     <div class="form-group" id="company_container" style="display: none;">
                         <label for="company">Company</label>
-                        <input type="text" id="company" name="company">
+                        <input type="text" id="company" name="company" maxlength="100">
                     </div>
                 </div>
             </div>
@@ -1724,12 +2005,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     <div class="form-group full-width">
                         <label for="specialized_training">Specialized Training / Certifications</label>
-                        <textarea id="specialized_training" name="specialized_training" rows="3" placeholder="e.g., BLS, First Aid, Firefighting, Rescue Operations"></textarea>
+                        <textarea id="specialized_training" name="specialized_training" rows="3" placeholder="e.g., BLS, First Aid, Firefighting, Rescue Operations" maxlength="500"></textarea>
                     </div>
                     
                     <div class="form-group full-width">
                         <label for="languages_spoken" class="required">Languages Spoken</label>
-                        <input type="text" id="languages_spoken" name="languages_spoken" required placeholder="e.g., English, Tagalog, Bisaya">
+                        <input type="text" id="languages_spoken" name="languages_spoken" required placeholder="e.g., English, Tagalog, Bisaya" maxlength="100">
                     </div>
                     
                     <div class="form-group full-width">
@@ -1768,7 +2049,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     <div class="form-group full-width" id="driving_license_container" style="display: none;">
                         <label for="driving_license_no">Driving License Number</label>
-                        <input type="text" id="driving_license_no" name="driving_license_no">
+                        <input type="text" id="driving_license_no" name="driving_license_no" maxlength="50">
                     </div>
                 </div>
             </div>
@@ -1901,11 +2182,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="form-group full-width">
                             <label for="signature" class="required">Signature of Applicant (Type your full name)</label>
                             <div class="signature-input-wrapper">
-                                <input type="text" id="signature" name="signature" class="signature-input" placeholder="Enter your full name as signature" required>
+                                <input type="text" id="signature" name="signature" class="signature-input" placeholder="Enter your full name as signature" required maxlength="100">
                             </div>
                             <div class="signature-hint">
                                 <i class="fas fa-info-circle"></i>
-                                Please type your full name exactly as it appears on your ID
+                                Please type your full name exactly as it appears on your ID (First Middle Last)
                             </div>
                         </div>
                         
@@ -1926,7 +2207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <!-- Submit Section -->
             <div class="submit-section">
-                <button type="submit" class="btn-submit">
+                <button type="submit" class="btn-submit" id="submitBtn">
                     <i class="fas fa-paper-plane"></i>
                     Submit Application
                 </button>
@@ -1946,11 +2227,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- Redirect Overlay -->
     <div class="redirect-overlay" id="redirectOverlay">
         <div class="redirect-content">
-            <div class="success-icon">
+            <div class="redirect-icon">
                 <i class="fas fa-check"></i>
             </div>
-            <h3>Application Submitted!</h3>
-            <p>Thank you for submitting your volunteer application. We will review it and contact you soon.</p>
+            <h3 class="redirect-message">Application Submitted!</h3>
+            <p class="redirect-text">Thank you for submitting your volunteer application. We will review it and contact you soon.</p>
             <div class="redirect-timer" id="redirectTimer">4</div>
             <p class="redirect-text">Redirecting to homepage in a few seconds...</p>
         </div>
@@ -2196,33 +2477,107 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('driving_license_container').style.display = this.checked ? 'block' : 'none';
         });
 
+        // Age validation
+        document.getElementById('date_of_birth').addEventListener('change', function() {
+            const dob = new Date(this.value);
+            const today = new Date();
+            const age = today.getFullYear() - dob.getFullYear();
+            const monthDiff = today.getMonth() - dob.getMonth();
+            
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                age--;
+            }
+            
+            if (age < 18) {
+                alert('You must be at least 18 years old to volunteer.');
+                this.value = '';
+            }
+        });
+
+        // Signature validation - UPDATED to combine first, middle, last name
+        document.getElementById('signature').addEventListener('input', function() {
+            const firstName = document.getElementById('first_name').value;
+            const middleName = document.getElementById('middle_name').value;
+            const lastName = document.getElementById('last_name').value;
+            const signature = this.value;
+            
+            // Create full name by combining all parts
+            let fullName = firstName.trim();
+            if (middleName && middleName.trim() !== '') {
+                fullName += ' ' + middleName.trim();
+            }
+            fullName += ' ' + lastName.trim();
+            fullName = fullName.trim();
+            
+            if (fullName && signature && fullName !== signature) {
+                this.style.borderColor = 'var(--primary-red)';
+                this.style.backgroundColor = 'var(--primary-red-light)';
+            } else {
+                this.style.borderColor = '';
+                this.style.backgroundColor = '';
+            }
+        });
+
+        // Form submission handler - UPDATED
         document.getElementById('volunteerForm').addEventListener('submit', function(e) {
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+            // Basic validation
             const declaration = document.getElementById('declaration_agreed');
             if (!declaration.checked) {
                 e.preventDefault();
                 alert('Please agree to the declaration and consent terms.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
                 return false;
             }
 
             const daysChecked = document.querySelectorAll('input[name="available_days[]"]:checked').length;
             const hoursChecked = document.querySelectorAll('input[name="available_hours[]"]:checked').length;
             const signature = document.getElementById('signature').value;
+            const firstName = document.getElementById('first_name').value;
+            const lastName = document.getElementById('last_name').value;
+            const middleName = document.getElementById('middle_name').value;
+            
+            // Create full name for validation
+            let fullName = firstName.trim();
+            if (middleName && middleName.trim() !== '') {
+                fullName += ' ' + middleName.trim();
+            }
+            fullName += ' ' + lastName.trim();
+            fullName = fullName.trim();
             
             if (daysChecked === 0) {
                 e.preventDefault();
                 alert('Please select at least one available day.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
                 return false;
             }
             
             if (hoursChecked === 0) {
                 e.preventDefault();
                 alert('Please select at least one available time period.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
                 return false;
             }
 
             if (!signature) {
                 e.preventDefault();
                 alert('Please provide your signature by typing your full name.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
+                return false;
+            }
+
+            if (signature !== fullName) {
+                e.preventDefault();
+                alert('Signature must match your full name exactly.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
                 return false;
             }
 
@@ -2232,14 +2587,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!idFrontInput.files.length) {
                 e.preventDefault();
                 alert('Please upload your ID front photo.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
                 return false;
             }
 
             if (!idBackInput.files.length) {
                 e.preventDefault();
                 alert('Please upload your ID back photo.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
                 return false;
             }
+
+            return true;
         });
 
         <?php if ($show_redirect): ?>

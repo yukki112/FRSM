@@ -1105,19 +1105,7 @@ $stmt = null;
     </style>
 </head>
 <body>
-    <div class="dashboard-animation" id="dashboard-animation">
-        <div class="animation-logo">
-            <div class="animation-logo-icon">
-                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo" style="width: 70px; height: 75px;">
-            </div>
-            <div class="animation-logo-text">Fire & Rescue</div>
-        </div>
-        <div class="animation-progress">
-            <div class="animation-progress-fill" id="animation-progress"></div>
-        </div>
-        <div class="animation-text" id="animation-text">Loading Dashboard...</div>
-    </div>
-    
+   
     <!-- Notification Container -->
     <div class="notification-container" id="notification-container"></div>
     
@@ -1176,7 +1164,7 @@ $stmt = null;
                     </div>
                     <div id="fire-incident" class="submenu">
                          <a href="../fir/recieve_data.php" class="submenu-item">Receive Data</a>
-                        <a href="../fir/manual_reporting.php" class="submenu-item">Manual Reporting</a>
+                      
                         <a href="../fir/update_status.php" class="submenu-item">Update Status</a>
                     </div>
                     
@@ -1191,10 +1179,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="dispatch" class="submenu">
-                        <a href="../dispatch/select_unit.php" class="submenu-item">Select Unit</a>
-                        <a href="../dispatch/send_dispatch.php" class="submenu-item">Send Dispatch Info</a>
-                        <a href="../dispatch/notify_unit.php" class="submenu-item">Notify Unit</a>
-                        <a href="../dispatch/track_status.php" class="submenu-item">Track Status</a>
+                        <a href="../dc/select_unit.php" class="submenu-item">Select Unit</a>
+                        <a href="../dc/send_dispatch.php" class="submenu-item">Send Dispatch Info</a>
+                      
+                        <a href="../dc/track_status.php" class="submenu-item">Track Status</a>
                     </div>
                     
                     <!-- Barangay Volunteer Roster Access -->
@@ -1243,10 +1231,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="schedule" class="submenu">
-                        <a href="../schedule/view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="../schedule/confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="../schedule/request_change.php" class="submenu-item">Request Change</a>
-                        <a href="../schedule/mark_attendance.php" class="submenu-item">Mark Attendance</a>
+                        <a href="../sds/view_shifts.php" class="submenu-item">View Shifts</a>
+                        <a href="../sds/confirm_availability.php" class="submenu-item">Confirm Availability</a>
+                        <a href="../sds/request_change.php" class="submenu-item">Request Change</a>
+
                     </div>
                     
                     <!-- Training & Certification Logging -->

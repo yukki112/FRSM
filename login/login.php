@@ -7,7 +7,7 @@ require_once '../includes/functions.php';
 header("X-Frame-Options: DENY");
 header("X-Content-Type-Options: nosniff");
 header("Referrer-Policy: strict-origin-when-cross-origin");
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
+header("Content-Security-Policy: default-src 'self' http://127.0.0.1:5001; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';");
 
 // Function to redirect based on user role
 function redirectBasedOnRole($role) {
@@ -56,14 +56,77 @@ $show_resend_option = false;
 $unverified_email = '';
 $auto_sent_verification = false;
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+// Face Login Handler
+if (isset($_POST['face_login']) && $_POST['face_login'] == '1') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $errors['general'] = "Security validation failed.";
+    } else {
+        $face_user_id = $_POST['face_user_id'] ?? null;
+        $face_user_email = $_POST['face_user_email'] ?? null;
+        
+        if ($face_user_id && $face_user_email) {
+            try {
+                // Get user from database
+                $stmt = $pdo->prepare("SELECT id, first_name, last_name, email, username, password, role, is_verified FROM users WHERE id = ? AND email = ?");
+                $stmt->execute([$face_user_id, $face_user_email]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($user && $user['is_verified']) {
+                    // Verify password (for additional security)
+                    $provided_password = $_POST['face_password'] ?? '';
+                    if (password_verify($provided_password, $user['password'])) {
+                        // Regenerate session ID
+                        session_regenerate_id(true);
+                        
+                        // Set session variables
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['first_name'] = $user['first_name'];
+                        $_SESSION['last_name'] = $user['last_name'];
+                        $_SESSION['email'] = $user['email'];
+                        $_SESSION['username'] = $user['username'];
+                        $_SESSION['role'] = $user['role'];
+                        $_SESSION['login_time'] = time();
+                        $_SESSION['face_login'] = true;
+                        
+                        // Record successful login
+                        $stmt = $pdo->prepare("INSERT INTO login_attempts (ip_address, email, attempt_time, successful) VALUES (?, ?, NOW(), 1)");
+                        $stmt->execute([$ip, $user['email']]);
+                        
+                        // Clear failed attempts
+                        $stmt = $pdo->prepare("DELETE FROM login_attempts WHERE ip_address = ? AND successful = 0");
+                        $stmt->execute([$ip]);
+                        
+                        // Update last face login
+                        $stmt = $pdo->prepare("UPDATE users SET last_face_login = NOW() WHERE id = ?");
+                        $stmt->execute([$user['id']]);
+                        
+                        // Regenerate CSRF token
+                        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                        
+                        redirectBasedOnRole($user['role']);
+                        exit();
+                    } else {
+                        $errors['general'] = "Face verification failed. Please try again.";
+                    }
+                } else {
+                    $errors['general'] = "User not found or not verified.";
+                }
+            } catch (PDOException $e) {
+                error_log("Face login error: " . $e->getMessage());
+                $errors['general'] = "Login failed. Please try again.";
+            }
+        }
+    }
+}
+
+// Traditional Login Handler
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['face_login'])) {
     // CSRF token validation
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         $errors['general'] = "Security validation failed. Please try again.";
-        // Regenerate token after failed validation
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     } else {
-        // Sanitize input data - FIXED: Check if keys exist before accessing
+        // Sanitize input data
         $login_identifier = isset($_POST['login_identifier']) ? sanitize_input($_POST['login_identifier']) : '';
         $password = isset($_POST['password']) ? $_POST['password'] : '';
         $remember = isset($_POST['remember']) ? true : false;
@@ -88,14 +151,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($user && $user['is_verified']) {
                     // Verify password
                     if (password_verify($password, $user['password'])) {
-                        // Check if password needs rehashing (if algorithm/cost changed)
+                        // Check if password needs rehashing
                         if (password_needs_rehash($user['password'], PASSWORD_DEFAULT, ['cost' => 12])) {
                             $newHash = password_hash($password, PASSWORD_DEFAULT, ['cost' => 12]);
                             $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
                             $stmt->execute([$newHash, $user['id']]);
                         }
                         
-                        // Regenerate session ID to prevent session fixation
+                        // Regenerate session ID
                         session_regenerate_id(true);
                         
                         // Set session variables
@@ -126,29 +189,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $errors['general'] = "Invalid email/username or password";
                     }
                 } else if ($user && !$user['is_verified']) {
-                    // User exists but email is not verified - show error message and resend option
+                    // User exists but email is not verified
                     $errors['general'] = "Your account is not verified. Please check your inbox for the verification link we sent you.";
                     $show_resend_option = true;
                     $unverified_email = $user['email'];
-                    
-                    // Store email in session for resend functionality
                     $_SESSION['unverified_email'] = $user['email'];
                     
                     // AUTOMATICALLY SEND VERIFICATION EMAIL
                     try {
-                        // Generate new verification code
                         $verification_code = generate_verification_code();
                         $expiry_time = date('Y-m-d H:i:s', strtotime('+30 minutes'));
                         
-                        // Update user with new verification code
                         $stmt = $pdo->prepare("UPDATE users SET verification_code = ?, code_expiry = ? WHERE email = ?");
                         if ($stmt->execute([$verification_code, $expiry_time, $user['email']])) {
-                            
-                            // Also store in verification_codes table for redundancy
                             $stmt = $pdo->prepare("INSERT INTO verification_codes (email, code, expiry) VALUES (?, ?, ?)");
                             $stmt->execute([$user['email'], $verification_code, $expiry_time]);
                             
-                            // Send verification email with link
                             if (send_verification_email_with_link($user['email'], $user['first_name'], $verification_code)) {
                                 $auto_sent_verification = true;
                                 $errors['general'] = "Your account is not verified. We've automatically sent a new verification link to your email. Please check your inbox and spam folder.";
@@ -184,9 +240,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Handle resend verification request - FIXED: Check if keys exist
+// Handle resend verification request
 if (isset($_POST['resend_verification'])) {
-    // FIX: Check if email key exists before accessing it
     $email = isset($_POST['resend_email']) ? sanitize_input($_POST['resend_email']) : '';
     
     if (empty($email)) {
@@ -1007,19 +1062,24 @@ if (isset($_POST['resend_verification'])) {
             to { transform: rotate(360deg); }
         }
         
-        @media (max-width: 1400px) {
+        /* ========== RESPONSIVE DESIGN ========== */
+        
+        /* Large screens (1200px and above) */
+        @media (min-width: 1200px) {
             .logo-left {
-                left: 60px;
+                left: 180px;
             }
             
             .login-container {
-                right: 60px;
+                right: 100px;
+                width: 500px;
             }
         }
         
-        @media (max-width: 1200px) {
+        /* Medium screens (992px to 1199px) */
+        @media (max-width: 1199px) and (min-width: 992px) {
             .logo-left {
-                left: 40px;
+                left: 80px;
             }
             
             .logo-left img {
@@ -1035,20 +1095,19 @@ if (isset($_POST['resend_verification'])) {
             }
             
             .login-container {
-                right: 40px;
+                right: 60px;
                 width: 450px;
             }
         }
         
-        @media (max-width: 768px) {
+        /* Small screens (768px to 991px) */
+        @media (max-width: 991px) and (min-width: 768px) {
             .logo-left {
-                top: 100px;
-                left: 50%;
-                transform: translateX(-50%);
+                left: 40px;
             }
             
             .logo-left img {
-                width: 160px;
+                width: 180px;
             }
             
             .logo-left h1 {
@@ -1059,28 +1118,484 @@ if (isset($_POST['resend_verification'])) {
                 font-size: 16px;
             }
             
+            .login-container {
+                right: 40px;
+                width: 420px;
+            }
+            
+            .security-features {
+                padding: 25px;
+            }
+            
+            .security-features h3 {
+                font-size: 18px;
+            }
+            
+            .security-item {
+                font-size: 14px;
+            }
+        }
+        
+        /* Mobile screens (max-width: 767px) */
+        @media (max-width: 767px) {
+            body {
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+            }
+            
+            .logo-left {
+                position: relative;
+                top: auto;
+                left: auto;
+                transform: none;
+                margin-bottom: 30px;
+                text-align: center;
+                width: 100%;
+                animation: fadeIn 1s ease forwards;
+            }
+            
+            .logo-left img {
+                width: 120px;
+                margin-bottom: 15px;
+            }
+            
+            .logo-left h1 {
+                font-size: 28px;
+                margin-bottom: 10px;
+            }
+            
+            .logo-left .tagline {
+                font-size: 14px;
+                margin-bottom: 20px;
+            }
+            
             .security-features {
                 display: none;
             }
             
             .login-container {
-                right: 50%;
-                transform: translate(50%, -50%);
-                width: 90%;
-                max-width: 420px;
-                margin-top: 200px;
+                position: relative;
+                right: auto;
+                top: auto;
+                transform: none;
+                width: 100%;
+                max-width: 400px;
+                margin: 0 auto;
+                padding: 30px 25px;
+                border-radius: 25px;
+                animation: fadeIn 1s ease forwards 0.5s;
             }
             
-            .watermark-logo {
-                width: 600px;
-                height: 600px;
+            .login-logo img {
+                width: 80px;
+            }
+            
+            .login-header h2 {
+                font-size: 26px;
+            }
+            
+            .login-header p {
+                font-size: 14px;
             }
             
             .form-options {
                 flex-direction: column;
-                gap: 12px;
+                gap: 15px;
                 align-items: flex-start;
             }
+            
+            .forgot-password {
+                font-size: 13px;
+            }
+            
+            .watermark-logo {
+                width: 400px;
+                height: 400px;
+            }
+            
+            .bg-decoration {
+                display: none;
+            }
+            
+            .dark-mode-toggle {
+                top: 10px;
+                right: 10px;
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+            
+            .back-button {
+                top: 10px;
+                left: 10px;
+                padding: 10px 20px;
+                font-size: 13px;
+            }
+        }
+        
+        /* Extra small screens (max-width: 480px) */
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+            
+            .logo-left img {
+                width: 100px;
+            }
+            
+            .logo-left h1 {
+                font-size: 24px;
+            }
+            
+            .logo-left .tagline {
+                font-size: 13px;
+            }
+            
+            .login-container {
+                padding: 25px 20px;
+                border-radius: 20px;
+            }
+            
+            .login-logo img {
+                width: 70px;
+            }
+            
+            .login-header h2 {
+                font-size: 22px;
+            }
+            
+            .login-header p {
+                font-size: 13px;
+            }
+            
+            .form-group input {
+                padding: 12px 15px 12px 45px;
+                font-size: 14px;
+            }
+            
+            .input-wrapper i {
+                left: 15px;
+                font-size: 14px;
+            }
+            
+            .password-toggle {
+                right: 45px;
+                font-size: 15px;
+            }
+            
+            .btn-primary {
+                padding: 14px;
+                font-size: 16px;
+            }
+            
+            .register-link {
+                font-size: 13px;
+            }
+            
+            .footer {
+                font-size: 12px;
+            }
+            
+            .dark-mode-toggle {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+                margin-top: 17px;
+            }
+            
+            .back-button {
+                padding: 8px 16px;
+                font-size: 12px;
+            }
+        }
+        
+        /* Very small screens (max-width: 360px) */
+        @media (max-width: 360px) {
+            .login-container {
+                padding: 20px 15px;
+            }
+            
+            .form-group input {
+                padding: 10px 12px 10px 40px;
+            }
+            
+            .input-wrapper i {
+                left: 12px;
+            }
+            
+            .password-toggle {
+                right: 40px;
+            }
+            
+            .btn-primary {
+                padding: 12px;
+                font-size: 15px;
+            }
+        }
+        
+        /* Landscape orientation for mobile */
+        @media (max-height: 600px) and (max-width: 767px) {
+            body {
+                padding: 10px;
+            }
+            
+            .logo-left {
+                margin-bottom: 15px;
+            }
+            
+            .logo-left img {
+                width: 80px;
+                margin-bottom: 10px;
+            }
+            
+            .logo-left h1 {
+                font-size: 20px;
+                margin-bottom: 5px;
+            }
+            
+            .logo-left .tagline {
+                font-size: 12px;
+                margin-bottom: 10px;
+            }
+            
+            .login-container {
+                max-height: 80vh;
+                overflow-y: auto;
+                padding: 20px 15px;
+            }
+            
+            .login-logo {
+                margin-bottom: 15px;
+            }
+            
+            .login-logo img {
+                width: 60px;
+            }
+            
+            .login-header {
+                margin-bottom: 20px;
+            }
+            
+            .login-header h2 {
+                font-size: 20px;
+            }
+            
+            .login-header p {
+                font-size: 12px;
+            }
+            
+            .form-group {
+                margin-bottom: 15px;
+            }
+        }
+
+
+      /* Face Login Modal Styles */
+        .face-login-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .face-login-content {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 25px;
+            text-align: center;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+            position: relative;
+            border: 2px solid var(--primary-color);
+        }
+        
+        .face-login-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--text-light);
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        
+        .face-login-close:hover {
+            color: var(--primary-color);
+        }
+        
+        .face-login-video {
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            background: #000;
+            border-radius: 15px;
+            margin: 20px auto;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .face-login-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror effect */
+        }
+        
+        .face-login-status {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .face-login-status.success {
+            background: linear-gradient(135deg, rgba(40, 167, 69, 0.15), rgba(40, 167, 69, 0.08));
+            border: 2px solid rgba(40, 167, 69, 0.5);
+            color: #28a745;
+        }
+        
+        .face-login-status.error {
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.15), rgba(220, 53, 69, 0.08));
+            border: 2px solid rgba(220, 53, 69, 0.5);
+            color: #dc3545;
+        }
+        
+        .face-login-status.info {
+            background: linear-gradient(135deg, rgba(23, 162, 184, 0.15), rgba(23, 162, 184, 0.08));
+            border: 2px solid rgba(23, 162, 184, 0.5);
+            color: #17a2b8;
+        }
+        
+        .face-login-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        .face-login-btn {
+            padding: 12px 25px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 50%, var(--secondary-dark) 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .face-login-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+        }
+        
+        .face-login-btn.secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        }
+        
+        .face-login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .face-login-loading {
+            display: none;
+            margin: 15px 0;
+            color: var(--primary-color);
+            font-size: 14px;
+        }
+        
+        .face-login-loading i {
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .face-login-face {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 250px;
+            height: 300px;
+            border: 3px solid var(--primary-color);
+            border-radius: 15px;
+            pointer-events: none;
+            opacity: 0.3;
+            animation: pulseFace 2s infinite;
+        }
+        
+        @keyframes pulseFace {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Face Login Button in Main Form */
+        #faceLoginBtn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 17px;
+            font-weight: 800;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 25px rgba(79, 70, 229, 0.5);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        #faceLoginBtn:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 40px rgba(79, 70, 229, 0.6), 0 0 30px rgba(79, 70, 229, 0.3);
+        }
+        
+        #faceLoginBtn:active {
+            transform: translateY(-2px);
+        }
+        
+        #faceLoginBtn i {
+            font-size: 20px;
         }
     </style>
 </head>
@@ -1102,16 +1617,12 @@ if (isset($_POST['resend_verification'])) {
         Back to Home Page
     </a>
     
-   
     <div class="logo-left">
         <img src="../img/frsm-logo.png" alt="Fire & Rescue Services Logo">
         <h1>FIRE & RESCUE</h1>
         <p class="tagline">Emergency Services Management</p>
-        
-        
     </div>
     
-     
     <div class="login-container">
         <div class="login-logo">
             <img src="../img/frsm-logo.png" alt="Fire & Rescue Services">
@@ -1186,6 +1697,11 @@ if (isset($_POST['resend_verification'])) {
             <button type="submit" class="btn-primary" id="submitBtn">
                 <i class="fas fa-sign-in-alt"></i> Login
             </button>
+            
+            <!-- Face Login Button -->
+            <button type="button" class="btn-primary" id="faceLoginBtn" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);">
+                <i class="fas fa-camera"></i> Login with Face Recognition
+            </button>
         </form>
         
         <?php if ($show_resend_option && !$auto_sent_verification): ?>
@@ -1211,137 +1727,533 @@ if (isset($_POST['resend_verification'])) {
         </div>
     </div>
     
-    <script>
-        // Your existing JavaScript remains the same
-        // Dark mode toggle functionality
-        const darkModeToggle = document.getElementById('darkModeToggle');
-        const body = document.body;
-        const darkModeIcon = darkModeToggle.querySelector('i');
+    <!-- Face Login Modal -->
+    <div class="face-login-modal" id="faceLoginModal">
+        <div class="face-login-content">
+            <button class="face-login-close" id="faceLoginClose">
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <h2 style="color: var(--primary-color); margin-bottom: 10px;">
+                <i class="fas fa-camera"></i> Face Recognition Login
+            </h2>
+            <p style="color: var(--text-light); margin-bottom: 20px;">
+                Position your face in the frame and click "Capture & Verify"
+            </p>
+            
+            <div class="face-login-video">
+                <video id="faceVideo" autoplay playsinline></video>
+                <canvas id="faceCanvas" style="display: none;"></canvas>
+                <div class="face-login-face"></div>
+            </div>
+            
+            <div class="face-login-status info" id="faceLoginStatus">
+                <i class="fas fa-info-circle"></i> Ready to start camera
+            </div>
+            
+            <div class="face-login-loading" id="faceLoginLoading">
+                <i class="fas fa-spinner"></i> Processing face recognition...
+            </div>
+            
+            <div class="face-login-controls">
+                <button class="face-login-btn" id="startCameraBtn">
+                    <i class="fas fa-video"></i> Start Camera
+                </button>
+                <button class="face-login-btn" id="captureBtn" disabled>
+                    <i class="fas fa-camera"></i> Capture & Verify
+                </button>
+                <button class="face-login-btn secondary" id="cancelBtn">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+            </div>
+            
+            <p style="font-size: 12px; color: var(--text-light); margin-top: 20px;">
+                <i class="fas fa-shield-alt"></i> Your face data is securely processed and not stored as images
+            </p>
+        </div>
+    </div>
+    
+    <!-- Hidden form for face login submission -->
+    <form id="faceLoginForm" method="POST" style="display: none;">
+        <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+        <input type="hidden" name="face_login" value="1">
+        <input type="hidden" name="face_user_id" id="faceUserId">
+        <input type="hidden" name="face_user_email" id="faceUserEmail">
+        <input type="hidden" name="face_password" id="facePassword">
+    </form>
+    
+   <script>
+    // Dark mode toggle functionality
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    const body = document.body;
+    const darkModeIcon = darkModeToggle.querySelector('i');
+    
+    if (localStorage.getItem('darkMode') === 'enabled') {
+        body.classList.add('dark-mode');
+        darkModeIcon.classList.remove('fa-moon');
+        darkModeIcon.classList.add('fa-sun');
+    }
+    
+    darkModeToggle.addEventListener('click', function() {
+        body.classList.toggle('dark-mode');
         
-        if (localStorage.getItem('darkMode') === 'enabled') {
-            body.classList.add('dark-mode');
+        if (body.classList.contains('dark-mode')) {
             darkModeIcon.classList.remove('fa-moon');
             darkModeIcon.classList.add('fa-sun');
+            localStorage.setItem('darkMode', 'enabled');
+        } else {
+            darkModeIcon.classList.remove('fa-sun');
+            darkModeIcon.classList.add('fa-moon');
+            localStorage.setItem('darkMode', 'disabled');
         }
-        
-        darkModeToggle.addEventListener('click', function() {
-            body.classList.toggle('dark-mode');
-            
-            if (body.classList.contains('dark-mode')) {
-                darkModeIcon.classList.remove('fa-moon');
-                darkModeIcon.classList.add('fa-sun');
-                localStorage.setItem('darkMode', 'enabled');
-            } else {
-                darkModeIcon.classList.remove('fa-sun');
-                darkModeIcon.classList.add('fa-moon');
-                localStorage.setItem('darkMode', 'disabled');
+    });
+    
+    // Password toggle
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+    
+    togglePassword.addEventListener('click', function() {
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        this.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+    });
+    
+    // Face Login Functionality
+    const faceLoginBtn = document.getElementById('faceLoginBtn');
+    const faceLoginModal = document.getElementById('faceLoginModal');
+    const faceLoginClose = document.getElementById('faceLoginClose');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const startCameraBtn = document.getElementById('startCameraBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const faceVideo = document.getElementById('faceVideo');
+    const faceCanvas = document.getElementById('faceCanvas');
+    const faceLoginStatus = document.getElementById('faceLoginStatus');
+    const faceLoginLoading = document.getElementById('faceLoginLoading');
+    const faceLoginForm = document.getElementById('faceLoginForm');
+    const faceUserId = document.getElementById('faceUserId');
+    const faceUserEmail = document.getElementById('faceUserEmail');
+    const facePassword = document.getElementById('facePassword');
+    
+    let videoStream = null;
+    let isCameraActive = false;
+    const API_BASE_URL = 'http://127.0.0.1:5001';
+    
+    // Open face login modal - NO EMAIL REQUIRED FIRST
+    faceLoginBtn.addEventListener('click', () => {
+        // Check if API is running
+        checkAPIHealth().then(isHealthy => {
+            if (!isHealthy) {
+                showStatus('Face recognition service is offline', 'error');
+                return;
             }
+            
+            // Open camera modal immediately
+            faceLoginModal.style.display = 'flex';
+            resetFaceLogin();
+            showFaceStatus('Ready for face recognition. Click "Start Camera" to begin.', 'info');
         });
-        
-        // Password toggle
-        const togglePassword = document.getElementById('togglePassword');
-        const passwordInput = document.getElementById('password');
-        
-        togglePassword.addEventListener('click', function() {
-            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-            passwordInput.setAttribute('type', type);
-            this.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
-        });
-        
-        // Form validation
-        const form = document.getElementById('loginForm');
-        const submitBtn = document.getElementById('submitBtn');
-        
-        // Real-time validation for all fields
-        const inputs = form.querySelectorAll('input');
-        inputs.forEach(input => {
-            input.addEventListener('blur', function() {
-                validateField(this);
+    });
+    
+    // Close modal
+    faceLoginClose.addEventListener('click', closeFaceLogin);
+    cancelBtn.addEventListener('click', closeFaceLogin);
+    
+    // Close modal when clicking outside
+    faceLoginModal.addEventListener('click', (e) => {
+        if (e.target === faceLoginModal) {
+            closeFaceLogin();
+        }
+    });
+    
+    function closeFaceLogin() {
+        faceLoginModal.style.display = 'none';
+        stopCamera();
+        resetFaceLogin();
+    }
+    
+    function resetFaceLogin() {
+        faceLoginStatus.className = 'face-login-status info';
+        faceLoginStatus.innerHTML = '<i class="fas fa-info-circle"></i> Ready to start camera';
+        faceLoginLoading.style.display = 'none';
+        startCameraBtn.disabled = false;
+        captureBtn.disabled = true;
+        isCameraActive = false;
+    }
+    
+    // Start camera
+    startCameraBtn.addEventListener('click', async () => {
+        try {
+            videoStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                } 
             });
             
-            input.addEventListener('input', function() {
-                // Clear error state when user starts typing
-                if (this.classList.contains('error')) {
-                    this.classList.remove('error');
-                    const errorElement = this.parentNode.parentNode.querySelector('.error');
-                    if (errorElement) {
-                        errorElement.textContent = '';
+            faceVideo.srcObject = videoStream;
+            isCameraActive = true;
+            
+            startCameraBtn.disabled = true;
+            captureBtn.disabled = false;
+            
+            showFaceStatus('Camera started. Position your face and click "Capture & Login"', 'success');
+            
+        } catch (error) {
+            console.error('Camera error:', error);
+            let errorMsg = 'Camera error: ';
+            
+            if (error.name === 'NotAllowedError') {
+                errorMsg = 'Camera access denied. Please allow camera permissions.';
+            } else if (error.name === 'NotFoundError') {
+                errorMsg = 'No camera found. Please connect a camera.';
+            } else if (error.name === 'NotReadableError') {
+                errorMsg = 'Camera is in use by another application.';
+            } else {
+                errorMsg += error.message;
+            }
+            
+            showFaceStatus(errorMsg, 'error');
+        }
+    });
+    
+    // Stop camera
+    function stopCamera() {
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+            videoStream = null;
+        }
+        isCameraActive = false;
+    }
+    
+    // Capture and verify face - FIND USER BY FACE ONLY
+    captureBtn.addEventListener('click', async () => {
+        if (!isCameraActive) {
+            showFaceStatus('Camera not active', 'error');
+            return;
+        }
+        
+        // Draw video frame to canvas
+        const context = faceCanvas.getContext('2d');
+        faceCanvas.width = faceVideo.videoWidth;
+        faceCanvas.height = faceVideo.videoHeight;
+        context.drawImage(faceVideo, 0, 0, faceCanvas.width, faceCanvas.height);
+        
+        // Convert canvas to base64
+        const imageBase64 = faceCanvas.toDataURL('image/jpeg', 0.8);
+        
+        // Show loading
+        faceLoginLoading.style.display = 'block';
+        captureBtn.disabled = true;
+        
+        try {
+            // NEW: Search for user by face (no email/username needed)
+            showFaceStatus('Searching for matching face...', 'info');
+            
+            // First, get ALL users with registered faces
+            const allUsersResponse = await fetch('get_all_face_users.php');
+            const allUsersData = await allUsersResponse.json();
+            
+            if (!allUsersData.success || allUsersData.users.length === 0) {
+                showFaceStatus('No registered faces found in system.', 'error');
+                faceLoginLoading.style.display = 'none';
+                captureBtn.disabled = false;
+                return;
+            }
+            
+            console.log(`Found ${allUsersData.users.length} users with registered faces`);
+            
+            // Try to find matching face among all users
+            let matchingUser = null;
+            let bestSimilarity = 0;
+            
+            // Test face against each user
+            for (const user of allUsersData.users) {
+                const testResponse = await fetch(`${API_BASE_URL}/api/face/test/${user.id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image: imageBase64.split(',')[1]
+                    })
+                });
+                
+                const testData = await testResponse.json();
+                
+                if (testData.success && testData.match) {
+                    if (testData.similarity > bestSimilarity) {
+                        bestSimilarity = testData.similarity;
+                        matchingUser = user;
+                        console.log(`Found potential match: User ${user.id}, similarity: ${testData.similarity}`);
                     }
                 }
+            }
+            
+            faceLoginLoading.style.display = 'none';
+            
+            if (matchingUser && bestSimilarity >= 0.75) {
+                // Face recognized! Ask for password for security
+                showFaceStatus(`Face recognized! Welcome ${matchingUser.first_name}.`, 'success');
+                
+                // Ask for password (optional security step)
+                setTimeout(async () => {
+                    const userPassword = prompt(
+                        `Face recognized as ${matchingUser.first_name} ${matchingUser.last_name}.\n` +
+                        `For security, please enter your password:\n` +
+                        `(Leave empty to cancel)`
+                    );
+                    
+                    if (userPassword === null || userPassword === '') {
+                        showFaceStatus('Login cancelled', 'info');
+                        captureBtn.disabled = false;
+                        return;
+                    }
+                    
+                    // Verify password
+                    showFaceStatus('Verifying password...', 'info');
+                    const passwordValid = await verifyPassword(matchingUser.email, userPassword);
+                    
+                    if (passwordValid) {
+                        // Login successful
+                        faceUserId.value = matchingUser.id;
+                        faceUserEmail.value = matchingUser.email;
+                        facePassword.value = userPassword;
+                        
+                        showFaceStatus('Login successful! Redirecting...', 'success');
+                        
+                        // Submit the form
+                        setTimeout(() => {
+                            faceLoginForm.submit();
+                        }, 1000);
+                    } else {
+                        showFaceStatus('Invalid password. Please try again.', 'error');
+                        captureBtn.disabled = false;
+                    }
+                }, 1000);
+                
+            } else {
+                // No matching face found
+                showFaceStatus('Face not recognized. Please try again or use traditional login.', 'error');
+                captureBtn.disabled = false;
+                
+                // Option to switch to traditional login
+                setTimeout(() => {
+                    if (confirm('Face not recognized. Would you like to try traditional login?')) {
+                        closeFaceLogin();
+                        document.getElementById('login_identifier').focus();
+                    }
+                }, 1500);
+            }
+            
+        } catch (error) {
+            console.error('Face verification error:', error);
+            faceLoginLoading.style.display = 'none';
+            showFaceStatus(`Connection error: ${error.message}`, 'error');
+            captureBtn.disabled = false;
+        }
+    });
+    
+    // Helper function to verify password
+    async function verifyPassword(email, password) {
+        try {
+            const response = await fetch('verify_password.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email, password: password })
             });
-        });
+            
+            const data = await response.json();
+            return data.success;
+        } catch (error) {
+            return false;
+        }
+    }
+    
+    // Check if API is running
+    async function checkAPIHealth() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/health`);
+            const data = await response.json();
+            return data.status === 'healthy';
+        } catch (error) {
+            console.warn('Face recognition API not running:', error.message);
+            return false;
+        }
+    }
+    
+    // Show face login status
+    function showFaceStatus(message, type = 'info') {
+        faceLoginStatus.textContent = message;
+        faceLoginStatus.className = 'face-login-status ' + type;
         
-        // Field validation function
-        function validateField(field) {
-            const value = field.value.trim();
-            let isValid = true;
-            let errorMessage = '';
-            
-            // Required field validation
-            if (field.hasAttribute('required') && value === '') {
-                isValid = false;
-                errorMessage = 'This field is required';
-            }
-            
-            // Update field appearance
-            if (!isValid) {
-                field.classList.add('error');
-            } else if (value !== '') {
-                field.classList.remove('error');
-            }
-            
-            // Update error message
-            let errorElement = field.parentNode.parentNode.querySelector('.error');
-            if (!isValid) {
-                if (!errorElement) {
-                    errorElement = document.createElement('span');
-                    errorElement.className = 'error';
-                    field.parentNode.parentNode.appendChild(errorElement);
-                }
-                errorElement.textContent = errorMessage;
-            } else if (errorElement) {
-                errorElement.textContent = '';
-            }
-            
-            return isValid;
+        let icon = 'fa-info-circle';
+        if (type === 'error') icon = 'fa-exclamation-circle';
+        if (type === 'success') icon = 'fa-check-circle';
+        
+        faceLoginStatus.innerHTML = `<i class="fas ${icon}"></i> ${message}`;
+    }
+    
+    // Show status on main page
+    function showStatus(message, type = 'info') {
+        let statusDiv = document.getElementById('tempStatus');
+        if (!statusDiv) {
+            statusDiv = document.createElement('div');
+            statusDiv.id = 'tempStatus';
+            statusDiv.style.cssText = `
+                margin: 15px 0;
+                padding: 12px;
+                border-radius: 10px;
+                font-size: 14px;
+                font-weight: 600;
+            `;
+            const loginHeader = document.querySelector('.login-header');
+            loginHeader.parentNode.insertBefore(statusDiv, loginHeader.nextSibling);
         }
         
-        // Form submission
-        form.addEventListener('submit', function(e) {
-            let isValid = true;
-            
-            // Validate all fields
-            inputs.forEach(input => {
-                if (!validateField(input)) {
-                    isValid = false;
+        statusDiv.textContent = message;
+        
+        if (type === 'error') {
+            statusDiv.style.background = 'linear-gradient(135deg, rgba(220, 53, 69, 0.15), rgba(220, 53, 69, 0.08))';
+            statusDiv.style.border = '2px solid rgba(220, 53, 69, 0.5)';
+            statusDiv.style.color = '#dc3545';
+        } else if (type === 'success') {
+            statusDiv.style.background = 'linear-gradient(135deg, rgba(40, 167, 69, 0.15), rgba(40, 167, 69, 0.08))';
+            statusDiv.style.border = '2px solid rgba(40, 167, 69, 0.5)';
+            statusDiv.style.color = '#28a745';
+        } else {
+            statusDiv.style.background = 'linear-gradient(135deg, rgba(23, 162, 184, 0.15), rgba(23, 162, 184, 0.08))';
+            statusDiv.style.border = '2px solid rgba(23, 162, 184, 0.5)';
+            statusDiv.style.color = '#17a2b8';
+        }
+        
+        setTimeout(() => {
+            if (statusDiv.parentNode) {
+                statusDiv.parentNode.removeChild(statusDiv);
+            }
+        }, 5000);
+    }
+    
+    // Check API health on page load
+    window.addEventListener('load', () => {
+        checkAPIHealth().then(isHealthy => {
+            if (!isHealthy) {
+                faceLoginBtn.disabled = true;
+                faceLoginBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Face Login (Service Offline)';
+                faceLoginBtn.style.opacity = '0.7';
+                faceLoginBtn.title = 'Face recognition service is not running';
+            }
+        });
+    });
+    
+    // Form validation (existing)
+    const form = document.getElementById('loginForm');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // Real-time validation for all fields
+    const inputs = form.querySelectorAll('input');
+    inputs.forEach(input => {
+        input.addEventListener('blur', function() {
+            validateField(this);
+        });
+        
+        input.addEventListener('input', function() {
+            if (this.classList.contains('error')) {
+                this.classList.remove('error');
+                const errorElement = this.parentNode.parentNode.querySelector('.error');
+                if (errorElement) {
+                    errorElement.textContent = '';
                 }
-            });
-            
-            if (!isValid) {
-                e.preventDefault();
-                // Scroll to first error
-                const firstError = form.querySelector('.error');
-                if (firstError) {
-                    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            } else {
-                // Show loading state
-                submitBtn.classList.add('loading');
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner"></i> Logging in...';
+            }
+        });
+    });
+    
+    function validateField(field) {
+        const value = field.value.trim();
+        let isValid = true;
+        let errorMessage = '';
+        
+        if (field.hasAttribute('required') && value === '') {
+            isValid = false;
+            errorMessage = 'This field is required';
+        }
+        
+        if (!isValid) {
+            field.classList.add('error');
+        } else if (value !== '') {
+            field.classList.remove('error');
+        }
+        
+        let errorElement = field.parentNode.parentNode.querySelector('.error');
+        if (!isValid) {
+            if (!errorElement) {
+                errorElement = document.createElement('span');
+                errorElement.className = 'error';
+                field.parentNode.parentNode.appendChild(errorElement);
+            }
+            errorElement.textContent = errorMessage;
+        } else if (errorElement) {
+            errorElement.textContent = '';
+        }
+        
+        return isValid;
+    }
+    
+    form.addEventListener('submit', function(e) {
+        let isValid = true;
+        
+        inputs.forEach(input => {
+            if (!validateField(input)) {
+                isValid = false;
             }
         });
         
-        // Enhanced input animations
-        inputs.forEach(input => {
-            input.addEventListener('focus', function() {
-                this.parentElement.style.transform = 'scale(1.02)';
-            });
-            
-            input.addEventListener('blur', function() {
-                this.parentElement.style.transform = 'scale(1)';
-            });
+        if (!isValid) {
+            e.preventDefault();
+            const firstError = form.querySelector('.error');
+            if (firstError) {
+                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        } else {
+            submitBtn.classList.add('loading');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner"></i> Logging in...';
+        }
+    });
+    
+    // Enhanced input animations
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            this.parentElement.style.transform = 'scale(1.02)';
         });
-    </script>
+        
+        input.addEventListener('blur', function() {
+            this.parentElement.style.transform = 'scale(1)';
+        });
+    });
+    
+    // Handle page visibility change
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden && videoStream) {
+            stopCamera();
+            if (isCameraActive) {
+                showFaceStatus('Camera paused - tab not active', 'info');
+                isCameraActive = false;
+            }
+        }
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        // ESC closes face login modal
+        if (e.key === 'Escape' && faceLoginModal.style.display === 'flex') {
+            closeFaceLogin();
+        }
+        
+        // Ctrl+F for face login
+        if (e.ctrlKey && e.key === 'f') {
+            e.preventDefault();
+            faceLoginBtn.click();
+        }
+    });
+</script>
 </body>
 </html>

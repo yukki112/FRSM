@@ -41,13 +41,28 @@ $count_stmt->execute();
 $total_records = $count_stmt->fetch()['total'];
 $total_pages = ceil($total_records / $records_per_page);
 
-// Get approved volunteers with pagination
-$volunteers_query = "SELECT v.*, u.unit_name, u.unit_code, u.id as unit_id
+// Get approved volunteers with pagination - FIXED QUERY
+$volunteers_query = "SELECT 
+                        v.*, 
+                        u.unit_name, 
+                        u.unit_code, 
+                        u.id as unit_id,
+                        -- Construct full name if empty
+                        CASE 
+                            WHEN v.full_name IS NULL OR v.full_name = '' 
+                            THEN CONCAT(
+                                v.first_name, 
+                                CASE WHEN v.middle_name IS NOT NULL AND v.middle_name != '' THEN CONCAT(' ', v.middle_name) ELSE '' END,
+                                ' ',
+                                v.last_name
+                            )
+                            ELSE v.full_name 
+                        END as display_full_name
                      FROM volunteers v 
                      LEFT JOIN volunteer_assignments va ON v.id = va.volunteer_id 
                      LEFT JOIN units u ON va.unit_id = u.id 
                      WHERE v.status = 'approved' 
-                     ORDER BY v.full_name ASC
+                     ORDER BY display_full_name ASC
                      LIMIT :offset, :records_per_page";
 $volunteers_stmt = $pdo->prepare($volunteers_query);
 $volunteers_stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
@@ -1491,18 +1506,7 @@ $count_stmt = null;
 
 </head>
 <body>
-    <div class="dashboard-animation" id="dashboard-animation">
-        <div class="animation-logo">
-            <div class="animation-logo-icon">
-                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo">
-            </div>
-            <span class="animation-logo-text">Fire & Rescue</span>
-        </div>
-        <div class="animation-progress">
-            <div class="animation-progress-fill" id="animation-progress"></div>
-        </div>
-        <div class="animation-text" id="animation-text">Loading Dashboard...</div>
-    </div>
+   
     
     <!-- Notification Container -->
     <div class="notification-container" id="notification-container"></div>
@@ -1586,8 +1590,8 @@ $count_stmt = null;
                         </svg>
                     </div>
                     <div id="fire-incident" class="submenu">
-                         <a href="../fir/recieve_data.php" class="submenu-item">Receive Data</a>
-                        <a href="../fir/manual_reporting.php" class="submenu-item">Manual Reporting</a>
+                         <a href="../fir/receive_data.php" class="submenu-item">Receive Data</a>
+                    
                         <a href="../fir/update_status.php" class="submenu-item">Update Status</a>
                     </div>
                     
@@ -1602,10 +1606,10 @@ $count_stmt = null;
                         </svg>
                     </div>
                     <div id="dispatch" class="submenu">
-                        <a href="../dispatch/select_unit.php" class="submenu-item">Select Unit</a>
-                        <a href="../dispatch/send_dispatch.php" class="submenu-item">Send Dispatch Info</a>
-                        <a href="../dispatch/notify_unit.php" class="submenu-item">Notify Unit</a>
-                        <a href="../dispatch/track_status.php" class="submenu-item">Track Status</a>
+                        <a href="../dc/select_unit.php" class="submenu-item">Select Unit</a>
+                        <a href="../dc/send_dispatch.php" class="submenu-item">Send Dispatch Info</a>
+                       
+                        <a href="../dc/track_status.php" class="submenu-item">Track Status</a>
                     </div>
                     
                     
@@ -1655,10 +1659,10 @@ $count_stmt = null;
                         </svg>
                     </div>
                     <div id="schedule" class="submenu">
-                        <a href="../schedule/view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="../schedule/confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="../schedule/request_change.php" class="submenu-item">Request Change</a>
-                        <a href="../schedule/mark_attendance.php" class="submenu-item">Mark Attendance</a>
+                        <a href="../sds/view_shifts.php" class="submenu-item">View Shifts</a>
+                        <a href="../sds/confirm_availability.php" class="submenu-item">Confirm Availability</a>
+                        <a href="../sds/request_change.php" class="submenu-item">Request Change</a>
+                        
                     </div>
                     
                     <!-- Training & Certification Logging -->
@@ -1711,6 +1715,22 @@ $count_stmt = null;
                         <a href="../postincident/attach_equipment.php" class="submenu-item">Attach Equipment</a>
                         <a href="../postincident/mark_completed.php" class="submenu-item">Mark Completed</a>
                     </div>
+
+                      <!-- Feedback & Suggestions -->
+                <div class="menu-item" onclick="toggleSubmenu('feedback')">
+                    <div class="icon-box icon-bg-indigo">
+                        <i class='bx bxs-message-square-detail icon-indigo'></i>
+                    </div>
+                    <span class="font-medium">Feedback & Suggestions</span>
+                    <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+                <div id="feedback" class="submenu">
+                    <a href="../fb/approve_feedback.php" class="submenu-item">Approve Feedback</a>
+                    <a href="#" class="submenu-item">All Feedback</a>
+                </div>
+
                 </div>
                 
                 <p class="menu-title" style="margin-top: 32px;">GENERAL</p>
@@ -1876,10 +1896,10 @@ $count_stmt = null;
                                             <td>
                                                 <div class="volunteer-info">
                                                     <div class="volunteer-avatar">
-                                                        <?php echo strtoupper(substr($volunteer['full_name'], 0, 1)); ?>
+                                                        <?php echo strtoupper(substr($volunteer['display_full_name'], 0, 1)); ?>
                                                     </div>
                                                     <div>
-                                                        <div class="volunteer-name"><?php echo htmlspecialchars($volunteer['full_name']); ?></div>
+                                                        <div class="volunteer-name"><?php echo htmlspecialchars($volunteer['display_full_name']); ?></div>
                                                         <div class="volunteer-email"><?php echo htmlspecialchars($volunteer['email']); ?></div>
                                                     </div>
                                                 </div>
@@ -1926,7 +1946,7 @@ $count_stmt = null;
                                                         View
                                                     </button>
                                                     <!-- <CHANGE> Added AI Recommend button -->
-                                                    <button class="action-button ai-button" onclick="getAIRecommendation(<?php echo $volunteer['id']; ?>, '<?php echo htmlspecialchars($volunteer['full_name']); ?>')">
+                                                    <button class="action-button ai-button" onclick="getAIRecommendation(<?php echo $volunteer['id']; ?>, '<?php echo htmlspecialchars($volunteer['display_full_name']); ?>')">
                                                         <i class='bx bx-sparkles'></i>
                                                         AI Suggest
                                                     </button>
@@ -2363,7 +2383,7 @@ $count_stmt = null;
         // Show profile modal
         document.getElementById('profile-modal').classList.add('active');
         
-        // Fetch volunteer details
+        // Fetch volunteer details - also need to fix this to get proper full name
         fetch(`get_volunteer_details.php?id=${volunteerId}`)
             .then(response => response.json())
             .then(data => {
@@ -2394,12 +2414,17 @@ $count_stmt = null;
         const frontPhoto = getImagePath(volunteer.id_front_photo);
         const backPhoto = getImagePath(volunteer.id_back_photo);
         
+        // Construct full name if empty
+        const fullName = volunteer.full_name && volunteer.full_name.trim() !== '' 
+            ? volunteer.full_name 
+            : `${volunteer.first_name} ${volunteer.middle_name ? volunteer.middle_name + ' ' : ''}${volunteer.last_name}`;
+        
         let html = `
             <div class="profile-header">
                 <div class="profile-avatar">
-                    ${volunteer.full_name.charAt(0).toUpperCase()}
+                    ${fullName.charAt(0).toUpperCase()}
                 </div>
-                <h1 class="profile-name">${volunteer.full_name}</h1>
+                <h1 class="profile-name">${fullName}</h1>
                 <div class="profile-status">
                     <i class='bx bx-badge-check'></i>
                     ${volunteer.status.charAt(0).toUpperCase() + volunteer.status.slice(1)} Volunteer
@@ -2414,7 +2439,7 @@ $count_stmt = null;
                     <div class="info-grid">
                         <div class="info-item">
                             <div class="info-label">Full Name</div>
-                            <div class="info-value">${volunteer.full_name}</div>
+                            <div class="info-value">${fullName}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">Date of Birth</div>
