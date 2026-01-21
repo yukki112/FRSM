@@ -1221,10 +1221,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="user-management" class="submenu">
-                        <a href="#" class="submenu-item">Manage Users</a>
-                        <a href="#" class="submenu-item">Role Control</a>
-                        <a href="#" class="submenu-item">Monitor Activity</a>
-                        <a href="#" class="submenu-item">Reset Passwords</a>
+                         <a href="../users/manage_users.php" class="submenu-item">Manage Users</a>
+                        <a href="../users/role_control.php" class="submenu-item">Role Control</a>
+                        <a href="../users/monitor_activity.php" class="submenu-item">Monitor Activity</a>
+                        <a href="../users/reset_passwords.php" class="submenu-item">Reset Passwords</a>
                     </div>
                     
                     <!-- Fire & Incident Reporting Management -->

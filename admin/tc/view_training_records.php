@@ -1524,10 +1524,10 @@ $stats_stmt = null;
                         </svg>
                     </div>
                     <div id="user-management" class="submenu">
-                        <a href="#" class="submenu-item">Manage Users</a>
-                        <a href="#" class="submenu-item">Role Control</a>
-                        <a href="#" class="submenu-item">Monitor Activity</a>
-                        <a href="#" class="submenu-item">Reset Passwords</a>
+                        <a href="../user/manage_users.php" class="submenu-item">Manage Users</a>
+                        <a href="../user/role_control.php" class="submenu-item">Role Control</a>
+                        <a href="../user/monitor_activity.php" class="submenu-item">Monitor Activity</a>
+                        <a href="../user/reset_passwords.php" class="submenu-item">Reset Passwords</a>
                     </div>
                     
                     <!-- Fire & Incident Reporting Management -->

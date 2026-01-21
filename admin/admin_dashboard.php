@@ -93,10 +93,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="user-management" class="submenu">
-                        <a href="#" class="submenu-item">Manage Users</a>
-                        <a href="#" class="submenu-item">Role Control</a>
-                        <a href="#" class="submenu-item">Monitor Activity</a>
-                        <a href="#" class="submenu-item">Reset Passwords</a>
+                        <a href="users/manage_users.php" class="submenu-item">Manage Users</a>
+                        <a href="users/role_control.php" class="submenu-item">Role Control</a>
+                        <a href="users/monitor_activity.php" class="submenu-item">Monitor Activity</a>
+                        <a href="users/reset_passwords.php" class="submenu-item">Reset Passwords</a>
                     </div>
                     
                     <!-- Fire & Incident Reporting Management -->
@@ -164,10 +164,11 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="schedule-management" class="submenu">
-                        <a href="#" class="submenu-item">Create Schedule</a>
-                        <a href="#" class="submenu-item">Approve Shifts</a>
-                        <a href="#" class="submenu-item">Override Assignments</a>
-                        <a href="#" class="submenu-item">Monitor Attendance</a>
+                        <a href="sm/view_shifts.php" class="submenu-item">View Shifts</a>
+                        <a href="sm/create_schedule.php" class="submenu-item">Create Schedule</a>
+                        <a href="sm/approve_shifts.php" class="submenu-item">Approve Shifts</a>
+                        <a href="sm/override_assignments.php" class="submenu-item">Override Assignments</a>
+                        <a href="sm/monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
                     </div>
                     
                     <!-- Training & Certification Monitoring -->
