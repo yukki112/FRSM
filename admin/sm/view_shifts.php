@@ -1721,11 +1721,11 @@ function hexToRgb($hex) {
                         </svg>
                     </div>
                     <div id="schedule-management" class="submenu active">
-                       <a href="../sm/view_shifts.php" class="submenu-item active">View Shifts</a>
-                        <a href="../sm/create_schedule.php" class="submenu-item">Create Schedule</a>
-                        <a href="../sm/approve_shifts.php" class="submenu-item">Approve Shifts</a>
-                        <a href="../sm/override_assignments.php" class="submenu-item">Override Assignments</a>
-                        <a href="../sm/monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
+                       <a href="view_shifts.php" class="submenu-item active">View Shifts</a>
+                        <a href="create_schedule.php" class="submenu-item">Create Schedule</a>
+                          <a href="confirm_availability.php" class="submenu-item">Confirm Availability</a>
+                        <a href="request_change.php" class="submenu-item">Request Change</a>
+                        <a href="monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
                     </div>
                     
                     <!-- Training & Certification Monitoring -->
