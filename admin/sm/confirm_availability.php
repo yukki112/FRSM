@@ -1573,12 +1573,11 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="volunteer-management" class="submenu">
-                        <a href="../volunteer/review_data.php" class="submenu-item">Review Data</a>
-                        <a href="../volunteer/approve_applications.php" class="submenu-item">Approve Applications</a>
-                        <a href="../volunteer/assign_volunteers.php" class="submenu-item">Assign Volunteers</a>
-                        <a href="../volunteer/view_availability.php" class="submenu-item">View Availability</a>
-                        <a href="../volunteer/remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
-                        <a href="../volunteer/toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
+                        <a href="../vm/review_data.php" class="submenu-item">Review Data</a>
+                        <a href="../vm/assign_volunteers.php" class="submenu-item">Assign Volunteers</a>
+                        <a href="../vm/view_availability.php" class="submenu-item">View Availability</a>
+                        <a href="../vm/remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
+                        <a href="../vm/toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
                     </div>
                     
                     <!-- Resource Inventory Management -->
@@ -1622,17 +1621,17 @@ $stmt = null;
                             <i class='bx bxs-graduation icon-teal'></i>
                         </div>
                         <span class="font-medium">Training Management</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="dropdown-arrow menu-icon rotated" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </div>
                     <div id="training-management" class="submenu">
-                        <a href="#" class="submenu-item">View Records</a>
-                        <a href="#" class="submenu-item">Approve Completions</a>
-                        <a href="#" class="submenu-item">Assign Training</a>
-                        <a href="#" class="submenu-item">Track Expiry</a>
+                        <a href="../tc/approve_completions.php" class="submenu-item">Approve Completions</a>
+                        <a href="../tc/view_training_records.php" class="submenu-item">View Records</a>
+                        <a href="../tc/assign_training.php" class="submenu-item">Assign Training</a>
+                        <a href="../tc/track_expiry.php" class="submenu-item">Track Expiry</a>
                     </div>
-                    
+
                     <!-- Inspection Logs for Establishments -->
                     <div class="menu-item" onclick="toggleSubmenu('inspection-management')">
                         <div class="icon-box icon-bg-cyan">

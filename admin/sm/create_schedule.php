@@ -1636,15 +1636,15 @@ $stmt = null;
                             <i class='bx bxs-graduation icon-teal'></i>
                         </div>
                         <span class="font-medium">Training Management</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="dropdown-arrow menu-icon rotated" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </div>
                     <div id="training-management" class="submenu">
-                        <a href="#" class="submenu-item">View Records</a>
-                        <a href="#" class="submenu-item">Approve Completions</a>
-                        <a href="#" class="submenu-item">Assign Training</a>
-                        <a href="#" class="submenu-item">Track Expiry</a>
+                        <a href="../tc/approve_completions.php" class="submenu-item">Approve Completions</a>
+                        <a href="../tc/view_training_records.php" class="submenu-item">View Records</a>
+                        <a href="../tc/assign_training.php" class="submenu-item">Assign Training</a>
+                        <a href="../tc/track_expiry.php" class="submenu-item">Track Expiry</a>
                     </div>
                     
                     <!-- Inspection Logs for Establishments -->

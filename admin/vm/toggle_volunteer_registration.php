@@ -1256,8 +1256,7 @@ $stmt = null;
 </div>
 <div id="volunteer-management" class="submenu active">
     <a href="review_data.php" class="submenu-item">Review Data</a>
-    <a href="approve_applications.php" class="submenu-item">Approve Applications</a>
-    <a href="assign_volunteers.php" class="submenu-item">Assign Volunteers</a>
+    <a href="approve_applications.php" class="submenu-item">Assign Volunteers</a>
     <a href="view_availability.php" class="submenu-item">View Availability</a>
     <a href="remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
     <a href="toggle_volunteer_registration.php" class="submenu-item active">Toggle Volunteer Registration Access</a>

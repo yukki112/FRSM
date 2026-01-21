@@ -8,7 +8,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$query = "SELECT first_name, middle_name, last_name, role FROM users WHERE id = ?";
+$query = "SELECT first_name, middle_name, last_name, role, avatar FROM users WHERE id = ?";
 $stmt = $pdo->prepare($query);
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
@@ -18,6 +18,7 @@ if ($user) {
     $middle_name = htmlspecialchars($user['middle_name']);
     $last_name = htmlspecialchars($user['last_name']);
     $role = htmlspecialchars($user['role']);
+    $avatar = htmlspecialchars($user['avatar']);
     
     $full_name = $first_name;
     if (!empty($middle_name)) {
@@ -27,23 +28,81 @@ if ($user) {
 } else {
     $full_name = "User";
     $role = "USER";
+    $avatar = "";
+}
+
+// Handle volunteer removal
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['action']) && isset($_POST['volunteer_id'])) {
+        $volunteer_id = intval($_POST['volunteer_id']);
+        $action = $_POST['action'];
+        
+        try {
+            if ($action === 'deactivate') {
+                // Deactivate volunteer (make inactive)
+                $update_query = "UPDATE volunteers SET volunteer_status = 'Inactive' WHERE id = ?";
+                $stmt = $pdo->prepare($update_query);
+                $stmt->execute([$volunteer_id]);
+                
+                $_SESSION['success_message'] = "Volunteer has been deactivated successfully.";
+                
+            } elseif ($action === 'delete') {
+                // Get volunteer email for user deactivation
+                $email_query = "SELECT email FROM volunteers WHERE id = ?";
+                $stmt = $pdo->prepare($email_query);
+                $stmt->execute([$volunteer_id]);
+                $volunteer = $stmt->fetch();
+                
+                if ($volunteer) {
+                    // Deactivate user account if exists
+                    $user_deactivate_query = "UPDATE users SET is_verified = 0 WHERE email = ?";
+                    $stmt = $pdo->prepare($user_deactivate_query);
+                    $stmt->execute([$volunteer['email']]);
+                    
+                    // Delete volunteer assignments
+                    $delete_assignments_query = "DELETE FROM volunteer_assignments WHERE volunteer_id = ?";
+                    $stmt = $pdo->prepare($delete_assignments_query);
+                    $stmt->execute([$volunteer_id]);
+                    
+                    // Delete volunteer record
+                    $delete_volunteer_query = "DELETE FROM volunteers WHERE id = ?";
+                    $stmt = $pdo->prepare($delete_volunteer_query);
+                    $stmt->execute([$volunteer_id]);
+                    
+                    $_SESSION['success_message'] = "Volunteer has been permanently removed and user account deactivated.";
+                }
+            }
+            
+            // Redirect to prevent form resubmission
+            header("Location: remove_volunteers.php?success=1");
+            exit();
+            
+        } catch (PDOException $e) {
+            $_SESSION['error_message'] = "Error: " . $e->getMessage();
+            header("Location: remove_volunteers.php?error=1");
+            exit();
+        }
+    }
 }
 
 // Get filter parameters
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $search_term = isset($_GET['search']) ? $_GET['search'] : '';
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$limit = 10;
+$offset = ($page - 1) * $limit;
 
 // Build query with filters
 $where_conditions = [];
 $params = [];
 
 if (!empty($status_filter) && $status_filter !== 'all') {
-    $where_conditions[] = "status = ?";
+    $where_conditions[] = "volunteer_status = ?";
     $params[] = $status_filter;
 }
 
 if (!empty($search_term)) {
-    $where_conditions[] = "(full_name LIKE ? OR email LIKE ? OR contact_number LIKE ?)";
+    $where_conditions[] = "(CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) LIKE ? OR email LIKE ? OR contact_number LIKE ?)";
     $params[] = "%$search_term%";
     $params[] = "%$search_term%";
     $params[] = "%$search_term%";
@@ -54,14 +113,34 @@ if (!empty($where_conditions)) {
     $where_clause = "WHERE " . implode(" AND ", $where_conditions);
 }
 
-// Fetch volunteer applications with filters
-$volunteers_query = "SELECT * FROM volunteers $where_clause ORDER BY created_at DESC";
+// Count total volunteers for pagination
+$count_query = "SELECT COUNT(*) as total FROM volunteers $where_clause";
+$count_stmt = $pdo->prepare($count_query);
+$count_stmt->execute($params);
+$total_volunteers = $count_stmt->fetch()['total'];
+$total_pages = ceil($total_volunteers / $limit);
+
+// Fetch volunteers with filters and pagination
+$volunteers_query = "SELECT *, CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) as full_name FROM volunteers $where_clause ORDER BY created_at DESC LIMIT ? OFFSET ?";
 $volunteers_stmt = $pdo->prepare($volunteers_query);
-$volunteers_stmt->execute($params);
+
+// Bind parameters
+$param_types = array_fill(0, count($params), PDO::PARAM_STR);
+$param_types[] = PDO::PARAM_INT; // For LIMIT
+$param_types[] = PDO::PARAM_INT; // For OFFSET
+
+$all_params = array_merge($params, [$limit, $offset]);
+
+// Execute with parameter types
+foreach ($all_params as $key => $value) {
+    $volunteers_stmt->bindValue($key + 1, $value, $param_types[$key] ?? PDO::PARAM_STR);
+}
+
+$volunteers_stmt->execute();
 $volunteers = $volunteers_stmt->fetchAll();
 
 // Get counts for each status
-$status_counts_query = "SELECT status, COUNT(*) as count FROM volunteers GROUP BY status";
+$status_counts_query = "SELECT volunteer_status, COUNT(*) as count FROM volunteers GROUP BY volunteer_status";
 $status_counts_stmt = $pdo->prepare($status_counts_query);
 $status_counts_stmt->execute();
 $status_counts = $status_counts_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -69,13 +148,14 @@ $status_counts = $status_counts_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 $stmt = null;
 $volunteers_stmt = null;
 $status_counts_stmt = null;
+$count_stmt = null;
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Review Data Management - Fire & Rescue Services</title>
+    <title>Remove Volunteers - Fire & Rescue Services</title>
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="icon" type="image/png" sizes="32x32" href="../../img/frsm-logo.png">
     <link rel="stylesheet" href="../../css/dashboard.css">
@@ -88,14 +168,9 @@ $status_counts_stmt = null;
             --background-color: #ffffff;
             --text-color: #1f2937;
             --text-light: #6b7280;
-            --border-color: rgba(255, 255, 255, 0.2);
-            --card-bg: rgba(255, 255, 255, 0.15);
-            --sidebar-bg: rgba(255, 255, 255, 0.15);
-
-            --glass-bg: rgba(255, 255, 255, 0.25);
-            --glass-border: rgba(255, 255, 255, 0.3);
-            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-            --glass-blur: blur(12px);
+            --border-color: #e5e7eb;
+            --card-bg: #f9fafb;
+            --sidebar-bg: #ffffff;
             
             --icon-red: #ef4444;
             --icon-blue: #3b82f6;
@@ -127,7 +202,6 @@ $status_counts_stmt = null;
             --chart-purple: #8b5cf6;
             --chart-pink: #ec4899;
 
-            /* Additional variables for consistency */
             --primary: var(--primary-color);
             --primary-dark: var(--primary-dark);
             --secondary: var(--secondary-color);
@@ -148,27 +222,22 @@ $status_counts_stmt = null;
             --gray-900: #111827;
         }
         
-        /* Dark mode variables */
         .dark-mode {
             --background-color: #0f172a;
             --text-color: #f1f5f9;
             --text-light: #94a3b8;
-            --border-color: rgba(255, 255, 255, 0.1);
-            --card-bg: rgba(30, 41, 59, 0.4);
-            --sidebar-bg: rgba(30, 41, 59, 0.4);
-            
-            --glass-bg: rgba(30, 41, 59, 0.6);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            --border-color: #334155;
+            --card-bg: #1e293b;
+            --sidebar-bg: #0f172a;
         }
 
-        /* Font and size from reference */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.6;
             color: var(--text-color);
             background-color: var(--background-color);
+            overflow-x: hidden;
         }
 
         h1, h2, h3, h4, h5, h6 {
@@ -184,7 +253,6 @@ $status_counts_stmt = null;
             font-size: 16px;
         }
 
-        /* COMPLETELY NEW LAYOUT DESIGN */
         .dashboard-content {
             padding: 0;
             min-height: 100vh;
@@ -199,6 +267,7 @@ $status_counts_stmt = null;
             overflow: hidden;
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--border-color);
         }
 
         .dark-mode .dashboard-header {
@@ -252,10 +321,8 @@ $status_counts_stmt = null;
         }
 
         .secondary-button {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             color: var(--text-color);
         }
 
@@ -268,21 +335,21 @@ $status_counts_stmt = null;
             background: var(--gray-800);
         }
 
-        .review-data-container {
+        .availability-container {
             display: flex;
             flex-direction: column;
             gap: 24px;
             padding: 0 40px 40px;
         }
         
-        .review-header {
+        .availability-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             margin-bottom: 24px;
         }
         
-        .review-title {
+        .availability-title {
             font-size: 28px;
             font-weight: 800;
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
@@ -291,7 +358,7 @@ $status_counts_stmt = null;
             margin-bottom: 8px;
         }
         
-        .review-subtitle {
+        .availability-subtitle {
             color: var(--text-light);
             font-size: 16px;
         }
@@ -302,16 +369,17 @@ $status_counts_stmt = null;
             margin-bottom: 24px;
             flex-wrap: wrap;
             align-items: flex-end;
-            position: relative;
-            z-index: 100;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
         
         .filter-group {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            position: relative;
-            z-index: 101;
         }
         
         .filter-label {
@@ -328,38 +396,29 @@ $status_counts_stmt = null;
             padding: 10px 16px;
             border-radius: 10px;
             border: 1px solid var(--border-color);
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
+            background: var(--card-bg);
+            color: var(--text-color);
             font-size: 14px;
             min-width: 180px;
             transition: all 0.3s ease;
-            position: relative;
-            z-index: 101;
         }
         
         .filter-select:focus, .filter-input:focus {
             outline: none;
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
-            z-index: 102;
         }
         
         .stats-container {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
-            position: relative;
-            z-index: 1;
         }
         
         .stat-card {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 20px;
             display: flex;
@@ -371,6 +430,7 @@ $status_counts_stmt = null;
             cursor: pointer;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
         
         .stat-card::before {
@@ -386,21 +446,25 @@ $status_counts_stmt = null;
             background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
         }
         
-        .stat-card[data-status="pending"]::before {
+        .stat-card[data-status="New Volunteer"]::before {
             background: var(--warning);
         }
         
-        .stat-card[data-status="approved"]::before {
+        .stat-card[data-status="Active"]::before {
             background: var(--success);
         }
         
-        .stat-card[data-status="rejected"]::before {
+        .stat-card[data-status="Inactive"]::before {
             background: var(--danger);
+        }
+        
+        .stat-card[data-status="On Leave"]::before {
+            background: var(--info);
         }
         
         .stat-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         }
         
         .stat-card.active {
@@ -423,19 +487,24 @@ $status_counts_stmt = null;
             flex-shrink: 0;
         }
         
-        .stat-card[data-status="pending"] .stat-icon {
+        .stat-card[data-status="New Volunteer"] .stat-icon {
             background: rgba(245, 158, 11, 0.1);
             color: var(--warning);
         }
         
-        .stat-card[data-status="approved"] .stat-icon {
+        .stat-card[data-status="Active"] .stat-icon {
             background: rgba(16, 185, 129, 0.1);
             color: var(--success);
         }
         
-        .stat-card[data-status="rejected"] .stat-icon {
+        .stat-card[data-status="Inactive"] .stat-icon {
             background: rgba(220, 38, 38, 0.1);
             color: var(--danger);
+        }
+        
+        .stat-card[data-status="On Leave"] .stat-icon {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--info);
         }
         
         .stat-value {
@@ -449,50 +518,51 @@ $status_counts_stmt = null;
             color: var(--text-light);
         }
         
-        .volunteers-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 20px;
-        }
-        
-        .volunteer-card {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+        .volunteers-table {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 16px;
-            padding: 20px;
-            transition: all 0.3s ease;
-            position: relative;
             overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
         
-        .volunteer-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        .table-header {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 1fr 1fr 2fr;
+            gap: 16px;
+            padding: 20px;
+            background: rgba(220, 38, 38, 0.02);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            color: var(--text-color);
         }
         
-        .volunteer-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        .table-row {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 1fr 1fr 2fr;
+            gap: 16px;
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s ease;
         }
         
-        .volunteer-header {
+        .table-row:hover {
+            background: rgba(220, 38, 38, 0.03);
+        }
+        
+        .table-row:last-child {
+            border-bottom: none;
+        }
+        
+        .table-cell {
             display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            margin-bottom: 16px;
+            align-items: center;
+            color: var(--text-color);
         }
         
         .volunteer-avatar {
-            width: 50px;
-            height: 50px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             display: flex;
@@ -500,79 +570,54 @@ $status_counts_stmt = null;
             justify-content: center;
             color: white;
             font-weight: 700;
-            font-size: 18px;
+            font-size: 16px;
             margin-right: 12px;
         }
         
         .volunteer-info {
-            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
         
         .volunteer-name {
-            font-size: 18px;
-            font-weight: 700;
+            font-weight: 600;
             margin-bottom: 4px;
         }
         
         .volunteer-email {
             color: var(--text-light);
-            font-size: 14px;
-            margin-bottom: 8px;
+            font-size: 12px;
         }
         
-        .volunteer-status {
-            padding: 4px 12px;
+        .status-badge {
+            padding: 6px 12px;
             border-radius: 20px;
             font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
         }
         
-        .status-pending {
+        .status-new {
             background: rgba(245, 158, 11, 0.1);
             color: var(--warning);
         }
         
-        .status-approved {
+        .status-active {
             background: rgba(16, 185, 129, 0.1);
             color: var(--success);
         }
         
-        .status-rejected {
+        .status-inactive {
             background: rgba(220, 38, 38, 0.1);
             color: var(--danger);
         }
         
-        .volunteer-details {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-        
-        .detail-item {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .detail-label {
-            font-size: 12px;
-            color: var(--text-light);
-            margin-bottom: 4px;
-        }
-        
-        .detail-value {
-            font-size: 14px;
-            font-weight: 500;
-        }
-        
-        .volunteer-actions {
-            display: flex;
-            gap: 8px;
+        .status-leave {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--info);
         }
         
         .action-button {
-            flex: 1;
             padding: 8px 12px;
             border-radius: 8px;
             font-weight: 500;
@@ -586,6 +631,26 @@ $status_counts_stmt = null;
             font-size: 13px;
         }
         
+        .deactivate-button {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+        
+        .deactivate-button:hover {
+            background-color: var(--warning);
+            color: white;
+        }
+        
+        .delete-button {
+            background-color: rgba(220, 38, 38, 0.1);
+            color: var(--danger);
+        }
+        
+        .delete-button:hover {
+            background-color: var(--danger);
+            color: white;
+        }
+        
         .view-button {
             background-color: rgba(59, 130, 246, 0.1);
             color: var(--info);
@@ -596,24 +661,17 @@ $status_counts_stmt = null;
             color: white;
         }
         
-        .approve-button {
-            background-color: rgba(16, 185, 129, 0.1);
-            color: var(--success);
+        .no-volunteers {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-light);
         }
         
-        .approve-button:hover {
-            background-color: var(--success);
-            color: white;
-        }
-        
-        .reject-button {
-            background-color: rgba(220, 38, 38, 0.1);
-            color: var(--danger);
-        }
-        
-        .reject-button:hover {
-            background-color: var(--danger);
-            color: white;
+        .no-volunteers-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            color: var(--text-light);
+            opacity: 0.5;
         }
         
         .pagination {
@@ -627,10 +685,8 @@ $status_counts_stmt = null;
         .pagination-button {
             padding: 8px 16px;
             border-radius: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             color: var(--gray-700);
             cursor: pointer;
             transition: all 0.3s ease;
@@ -655,18 +711,34 @@ $status_counts_stmt = null;
             color: var(--text-light);
         }
         
-        .no-volunteers {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-light);
-            grid-column: 1 / -1;
+        .pagination-numbers {
+            display: flex;
+            gap: 6px;
         }
         
-        .no-volunteers-icon {
-            font-size: 64px;
-            margin-bottom: 16px;
-            color: var(--text-light);
-            opacity: 0.5;
+        .pagination-number {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--gray-700);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+        
+        .pagination-number.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        
+        .pagination-number:hover:not(.active) {
+            background: var(--gray-100);
         }
         
         .modal-overlay {
@@ -691,18 +763,16 @@ $status_counts_stmt = null;
         }
         
         .modal {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 20px;
             width: 90%;
-            max-width: 900px;
+            max-width: 500px;
             max-height: 90vh;
             overflow-y: auto;
             transform: scale(0.9);
             transition: all 0.3s ease;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
         }
         
         .modal-overlay.active .modal {
@@ -715,6 +785,7 @@ $status_counts_stmt = null;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            background: rgba(220, 38, 38, 0.02);
         }
         
         .modal-title {
@@ -740,22 +811,16 @@ $status_counts_stmt = null;
         }
         
         .modal-section {
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         
         .modal-section-title {
             font-size: 18px;
             font-weight: 700;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
             padding-bottom: 8px;
             border-bottom: 1px solid var(--border-color);
             color: var(--primary-color);
-        }
-        
-        .modal-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 16px;
         }
         
         .modal-detail {
@@ -770,64 +835,8 @@ $status_counts_stmt = null;
         
         .modal-detail-value {
             font-size: 16px;
+            color: var(--text-color);
             font-weight: 500;
-        }
-        
-        .skills-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        
-        .skill-tag {
-            padding: 4px 12px;
-            background: rgba(220, 38, 38, 0.1);
-            color: var(--primary-color);
-            border-radius: 20px;
-            font-size: 14px;
-        }
-        
-        .skill-tag.active {
-            background: var(--primary-color);
-            color: white;
-        }
-        
-        .id-photos-container {
-            display: flex;
-            gap: 20px;
-            margin-top: 16px;
-        }
-        
-        .id-photo-wrapper {
-            flex: 1;
-            text-align: center;
-        }
-        
-        .id-photo-label {
-            font-size: 14px;
-            color: var(--text-light);
-            margin-bottom: 8px;
-        }
-        
-        .id-photo {
-            max-width: 100%;
-            max-height: 300px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            object-fit: contain;
-            background: #f8f9fa;
-        }
-        
-        .dark-mode .id-photo {
-            background: #374151;
-        }
-        
-        .no-photo {
-            padding: 40px;
-            text-align: center;
-            color: var(--text-light);
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
         }
         
         .modal-footer {
@@ -836,6 +845,7 @@ $status_counts_stmt = null;
             display: flex;
             justify-content: flex-end;
             gap: 12px;
+            background: rgba(220, 38, 38, 0.02);
         }
         
         .modal-button {
@@ -847,22 +857,13 @@ $status_counts_stmt = null;
             transition: all 0.3s ease;
         }
         
-        .modal-approve {
-            background: var(--success);
+        .modal-primary {
+            background: var(--primary-color);
             color: white;
         }
         
-        .modal-approve:hover {
-            background: #0d8c5f;
-        }
-        
-        .modal-reject {
-            background: var(--danger);
-            color: white;
-        }
-        
-        .modal-reject:hover {
-            background: #c81e1e;
+        .modal-primary:hover {
+            background: var(--primary-dark);
         }
         
         .modal-secondary {
@@ -883,7 +884,6 @@ $status_counts_stmt = null;
             background: var(--gray-600);
         }
         
-        /* Notification Styles */
         .notification-container {
             position: fixed;
             top: 20px;
@@ -897,11 +897,8 @@ $status_counts_stmt = null;
         .notification {
             padding: 16px 20px;
             border-radius: 12px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             gap: 12px;
@@ -909,6 +906,7 @@ $status_counts_stmt = null;
             opacity: 0;
             transition: all 0.3s ease;
             max-width: 350px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
         .notification.show {
@@ -960,7 +958,6 @@ $status_counts_stmt = null;
             flex-shrink: 0;
         }
 
-        /* User Profile Dropdown - FIXED POSITIONING */
         .user-profile {
             position: relative;
             cursor: pointer;
@@ -971,11 +968,8 @@ $status_counts_stmt = null;
             top: 100%;
             right: 0;
             margin-top: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 8px;
             min-width: 200px;
@@ -984,6 +978,7 @@ $status_counts_stmt = null;
             visibility: hidden;
             transform: translateY(-10px);
             transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .user-profile-dropdown.show {
@@ -1004,7 +999,7 @@ $status_counts_stmt = null;
         }
 
         .dropdown-item:hover {
-            background: rgba(220, 38, 38, 0.1);
+            background: rgba(220, 38, 38, 0.05);
         }
 
         .dropdown-item i {
@@ -1018,7 +1013,6 @@ $status_counts_stmt = null;
             margin: 8px 0;
         }
 
-        /* Notification Bell - FIXED POSITIONING */
         .notification-bell {
             position: relative;
         }
@@ -1039,17 +1033,13 @@ $status_counts_stmt = null;
             font-weight: 600;
         }
 
-        /* Notification Dropdown - FIXED POSITIONING */
         .notification-dropdown {
             position: absolute;
             top: 100%;
             right: 0;
             margin-top: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             width: 320px;
             max-height: 400px;
@@ -1059,6 +1049,7 @@ $status_counts_stmt = null;
             visibility: hidden;
             transform: translateY(-10px);
             transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .notification-dropdown.show {
@@ -1148,7 +1139,6 @@ $status_counts_stmt = null;
             opacity: 0.5;
         }
 
-        /* Loading Animation */
         .dashboard-animation {
             position: fixed;
             top: 0;
@@ -1211,10 +1201,140 @@ $status_counts_stmt = null;
             opacity: 0;
             transition: opacity 0.5s ease;
         }
+
+        .warning-box {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .warning-box i {
+            color: var(--warning);
+            font-size: 24px;
+            margin-top: 2px;
+        }
+
+        .warning-content h3 {
+            color: var(--warning);
+            margin-bottom: 8px;
+        }
+
+        .warning-content p {
+            color: var(--text-light);
+            margin-bottom: 4px;
+        }
+
+        .confirmation-modal-content {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .confirmation-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .confirmation-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .confirmation-message {
+            color: var(--text-light);
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .volunteer-info-summary {
+            background: var(--gray-100);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .dark-mode .volunteer-info-summary {
+            background: var(--gray-800);
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .info-label {
+            color: var(--text-light);
+        }
+
+        .info-value {
+            font-weight: 500;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+        }
+
+        .filter-tab {
+            padding: 10px 20px;
+            border-radius: 8px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-tab.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .filter-tab:hover:not(.active) {
+            background: var(--gray-100);
+        }
+
+        .dark-mode .filter-tab:hover:not(.active) {
+            background: var(--gray-800);
+        }
+
+        .filter-tab-count {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .filter-tab.active .filter-tab-count {
+            background: rgba(255, 255, 255, 0.3);
+        }
         
         @media (max-width: 768px) {
-            .volunteers-grid {
+            .table-header, .table-row {
                 grid-template-columns: 1fr;
+                gap: 8px;
             }
             
             .filters-container {
@@ -1223,14 +1343,6 @@ $status_counts_stmt = null;
             
             .filter-select, .filter-input {
                 min-width: 100%;
-            }
-            
-            .modal-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .id-photos-container {
-                flex-direction: column;
             }
             
             .modal-footer {
@@ -1245,34 +1357,62 @@ $status_counts_stmt = null;
                 font-size: 32px;
             }
             
-            .review-data-container {
+            .availability-container {
                 padding: 0 25px 30px;
             }
             
             .stats-container {
                 grid-template-columns: 1fr;
             }
+
+            .filter-tabs {
+                flex-wrap: wrap;
+            }
+
+            .table-actions {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
-
-
-    <div class="dashboard-animation" id="dashboard-animation">
-        <div class="animation-logo">
-            <div class="animation-logo-icon">
-                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo">
-            </div>
-            <span class="animation-logo-text">Fire & Rescue</span>
-        </div>
-        <div class="animation-progress">
-            <div class="animation-progress-fill" id="animation-progress"></div>
-        </div>
-        <div class="animation-text" id="animation-text">Loading Dashboard...</div>
-    </div>
+   
     
     <!-- Notification Container -->
     <div class="notification-container" id="notification-container"></div>
+    
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay" id="confirmation-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title" id="confirmation-title">Confirm Action</h2>
+                <button class="modal-close" id="confirmation-modal-close">&times;</button>
+            </div>
+            <div class="confirmation-modal-content" id="confirmation-modal-body">
+                <!-- Content will be loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button class="modal-button modal-secondary" id="confirmation-cancel">Cancel</button>
+                <button class="modal-button modal-primary" id="confirmation-confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- View Volunteer Modal -->
+    <div class="modal-overlay" id="view-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Volunteer Details</h2>
+                <button class="modal-close" id="view-modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="view-modal-body">
+                <!-- Content will be loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button class="modal-button modal-secondary" id="view-modal-close-btn">Close</button>
+            </div>
+        </div>
+    </div>
     
     <div class="container">
         <!-- Sidebar -->
@@ -1331,6 +1471,8 @@ $status_counts_stmt = null;
                         <a href="#" class="submenu-item">Track Progress</a>
                         <a href="#" class="submenu-item">Mark Resolved</a>
                     </div>
+
+                    
                     
                   <div class="menu-item active" onclick="toggleSubmenu('volunteer-management')">
     <div class="icon-box icon-bg-blue">
@@ -1342,10 +1484,10 @@ $status_counts_stmt = null;
     </svg>
 </div>
 <div id="volunteer-management" class="submenu active">
-    <a href="review_data.php" class="submenu-item active">Review Data</a>
+    <a href="review_data.php" class="submenu-item">Review Data</a>
     <a href="approve_applications.php" class="submenu-item">Assign Volunteers</a>
     <a href="view_availability.php" class="submenu-item">View Availability</a>
-    <a href="remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
+    <a href="remove_volunteers.php" class="submenu-item active">Remove Volunteers</a>
     <a href="toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
 </div>
                     
@@ -1463,6 +1605,7 @@ $status_counts_stmt = null;
                 </div>
             </div>
         </div>
+        
         <!-- Main Content -->
         <div class="main-content">
             <!-- Header -->
@@ -1541,13 +1684,19 @@ $status_counts_stmt = null;
                             </div>
                         </div>
                         <div class="user-profile" id="user-profile">
-                            <img src="../../img/rei.jfif" alt="User" class="user-avatar">
+                            <?php if ($avatar): ?>
+                                <img src="../profile/uploads/avatars/<?php echo $avatar; ?>" alt="User" class="user-avatar">
+                            <?php else: ?>
+                                <div class="user-avatar" style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 50%; width: 40px; height: 40px;">
+                                    <?php echo strtoupper(substr($full_name, 0, 1)); ?>
+                                </div>
+                            <?php endif; ?>
                             <div class="user-info">
                                 <p class="user-name"><?php echo $full_name; ?></p>
                                 <p class="user-email"><?php echo $role; ?></p>
                             </div>
                             <div class="user-profile-dropdown" id="user-dropdown">
-                                <a href="../profile.php" class="dropdown-item">
+                                <a href="../profile/profile.php" class="dropdown-item">
                                     <i class='bx bx-user'></i>
                                     <span>Profile</span>
                                 </a>
@@ -1565,21 +1714,15 @@ $status_counts_stmt = null;
                     </div>
                 </div>
             </div>
-
-            
             
             <!-- Dashboard Content -->
             <div class="dashboard-content">
                 <div class="dashboard-header">
                     <div>
-                        <h1 class="dashboard-title">Review Data Management</h1>
-                        <p class="dashboard-subtitle">Manage and review volunteer applications</p>
+                        <h1 class="dashboard-title">Remove Volunteers</h1>
+                        <p class="dashboard-subtitle">Manage volunteer accounts - deactivate or permanently remove</p>
                     </div>
                     <div class="dashboard-actions">
-                        <button class="primary-button" id="export-button">
-                            <i class='bx bx-export'></i>
-                            Export Reports
-                        </button>
                         <button class="secondary-button" id="refresh-button">
                             <i class='bx bx-refresh'></i>
                             Refresh Data
@@ -1587,8 +1730,42 @@ $status_counts_stmt = null;
                     </div>
                 </div>
                 
-                <!-- Review Data Section -->
-                <div class="review-data-container">
+                <!-- Warning Box -->
+                <div class="availability-container">
+                    <div class="warning-box">
+                        <i class='bx bxs-error-circle'></i>
+                        <div class="warning-content">
+                            <h3>Important Notice</h3>
+                            <p>• <strong>Deactivate:</strong> Makes the volunteer inactive and prevents login</p>
+                            <p>• <strong>Delete:</strong> Permanently removes volunteer data and deactivates user account</p>
+                            <p>• Deleted volunteers cannot be recovered</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter Tabs -->
+                    <div class="filter-tabs">
+                        <div class="filter-tab <?php echo $status_filter === 'all' ? 'active' : ''; ?>" data-filter="status" data-value="all">
+                            <i class='bx bxs-user'></i>
+                            All Volunteers
+                            <span class="filter-tab-count"><?php echo array_sum($status_counts); ?></span>
+                        </div>
+                        <div class="filter-tab <?php echo $status_filter === 'New Volunteer' ? 'active' : ''; ?>" data-filter="status" data-value="New Volunteer">
+                            <i class='bx bx-user-plus'></i>
+                            New
+                            <span class="filter-tab-count"><?php echo isset($status_counts['New Volunteer']) ? $status_counts['New Volunteer'] : 0; ?></span>
+                        </div>
+                        <div class="filter-tab <?php echo $status_filter === 'Active' ? 'active' : ''; ?>" data-filter="status" data-value="Active">
+                            <i class='bx bx-check-circle'></i>
+                            Active
+                            <span class="filter-tab-count"><?php echo isset($status_counts['Active']) ? $status_counts['Active'] : 0; ?></span>
+                        </div>
+                        <div class="filter-tab <?php echo $status_filter === 'Inactive' ? 'active' : ''; ?>" data-filter="status" data-value="Inactive">
+                            <i class='bx bx-user-x'></i>
+                            Inactive
+                            <span class="filter-tab-count"><?php echo isset($status_counts['Inactive']) ? $status_counts['Inactive'] : 0; ?></span>
+                        </div>
+                    </div>
+                    
                     <!-- Stats Cards -->
                     <div class="stats-container">
                         <div class="stat-card <?php echo $status_filter === 'all' ? 'active' : ''; ?>" data-status="all">
@@ -1596,53 +1773,46 @@ $status_counts_stmt = null;
                                 <i class='bx bxs-user'></i>
                             </div>
                             <div class="stat-value"><?php echo array_sum($status_counts); ?></div>
-                            <div class="stat-label">Total Applications</div>
+                            <div class="stat-label">Total Volunteers</div>
                         </div>
-                        <div class="stat-card <?php echo $status_filter === 'pending' ? 'active' : ''; ?>" data-status="pending">
+                        <div class="stat-card <?php echo $status_filter === 'New Volunteer' ? 'active' : ''; ?>" data-status="New Volunteer">
                             <div class="stat-icon">
-                                <i class='bx bx-time-five'></i>
+                                <i class='bx bx-user-plus'></i>
                             </div>
-                            <div class="stat-value"><?php echo isset($status_counts['pending']) ? $status_counts['pending'] : 0; ?></div>
-                            <div class="stat-label">Pending Review</div>
+                            <div class="stat-value"><?php echo isset($status_counts['New Volunteer']) ? $status_counts['New Volunteer'] : 0; ?></div>
+                            <div class="stat-label">New Volunteers</div>
                         </div>
-                        <div class="stat-card <?php echo $status_filter === 'approved' ? 'active' : ''; ?>" data-status="approved">
+                        <div class="stat-card <?php echo $status_filter === 'Active' ? 'active' : ''; ?>" data-status="Active">
                             <div class="stat-icon">
                                 <i class='bx bx-check-circle'></i>
                             </div>
-                            <div class="stat-value"><?php echo isset($status_counts['approved']) ? $status_counts['approved'] : 0; ?></div>
-                            <div class="stat-label">Approved</div>
+                            <div class="stat-value"><?php echo isset($status_counts['Active']) ? $status_counts['Active'] : 0; ?></div>
+                            <div class="stat-label">Active Volunteers</div>
                         </div>
-                        <div class="stat-card <?php echo $status_filter === 'rejected' ? 'active' : ''; ?>" data-status="rejected">
+                        <div class="stat-card <?php echo $status_filter === 'Inactive' ? 'active' : ''; ?>" data-status="Inactive">
                             <div class="stat-icon">
-                                <i class='bx bx-x-circle'></i>
+                                <i class='bx bx-user-x'></i>
                             </div>
-                            <div class="stat-value"><?php echo isset($status_counts['rejected']) ? $status_counts['rejected'] : 0; ?></div>
-                            <div class="stat-label">Rejected</div>
+                            <div class="stat-value"><?php echo isset($status_counts['Inactive']) ? $status_counts['Inactive'] : 0; ?></div>
+                            <div class="stat-label">Inactive Volunteers</div>
                         </div>
                     </div>
                     
-                    <!-- Enhanced Filters -->
+                    <!-- Filters -->
                     <div class="filters-container">
                         <div class="filter-group">
                             <label class="filter-label">Status</label>
                             <select class="filter-select" id="status-filter">
                                 <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Statuses</option>
-                                <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                                <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
-                                <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                                <option value="New Volunteer" <?php echo $status_filter === 'New Volunteer' ? 'selected' : ''; ?>>New Volunteer</option>
+                                <option value="Active" <?php echo $status_filter === 'Active' ? 'selected' : ''; ?>>Active</option>
+                                <option value="Inactive" <?php echo $status_filter === 'Inactive' ? 'selected' : ''; ?>>Inactive</option>
+                                <option value="On Leave" <?php echo $status_filter === 'On Leave' ? 'selected' : ''; ?>>On Leave</option>
                             </select>
                         </div>
                         <div class="filter-group">
                             <label class="filter-label">Search</label>
                             <input type="text" class="filter-input" id="search-filter" placeholder="Search by name, email, or phone..." value="<?php echo htmlspecialchars($search_term); ?>">
-                        </div>
-                        <div class="filter-group">
-                            <label class="filter-label">Sort By</label>
-                            <select class="filter-select" id="sort-filter">
-                                <option value="newest">Newest First</option>
-                                <option value="oldest">Oldest First</option>
-                                <option value="name">Name A-Z</option>
-                            </select>
                         </div>
                         <div class="filter-group" style="align-self: flex-end;">
                             <button class="action-button view-button" id="apply-filters">
@@ -1651,65 +1821,70 @@ $status_counts_stmt = null;
                             </button>
                         </div>
                         <div class="filter-group" style="align-self: flex-end;">
-                            <button class="action-button reject-button" id="reset-filters">
+                            <button class="action-button delete-button" id="reset-filters">
                                 <i class='bx bx-reset'></i>
                                 Reset
                             </button>
                         </div>
                     </div>
                     
-                    <!-- Volunteers Grid -->
-                    <div class="volunteers-grid">
+                    <!-- Volunteers Table -->
+                    <div class="volunteers-table">
+                        <div class="table-header">
+                            <div>Volunteer</div>
+                            <div>Status</div>
+                            <div>Contact</div>
+                            <div>Registration Date</div>
+                            <div>Actions</div>
+                        </div>
+                        
                         <?php if (count($volunteers) > 0): ?>
-                            <?php foreach ($volunteers as $volunteer): ?>
-                                <div class="volunteer-card" data-id="<?php echo $volunteer['id']; ?>">
-                                    <div class="volunteer-header">
+                            <?php foreach ($volunteers as $volunteer): 
+                                // Calculate full name from parts
+                                $volunteer_full_name = $volunteer['first_name'];
+                                if (!empty($volunteer['middle_name'])) {
+                                    $volunteer_full_name .= ' ' . $volunteer['middle_name'];
+                                }
+                                $volunteer_full_name .= ' ' . $volunteer['last_name'];
+                            ?>
+                                <div class="table-row" data-id="<?php echo $volunteer['id']; ?>">
+                                    <div class="table-cell">
                                         <div class="volunteer-avatar">
-                                            <?php echo strtoupper(substr($volunteer['full_name'], 0, 1)); ?>
+                                            <?php echo strtoupper(substr($volunteer_full_name, 0, 1)); ?>
                                         </div>
                                         <div class="volunteer-info">
-                                            <h3 class="volunteer-name"><?php echo htmlspecialchars($volunteer['full_name']); ?></h3>
-                                            <p class="volunteer-email"><?php echo htmlspecialchars($volunteer['email']); ?></p>
-                                        </div>
-                                        <div class="volunteer-status status-<?php echo $volunteer['status']; ?>">
-                                            <?php echo ucfirst($volunteer['status']); ?>
+                                            <div class="volunteer-name"><?php echo htmlspecialchars($volunteer_full_name); ?></div>
+                                            <div class="volunteer-email"><?php echo htmlspecialchars($volunteer['email']); ?></div>
                                         </div>
                                     </div>
-                                    
-                                    <div class="volunteer-details">
-                                        <div class="detail-item">
-                                            <div class="detail-label">Date of Birth</div>
-                                            <div class="detail-value"><?php echo htmlspecialchars($volunteer['date_of_birth']); ?></div>
-                                        </div>
-                                        <div class="detail-item">
-                                            <div class="detail-label">Contact</div>
-                                            <div class="detail-value"><?php echo htmlspecialchars($volunteer['contact_number']); ?></div>
-                                        </div>
-                                        <div class="detail-item">
-                                            <div class="detail-label">ID Type</div>
-                                            <div class="detail-value"><?php echo htmlspecialchars($volunteer['valid_id_type']); ?></div>
-                                        </div>
-                                        <div class="detail-item">
-                                            <div class="detail-label">Applied</div>
-                                            <div class="detail-value"><?php echo htmlspecialchars($volunteer['application_date']); ?></div>
+                                    <div class="table-cell">
+                                        <div class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $volunteer['volunteer_status'])); ?>">
+                                            <?php echo $volunteer['volunteer_status']; ?>
                                         </div>
                                     </div>
-                                    
-                                    <div class="volunteer-actions">
-                                        <button class="action-button view-button" onclick="viewVolunteer(<?php echo $volunteer['id']; ?>)">
-                                            <i class='bx bx-show'></i>
-                                            View
-                                        </button>
-                                        <?php if ($volunteer['status'] === 'pending'): ?>
-                                            <button class="action-button approve-button" onclick="approveApplication(<?php echo $volunteer['id']; ?>)">
-                                                <i class='bx bx-check'></i>
-                                                Approve
+                                    <div class="table-cell">
+                                        <div class="volunteer-phone"><?php echo htmlspecialchars($volunteer['contact_number']); ?></div>
+                                    </div>
+                                    <div class="table-cell">
+                                        <?php echo date('M d, Y', strtotime($volunteer['application_date'])); ?>
+                                    </div>
+                                    <div class="table-cell">
+                                        <div class="table-actions">
+                                            <button class="action-button view-button" onclick="viewVolunteerModal(<?php echo $volunteer['id']; ?>)">
+                                                <i class='bx bx-show'></i>
+                                                View
                                             </button>
-                                            <button class="action-button reject-button" onclick="rejectApplication(<?php echo $volunteer['id']; ?>)">
-                                                <i class='bx bx-x'></i>
-                                                Reject
+                                            <?php if ($volunteer['volunteer_status'] !== 'Inactive'): ?>
+                                                <button class="action-button deactivate-button" onclick="confirmDeactivate(<?php echo $volunteer['id']; ?>, '<?php echo htmlspecialchars(addslashes($volunteer_full_name)); ?>')">
+                                                    <i class='bx bx-user-x'></i>
+                                                    Deactivate
+                                                </button>
+                                            <?php endif; ?>
+                                            <button class="action-button delete-button" onclick="confirmDelete(<?php echo $volunteer['id']; ?>, '<?php echo htmlspecialchars(addslashes($volunteer_full_name)); ?>')">
+                                                <i class='bx bx-trash'></i>
+                                                Delete
                                             </button>
-                                        <?php endif; ?>
+                                        </div>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -1718,20 +1893,48 @@ $status_counts_stmt = null;
                                 <div class="no-volunteers-icon">
                                     <i class='bx bx-user-x'></i>
                                 </div>
-                                <h3>No Volunteer Applications Found</h3>
-                                <p>No applications match your current filters.</p>
+                                <h3>No Volunteers Found</h3>
+                                <p>No volunteers match your current filters.</p>
                             </div>
                         <?php endif; ?>
                     </div>
                     
                     <!-- Pagination -->
                     <div class="pagination">
-                        <button class="pagination-button" id="prev-page" disabled>
+                        <button class="pagination-button" id="prev-page" <?php echo $page <= 1 ? 'disabled' : ''; ?>>
                             <i class='bx bx-chevron-left'></i>
                             Previous
                         </button>
-                        <span class="pagination-info">Page 1 of 1</span>
-                        <button class="pagination-button" id="next-page" disabled>
+                        
+                        <div class="pagination-numbers">
+                            <?php
+                            $start_page = max(1, $page - 2);
+                            $end_page = min($total_pages, $page + 2);
+                            
+                            if ($start_page > 1) {
+                                echo '<div class="pagination-number" data-page="1">1</div>';
+                                if ($start_page > 2) {
+                                    echo '<div class="pagination-number disabled">...</div>';
+                                }
+                            }
+                            
+                            for ($i = $start_page; $i <= $end_page; $i++) {
+                                $active = $i == $page ? 'active' : '';
+                                echo "<div class='pagination-number $active' data-page='$i'>$i</div>";
+                            }
+                            
+                            if ($end_page < $total_pages) {
+                                if ($end_page < $total_pages - 1) {
+                                    echo '<div class="pagination-number disabled">...</div>';
+                                }
+                                echo "<div class='pagination-number' data-page='$total_pages'>$total_pages</div>";
+                            }
+                            ?>
+                        </div>
+                        
+                        <span class="pagination-info">Page <?php echo $page; ?> of <?php echo $total_pages; ?></span>
+                        
+                        <button class="pagination-button" id="next-page" <?php echo $page >= $total_pages ? 'disabled' : ''; ?>>
                             Next
                             <i class='bx bx-chevron-right'></i>
                         </button>
@@ -1741,29 +1944,10 @@ $status_counts_stmt = null;
         </div>
     </div>
     
-    <!-- Volunteer Details Modal -->
-    <div class="modal-overlay" id="volunteer-modal">
-        <div class="modal">
-            <div class="modal-header">
-                <h2 class="modal-title">Volunteer Application Details</h2>
-                <button class="modal-close" id="modal-close">&times;</button>
-            </div>
-            <div class="modal-body" id="modal-body">
-                <!-- Content will be loaded via JavaScript -->
-            </div>
-            <div class="modal-footer">
-                <button class="modal-button modal-secondary" id="modal-close-btn">Close</button>
-                <button class="modal-button modal-reject" id="modal-reject-btn">Reject</button>
-                <button class="modal-button modal-approve" id="modal-approve-btn">Approve</button>
-            </div>
-        </div>
-    </div>
-    
     <script>
         // Global variables
         let currentVolunteerId = null;
-        let currentPage = 1;
-        const itemsPerPage = 9;
+        let currentAction = null;
         
         document.addEventListener('DOMContentLoaded', function() {
             const animationOverlay = document.getElementById('dashboard-animation');
@@ -1796,11 +1980,14 @@ $status_counts_stmt = null;
             // Initialize event listeners
             initEventListeners();
             
-            // Check for new applications periodically
-            setInterval(checkForNewApplications, 30000);
-            
-            // Show welcome notification
-            showNotification('success', 'System Ready', 'Volunteer review system is now active');
+            // Show success/error messages
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('success')) {
+                showNotification('success', 'Success', 'Action completed successfully');
+            }
+            if (urlParams.has('error')) {
+                showNotification('error', 'Error', 'An error occurred while processing your request');
+            }
         });
         
         function initEventListeners() {
@@ -1895,27 +2082,40 @@ $status_counts_stmt = null;
                 });
             });
             
-            // Modal functionality
-            document.getElementById('modal-close').addEventListener('click', closeModal);
-            document.getElementById('modal-close-btn').addEventListener('click', closeModal);
-            document.getElementById('modal-approve-btn').addEventListener('click', function() {
-                if (currentVolunteerId) {
-                    approveApplication(currentVolunteerId);
-                }
-            });
-            document.getElementById('modal-reject-btn').addEventListener('click', function() {
-                if (currentVolunteerId) {
-                    rejectApplication(currentVolunteerId);
-                }
+            // Filter tabs
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const filterType = this.getAttribute('data-filter');
+                    const filterValue = this.getAttribute('data-value');
+                    
+                    if (filterType === 'status') {
+                        document.getElementById('status-filter').value = filterValue;
+                        applyFilters();
+                    }
+                });
             });
             
-            // Export and refresh buttons
-            document.getElementById('export-button').addEventListener('click', exportReports);
+            // Confirmation modal
+            document.getElementById('confirmation-modal-close').addEventListener('click', closeConfirmationModal);
+            document.getElementById('confirmation-cancel').addEventListener('click', closeConfirmationModal);
+            document.getElementById('confirmation-confirm').addEventListener('click', performAction);
+            
+            // View modal
+            document.getElementById('view-modal-close').addEventListener('click', closeViewModal);
+            document.getElementById('view-modal-close-btn').addEventListener('click', closeViewModal);
+            
+            // Refresh button
             document.getElementById('refresh-button').addEventListener('click', refreshData);
             
             // Pagination
             document.getElementById('prev-page').addEventListener('click', previousPage);
             document.getElementById('next-page').addEventListener('click', nextPage);
+            document.querySelectorAll('.pagination-number:not(.disabled)').forEach(number => {
+                number.addEventListener('click', function() {
+                    const page = this.getAttribute('data-page');
+                    goToPage(parseInt(page));
+                });
+            });
             
             // Keyboard shortcuts
             document.addEventListener('keydown', function(e) {
@@ -1927,7 +2127,8 @@ $status_counts_stmt = null;
                 
                 // Escape key to close modal
                 if (e.key === 'Escape') {
-                    closeModal();
+                    closeConfirmationModal();
+                    closeViewModal();
                     userDropdown.classList.remove('show');
                     notificationDropdown.classList.remove('show');
                 }
@@ -1937,17 +2138,13 @@ $status_counts_stmt = null;
         function applyFilters() {
             const status = document.getElementById('status-filter').value;
             const search = document.getElementById('search-filter').value;
-            const sort = document.getElementById('sort-filter').value;
             
-            let url = 'review_data.php?';
+            let url = 'remove_volunteers.php?';
             if (status !== 'all') {
                 url += `status=${status}&`;
             }
             if (search) {
                 url += `search=${encodeURIComponent(search)}&`;
-            }
-            if (sort !== 'newest') {
-                url += `sort=${sort}`;
             }
             
             window.location.href = url;
@@ -1956,412 +2153,297 @@ $status_counts_stmt = null;
         function resetFilters() {
             document.getElementById('status-filter').value = 'all';
             document.getElementById('search-filter').value = '';
-            document.getElementById('sort-filter').value = 'newest';
             applyFilters();
         }
         
-        function viewVolunteer(id) {
-            currentVolunteerId = id;
-            
+        function viewVolunteerModal(id) {
             // Show loading state
-            document.getElementById('modal-body').innerHTML = `
+            document.getElementById('view-modal-body').innerHTML = `
                 <div style="text-align: center; padding: 40px;">
-                    <i class='bx bx-loader-circle bx-spin' style="font-size: 48px; color: var(--primary-color);"></i>
-                    <p style="margin-top: 16px; color: var(--text-light);">Loading volunteer details...</p>
+                    <i class='bx bx-loader-circle bx-spin' style="font-size: 40px; color: var(--primary-color);"></i>
+                    <p style="margin-top: 16px;">Loading volunteer details...</p>
                 </div>
             `;
             
-            // Show modal
-            document.getElementById('volunteer-modal').classList.add('active');
+            document.getElementById('view-modal').classList.add('active');
             
-            // Fetch volunteer details via AJAX
-            fetch(`get_volunteer_details.php?id=${id}`)
+            // Fetch volunteer details
+            fetch(`volunteer_details.php?id=${id}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        populateModal(data.volunteer);
+                        const volunteer = data.volunteer;
+                        // Calculate full name
+                        let fullName = volunteer.first_name;
+                        if (volunteer.middle_name) {
+                            fullName += ' ' + volunteer.middle_name;
+                        }
+                        fullName += ' ' + volunteer.last_name;
+                        
+                        let skills = [];
+                        if (volunteer.skills_basic_firefighting) skills.push('Firefighting');
+                        if (volunteer.skills_first_aid_cpr) skills.push('First Aid');
+                        if (volunteer.skills_search_rescue) skills.push('Rescue');
+                        if (volunteer.skills_driving) skills.push('Driving');
+                        
+                        document.getElementById('view-modal-body').innerHTML = `
+                            <div class="modal-section">
+                                <h3 class="modal-section-title">Personal Information</h3>
+                                <div class="modal-grid">
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Full Name</div>
+                                        <div class="modal-detail-value">${fullName}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Email</div>
+                                        <div class="modal-detail-value">${volunteer.email}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Phone</div>
+                                        <div class="modal-detail-value">${volunteer.contact_number}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Address</div>
+                                        <div class="modal-detail-value">${volunteer.address}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Date of Birth</div>
+                                        <div class="modal-detail-value">${volunteer.date_of_birth}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Gender</div>
+                                        <div class="modal-detail-value">${volunteer.gender}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="modal-section">
+                                <h3 class="modal-section-title">Volunteer Information</h3>
+                                <div class="modal-grid">
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Status</div>
+                                        <div class="status-badge status-${volunteer.volunteer_status.toLowerCase().replace(' ', '-')}">${volunteer.volunteer_status}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Registration Date</div>
+                                        <div class="modal-detail-value">${volunteer.application_date}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Available Days</div>
+                                        <div class="modal-detail-value">${volunteer.available_days}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Available Hours</div>
+                                        <div class="modal-detail-value">${volunteer.available_hours}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="modal-section">
+                                <h3 class="modal-section-title">Skills & Training</h3>
+                                <div class="modal-grid">
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Skills</div>
+                                        <div class="modal-detail-value">
+                                            <div class="skills-list">
+                                                ${skills.length > 0 ? 
+                                                    skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('') : 
+                                                    '<span class="skill-tag">No skills listed</span>'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Specialized Training</div>
+                                        <div class="modal-detail-value">${volunteer.specialized_training || 'None'}</div>
+                                    </div>
+                                    <div class="modal-detail">
+                                        <div class="modal-detail-label">Education</div>
+                                        <div class="modal-detail-value">${volunteer.education}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
                     } else {
-                        showNotification('error', 'Error', 'Failed to load volunteer details');
-                        closeModal();
+                        document.getElementById('view-modal-body').innerHTML = `
+                            <div style="text-align: center; padding: 40px;">
+                                <i class='bx bx-error' style="font-size: 40px; color: var(--danger);"></i>
+                                <p style="margin-top: 16px;">Failed to load volunteer details</p>
+                            </div>
+                        `;
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    showNotification('error', 'Error', 'Failed to load volunteer details');
-                    closeModal();
+                    document.getElementById('view-modal-body').innerHTML = `
+                        <div style="text-align: center; padding: 40px;">
+                            <i class='bx bx-error' style="font-size: 40px; color: var(--danger);"></i>
+                            <p style="margin-top: 16px;">Error loading volunteer details</p>
+                        </div>
+                    `;
                 });
         }
         
-        function populateModal(data) {
-            const modalBody = document.getElementById('modal-body');
+        function closeViewModal() {
+            document.getElementById('view-modal').classList.remove('active');
+        }
+        
+        function confirmDeactivate(id, name) {
+            currentVolunteerId = id;
+            currentAction = 'deactivate';
             
-            // Format ID photo paths - try multiple possible locations
-            const getImagePath = (filename) => {
-                if (!filename) return null;
-                // Try different possible paths
-                const paths = [
-                    `../../${filename}`,
-                    `../${filename}`,
-                    filename,
-                    `../../uploads/volunteer_id_photos/${filename.split('/').pop()}`,
-                    `../uploads/volunteer_id_photos/${filename.split('/').pop()}`
-                ];
-                
-                // Return the first path that exists or the original path
-                return paths[0]; 
-            };
-            
-            const frontPhoto = getImagePath(data.id_front_photo);
-            const backPhoto = getImagePath(data.id_back_photo);
-            
-            let html = `
-                <div class="modal-section">
-                    <h3 class="modal-section-title">Personal Information</h3>
-                    <div class="modal-grid">
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Full Name</div>
-                            <div class="modal-detail-value">${data.full_name}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Date of Birth</div>
-                            <div class="modal-detail-value">${data.date_of_birth}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Gender</div>
-                            <div class="modal-detail-value">${data.gender}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Civil Status</div>
-                            <div class="modal-detail-value">${data.civil_status}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Email</div>
-                            <div class="modal-detail-value">${data.email}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Contact Number</div>
-                            <div class="modal-detail-value">${data.contact_number}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Social Media</div>
-                            <div class="modal-detail-value">${data.social_media || 'N/A'}</div>
-                        </div>
-                    </div>
-                    <div class="modal-detail">
-                        <div class="modal-detail-label">Address</div>
-                        <div class="modal-detail-value">${data.address}</div>
-                    </div>
+            document.getElementById('confirmation-title').textContent = 'Confirm Deactivation';
+            document.getElementById('confirmation-modal-body').innerHTML = `
+                <div class="confirmation-icon">
+                    <i class='bx bx-user-x' style="color: var(--warning);"></i>
                 </div>
-                
-                <div class="modal-section">
-                    <h3 class="modal-section-title">Identification</h3>
-                    <div class="modal-grid">
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Valid ID Type</div>
-                            <div class="modal-detail-value">${data.valid_id_type}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Valid ID Number</div>
-                            <div class="modal-detail-value">${data.valid_id_number}</div>
-                        </div>
-                    </div>
-                    <div class="id-photos-container">
-                        <div class="id-photo-wrapper">
-                            <div class="id-photo-label">ID Front Photo</div>
-                            ${frontPhoto ? 
-                                `<img src="${frontPhoto}" alt="ID Front" class="id-photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                                 <div class="no-photo" style="display: none;">Image failed to load</div>` : 
-                                '<div class="no-photo">No ID Front Photo Uploaded</div>'}
-                        </div>
-                        <div class="id-photo-wrapper">
-                            <div class="id-photo-label">ID Back Photo</div>
-                            ${backPhoto ? 
-                                `<img src="${backPhoto}" alt="ID Back" class="id-photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                                 <div class="no-photo" style="display: none;">Image failed to load</div>` : 
-                                '<div class="no-photo">No ID Back Photo Uploaded</div>'}
-                        </div>
-                    </div>
+                <div class="confirmation-title">Deactivate Volunteer</div>
+                <div class="confirmation-message">
+                    Are you sure you want to deactivate <strong>${name}</strong>?<br>
+                    This will:
+                    <ul style="text-align: left; margin: 10px 0; padding-left: 20px;">
+                        <li>Change their status to "Inactive"</li>
+                        <li>Prevent them from logging in</li>
+                        <li>Keep their data in the system</li>
+                    </ul>
                 </div>
-                
-                <div class="modal-section">
-                    <h3 class="modal-section-title">Emergency Contact</h3>
-                    <div class="modal-grid">
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Name</div>
-                            <div class="modal-detail-value">${data.emergency_contact_name}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Relationship</div>
-                            <div class="modal-detail-value">${data.emergency_contact_relationship}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Contact Number</div>
-                            <div class="modal-detail-value">${data.emergency_contact_number}</div>
-                        </div>
+                <div class="volunteer-info-summary">
+                    <div class="info-item">
+                        <span class="info-label">Action:</span>
+                        <span class="info-value">Deactivate Account</span>
                     </div>
-                    <div class="modal-detail">
-                        <div class="modal-detail-label">Address</div>
-                        <div class="modal-detail-value">${data.emergency_contact_address}</div>
+                    <div class="info-item">
+                        <span class="info-label">Result:</span>
+                        <span class="info-value">Volunteer cannot login</span>
                     </div>
-                </div>
-                
-                <div class="modal-section">
-                    <h3 class="modal-section-title">Volunteer Experience & Motivation</h3>
-                    <div class="modal-grid">
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Volunteered Before</div>
-                            <div class="modal-detail-value">${data.volunteered_before}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Currently Employed</div>
-                            <div class="modal-detail-value">${data.currently_employed}</div>
-                        </div>
-                    </div>
-                    <div class="modal-detail">
-                        <div class="modal-detail-label">Previous Volunteer Experience</div>
-                        <div class="modal-detail-value">${data.previous_volunteer_experience || 'None'}</div>
-                    </div>
-                    <div class="modal-detail">
-                        <div class="modal-detail-label">Volunteer Motivation</div>
-                        <div class="modal-detail-value">${data.volunteer_motivation}</div>
-                    </div>
-                </div>
-                
-                <div class="modal-section">
-                    <h3 class="modal-section-title">Education & Employment</h3>
-                    <div class="modal-grid">
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Education</div>
-                            <div class="modal-detail-value">${data.education}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Occupation</div>
-                            <div class="modal-detail-value">${data.occupation || 'N/A'}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Company</div>
-                            <div class="modal-detail-value">${data.company || 'N/A'}</div>
-                        </div>
-                    </div>
-                    <div class="modal-detail">
-                        <div class="modal-detail-label">Specialized Training</div>
-                        <div class="modal-detail-value">${data.specialized_training || 'None'}</div>
-                    </div>
-                </div>
-                
-                <div class="modal-section">
-                    <h3 class="modal-section-title">Skills & Abilities</h3>
-                    <div class="modal-grid">
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Physical Fitness</div>
-                            <div class="modal-detail-value">${data.physical_fitness}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Languages Spoken</div>
-                            <div class="modal-detail-value">${data.languages_spoken}</div>
-                        </div>
-                    </div>
-                    <div class="modal-detail">
-                        <div class="modal-detail-label">Skills</div>
-                        <div class="skills-list">
-                            ${data.skills_basic_firefighting ? '<span class="skill-tag active">Basic Firefighting</span>' : '<span class="skill-tag">Basic Firefighting</span>'}
-                            ${data.skills_first_aid_cpr ? '<span class="skill-tag active">First Aid/CPR</span>' : '<span class="skill-tag">First Aid/CPR</span>'}
-                            ${data.skills_search_rescue ? '<span class="skill-tag active">Search & Rescue</span>' : '<span class="skill-tag">Search & Rescue</span>'}
-                            ${data.skills_driving ? '<span class="skill-tag active">Driving</span>' : '<span class="skill-tag">Driving</span>'}
-                            ${data.skills_communication ? '<span class="skill-tag active">Communication</span>' : '<span class="skill-tag">Communication</span>'}
-                            ${data.skills_mechanical ? '<span class="skill-tag active">Mechanical</span>' : '<span class="skill-tag">Mechanical</span>'}
-                            ${data.skills_logistics ? '<span class="skill-tag active">Logistics</span>' : '<span class="skill-tag">Logistics</span>'}
-                        </div>
-                    </div>
-                    ${data.driving_license_no ? `
-                    <div class="modal-detail">
-                        <div class="modal-detail-label">Driving License Number</div>
-                        <div class="modal-detail-value">${data.driving_license_no}</div>
-                    </div>` : ''}
-                </div>
-                
-                <div class="modal-section">
-                    <h3 class="modal-section-title">Availability & Interests</h3>
-                    <div class="modal-grid">
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Available Days</div>
-                            <div class="modal-detail-value">${data.available_days}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Available Hours</div>
-                            <div class="modal-detail-value">${data.available_hours}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Emergency Response</div>
-                            <div class="modal-detail-value">${data.emergency_response}</div>
-                        </div>
-                    </div>
-                    <div class="modal-detail">
-                        <div class="modal-detail-label">Areas of Interest</div>
-                        <div class="skills-list">
-                            ${data.area_interest_fire_suppression ? '<span class="skill-tag active">Fire Suppression</span>' : '<span class="skill-tag">Fire Suppression</span>'}
-                            ${data.area_interest_rescue_operations ? '<span class="skill-tag active">Rescue Operations</span>' : '<span class="skill-tag">Rescue Operations</span>'}
-                            ${data.area_interest_ems ? '<span class="skill-tag active">EMS</span>' : '<span class="skill-tag">EMS</span>'}
-                            ${data.area_interest_disaster_response ? '<span class="skill-tag active">Disaster Response</span>' : '<span class="skill-tag">Disaster Response</span>'}
-                            ${data.area_interest_admin_logistics ? '<span class="skill-tag active">Admin/Logistics</span>' : '<span class="skill-tag">Admin/Logistics</span>'}
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="modal-section">
-                    <h3 class="modal-section-title">Application Details</h3>
-                    <div class="modal-grid">
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Application Date</div>
-                            <div class="modal-detail-value">${data.application_date}</div>
-                        </div>
-                        <div class="modal-detail">
-                            <div class="modal-detail-label">Status</div>
-                            <div class="modal-detail-value">${data.status.charAt(0).toUpperCase() + data.status.slice(1)}</div>
-                        </div>
-                    </div>
-                    <div class="modal-detail">
-                        <div class="modal-detail-label">Signature</div>
-                        <div class="modal-detail-value">${data.signature}</div>
+                    <div class="info-item">
+                        <span class="info-label">Reversible:</span>
+                        <span class="info-value">Yes (by an admin)</span>
                     </div>
                 </div>
             `;
             
-            modalBody.innerHTML = html;
+            document.getElementById('confirmation-confirm').innerHTML = `
+                <i class='bx bx-user-x'></i>
+                Deactivate
+            `;
+            document.getElementById('confirmation-confirm').style.backgroundColor = 'var(--warning)';
             
-            // Show/hide action buttons based on status
-            if (data.status === 'pending') {
-                document.getElementById('modal-approve-btn').style.display = 'inline-block';
-                document.getElementById('modal-reject-btn').style.display = 'inline-block';
-            } else {
-                document.getElementById('modal-approve-btn').style.display = 'none';
-                document.getElementById('modal-reject-btn').style.display = 'none';
-            }
+            document.getElementById('confirmation-modal').classList.add('active');
         }
         
-        function closeModal() {
-            document.getElementById('volunteer-modal').classList.remove('active');
+        function confirmDelete(id, name) {
+            currentVolunteerId = id;
+            currentAction = 'delete';
+            
+            document.getElementById('confirmation-title').textContent = 'Confirm Permanent Removal';
+            document.getElementById('confirmation-modal-body').innerHTML = `
+                <div class="confirmation-icon">
+                    <i class='bx bxs-error-circle' style="color: var(--danger);"></i>
+                </div>
+                <div class="confirmation-title">Permanently Remove Volunteer</div>
+                <div class="confirmation-message">
+                    <strong style="color: var(--danger);">WARNING:</strong> This action cannot be undone!<br><br>
+                    You are about to permanently remove <strong>${name}</strong>.<br>
+                    This will:
+                    <ul style="text-align: left; margin: 10px 0; padding-left: 20px;">
+                        <li>Delete all volunteer data</li>
+                        <li>Remove volunteer assignments</li>
+                        <li>Deactivate their user account</li>
+                        <li>This action is PERMANENT</li>
+                    </ul>
+                </div>
+                <div class="volunteer-info-summary">
+                    <div class="info-item">
+                        <span class="info-label">Action:</span>
+                        <span class="info-value" style="color: var(--danger);">Permanent Removal</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Data Recovery:</span>
+                        <span class="info-value" style="color: var(--danger);">Not Possible</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Reversible:</span>
+                        <span class="info-value" style="color: var(--danger);">No</span>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; padding: 10px; background: rgba(220, 38, 38, 0.1); border-radius: 8px;">
+                    <i class='bx bx-error' style="color: var(--danger);"></i>
+                    <strong>This action cannot be undone. Please confirm carefully.</strong>
+                </div>
+            `;
+            
+            document.getElementById('confirmation-confirm').innerHTML = `
+                <i class='bx bx-trash'></i>
+                Delete Permanently
+            `;
+            document.getElementById('confirmation-confirm').style.backgroundColor = 'var(--danger)';
+            
+            document.getElementById('confirmation-modal').classList.add('active');
+        }
+        
+        function closeConfirmationModal() {
+            document.getElementById('confirmation-modal').classList.remove('active');
             currentVolunteerId = null;
+            currentAction = null;
         }
         
-        function approveApplication(id) {
-            if (confirm('Are you sure you want to approve this volunteer application?')) {
-                // Show loading state
-                showNotification('info', 'Processing', 'Approving application...');
-                
-                fetch('update_volunteer_status.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        id: id,
-                        status: 'approved'
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showNotification('success', 'Application Approved', 'The volunteer application has been approved successfully');
-                        closeModal();
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1500);
-                    } else {
-                        showNotification('error', 'Error', data.message || 'Failed to approve application');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    showNotification('error', 'Error', 'Failed to approve application');
-                });
-            }
-        }
-        
-        function rejectApplication(id) {
-            if (confirm('Are you sure you want to reject this volunteer application?')) {
-                // Show loading state
-                showNotification('info', 'Processing', 'Rejecting application...');
-                
-                fetch('update_volunteer_status.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        id: id,
-                        status: 'rejected'
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showNotification('error', 'Application Rejected', 'The volunteer application has been rejected');
-                        closeModal();
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1500);
-                    } else {
-                        showNotification('error', 'Error', data.message || 'Failed to reject application');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    showNotification('error', 'Error', 'Failed to reject application');
-                });
-            }
-        }
-        
-        function exportReports() {
-            showNotification('info', 'Export Started', 'Your report is being generated and will download shortly');
-            // In a real implementation, you would trigger the export process
+        function performAction() {
+            if (!currentVolunteerId || !currentAction) return;
+            
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.style.display = 'none';
+            
+            const volunteerIdInput = document.createElement('input');
+            volunteerIdInput.type = 'hidden';
+            volunteerIdInput.name = 'volunteer_id';
+            volunteerIdInput.value = currentVolunteerId;
+            
+            const actionInput = document.createElement('input');
+            actionInput.type = 'hidden';
+            actionInput.name = 'action';
+            actionInput.value = currentAction;
+            
+            form.appendChild(volunteerIdInput);
+            form.appendChild(actionInput);
+            document.body.appendChild(form);
+            
+            form.submit();
         }
         
         function refreshData() {
-            showNotification('info', 'Refreshing Data', 'Fetching the latest volunteer applications');
+            showNotification('info', 'Refreshing Data', 'Fetching the latest volunteer information');
             location.reload();
         }
         
         function previousPage() {
+            const currentPage = <?php echo $page; ?>;
             if (currentPage > 1) {
-                currentPage--;
-                updatePagination();
+                goToPage(currentPage - 1);
             }
         }
         
         function nextPage() {
-            // In a real implementation, you would check if there are more pages
-            const totalItems = <?php echo count($volunteers); ?>;
-            const totalPages = Math.ceil(totalItems / itemsPerPage);
-            
+            const currentPage = <?php echo $page; ?>;
+            const totalPages = <?php echo $total_pages; ?>;
             if (currentPage < totalPages) {
-                currentPage++;
-                updatePagination();
+                goToPage(currentPage + 1);
             }
         }
         
-        function updatePagination() {
-            const totalItems = <?php echo count($volunteers); ?>;
-            const totalPages = Math.ceil(totalItems / itemsPerPage);
+        function goToPage(page) {
+            const status = document.getElementById('status-filter').value;
+            const search = document.getElementById('search-filter').value;
             
-            document.getElementById('prev-page').disabled = currentPage === 1;
-            document.getElementById('next-page').disabled = currentPage === totalPages;
-            document.querySelector('.pagination-info').textContent = `Page ${currentPage} of ${totalPages}`;
-        }
-        
-        function checkForNewApplications() {
-            fetch('check_new_applications.php')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.newApplications > 0) {
-                        showNotification('info', 'New Applications', `${data.newApplications} new volunteer application(s) submitted`, true);
-                        // Update notification badge
-                        document.getElementById('notification-count').textContent = data.newApplications;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking for new applications:', error);
-                });
+            let url = `remove_volunteers.php?page=${page}`;
+            if (status !== 'all') {
+                url += `&status=${status}`;
+            }
+            if (search) {
+                url += `&search=${encodeURIComponent(search)}`;
+            }
+            
+            window.location.href = url;
         }
         
         function showNotification(type, title, message, playSound = false) {
@@ -2398,11 +2480,6 @@ $status_counts_stmt = null;
                 notification.classList.add('show');
             }, 100);
             
-            // Play sound if requested
-            if (playSound) {
-                playNotificationSound();
-            }
-            
             // Auto remove after 5 seconds
             setTimeout(() => {
                 if (notification.parentNode) {
@@ -2414,30 +2491,6 @@ $status_counts_stmt = null;
                     }, 300);
                 }
             }, 5000);
-        }
-        
-        function playNotificationSound() {
-            // Create a simple notification sound
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.frequency.value = 800;
-                oscillator.type = 'sine';
-                
-                gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-                gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.01);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
-                
-                oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + 0.5);
-            } catch (e) {
-                console.log('Audio context not supported');
-            }
         }
         
         function toggleSubmenu(id) {
