@@ -147,10 +147,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="resource-management" class="submenu">
-                        <a href="#" class="submenu-item">View Equipment</a>
-                        <a href="#" class="submenu-item">Approve Maintenance</a>
-                        <a href="#" class="submenu-item">Approve Resources</a>
-                        <a href="#" class="submenu-item">Review Deployment</a>
+                        <a href="rm/view_equipment.php" class="submenu-item">View Equipment</a>
+                        <a href="rm/approve_maintenance.php" class="submenu-item">Approve Maintenance</a>
+                        <a href="rm/approve_resources.php" class="submenu-item">Approve Resources</a>
+                        <a href="rm/review_deployment.php" class="submenu-item">Review Deployment</a>
                     </div>
                     
                     <!-- Shift & Duty Scheduling -->

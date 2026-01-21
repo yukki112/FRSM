@@ -1559,12 +1559,12 @@ $stats_stmt = null;
                         </svg>
                     </div>
                     <div id="volunteer-management" class="submenu">
-                        <a href="../review_data.php" class="submenu-item">Review Data</a>
-                        <a href="../approve-applications.php" class="submenu-item">Approve Applications</a>
-                        <a href="../assign-volunteers.php" class="submenu-item">Assign Volunteers</a>
-                        <a href="../view-availability.php" class="submenu-item">View Availability</a>
-                        <a href="../remove-volunteers.php" class="submenu-item">Remove Volunteers</a>
-                        <a href="../toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
+                        <a href="../vm/review_data.php" class="submenu-item">Review Data</a>
+                        <a href="../vm/approve_applications.php" class="submenu-item">Approve Applications</a>
+                        <a href="../vm/assign_volunteers.php" class="submenu-item">Assign Volunteers</a>
+                        <a href="../vm/view_availability.php" class="submenu-item">View Availability</a>
+                        <a href="../vm/remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
+                        <a href="../vm/toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
                     </div>
                     
                     <!-- Resource Inventory Management -->

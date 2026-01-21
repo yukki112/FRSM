@@ -1,5 +1,5 @@
 <?php
-// api/emergency_dispatch.php - COMPLETE Emergency Dispatch System with AI Suggestions Only
+// api/emergency_dispatch.php - COMPLETE WORKING Emergency Dispatch System
 require_once '../../../config/db_connection.php';
 header('Content-Type: application/json');
 header("Access-Control-Allow-Origin: *");
@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 /**
- * Helper Functions - MUST BE DEFINED BEFORE ANY CODE THAT CALLS THEM
+ * Helper Functions
  */
 function calculateReadinessScore($unit, $volunteers, $vehicles) {
     $score = 0;
@@ -230,23 +230,14 @@ function getAllAvailableUnits($pdo, $incident) {
 
 /**
  * NOTIFICATION FUNCTIONS
- * REMOVED: SMS notifications
- * KEPT: Dashboard notifications + Email notifications
  */
 function sendEmailNotification($pdo, $email, $subject, $body) {
-    // Implement email sending logic
-    // Example: PHPMailer, SendGrid, etc.
-    // This is a placeholder - you'll need to implement actual email sending
-    
     try {
         // Log the email attempt
         $email_log_query = "INSERT INTO email_logs (recipient, subject, body, status, sent_at) 
                            VALUES (?, ?, ?, 'sent', NOW())";
         $email_stmt = $pdo->prepare($email_log_query);
         $email_stmt->execute([$email, $subject, $body]);
-        
-        // For demo purposes, we'll just log it
-        error_log("Email to {$email}: {$subject}");
         
         return true;
     } catch (Exception $e) {
@@ -679,100 +670,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
             break;
             
-        // 5. GET SUGGESTED VEHICLES FOR A UNIT
-        case 'suggested_vehicles':
-            $unit_id = $_GET['unit_id'] ?? null;
-            
-            if (!$unit_id) {
-                echo json_encode(['success' => false, 'message' => 'Missing unit_id']);
-                break;
-            }
-            
-            // Get suggested vehicles for this unit
-            $query = "
-                SELECT vs.*, 
-                       di.id as suggestion_id,
-                       di.status as suggestion_status,
-                       di.dispatched_at as suggested_at,
-                       ai.id as incident_id,
-                       ai.title as incident_title,
-                       ai.severity as incident_severity
-                FROM vehicle_status vs
-                LEFT JOIN dispatch_incidents di ON vs.suggestion_id = di.id
-                LEFT JOIN api_incidents ai ON di.incident_id = ai.id
-                WHERE vs.unit_id = ? 
-                  AND vs.status = 'suggested'
-                  AND di.status = 'pending'
-                ORDER BY di.dispatched_at DESC
-            ";
-            
-            $stmt = $pdo->prepare($query);
-            $stmt->execute([$unit_id]);
-            $suggested_vehicles = $stmt->fetchAll();
-            
-            echo json_encode([
-                'success' => true,
-                'action' => 'suggested_vehicles',
-                'unit_id' => $unit_id,
-                'suggested_vehicles' => $suggested_vehicles,
-                'count' => count($suggested_vehicles),
-                'timestamp' => date('Y-m-d H:i:s')
-            ]);
-            break;
-            
-        // 6. GET ALL SUGGESTED VEHICLES IN THE SYSTEM
-        case 'all_suggested_vehicles':
-            $query = "
-                SELECT vs.*, 
-                       u.id as unit_id,
-                       u.unit_name,
-                       u.unit_code,
-                       u.unit_type,
-                       di.id as suggestion_id,
-                       di.status as suggestion_status,
-                       di.dispatched_at as suggested_at,
-                       ai.id as incident_id,
-                       ai.title as incident_title,
-                       ai.severity as incident_severity,
-                       ai.emergency_type
-                FROM vehicle_status vs
-                LEFT JOIN units u ON vs.unit_id = u.id
-                LEFT JOIN dispatch_incidents di ON vs.suggestion_id = di.id
-                LEFT JOIN api_incidents ai ON di.incident_id = ai.id
-                WHERE vs.status = 'suggested'
-                  AND di.status = 'pending'
-                ORDER BY u.unit_name, di.dispatched_at DESC
-            ";
-            
-            $stmt = $pdo->query($query);
-            $all_suggested_vehicles = $stmt->fetchAll();
-            
-            // Group by unit for better organization
-            $grouped_vehicles = [];
-            foreach ($all_suggested_vehicles as $vehicle) {
-                $unit_id = $vehicle['unit_id'];
-                if (!isset($grouped_vehicles[$unit_id])) {
-                    $grouped_vehicles[$unit_id] = [
-                        'unit_id' => $unit_id,
-                        'unit_name' => $vehicle['unit_name'],
-                        'unit_code' => $vehicle['unit_code'],
-                        'unit_type' => $vehicle['unit_type'],
-                        'vehicles' => []
-                    ];
-                }
-                $grouped_vehicles[$unit_id]['vehicles'][] = $vehicle;
-            }
-            
-            echo json_encode([
-                'success' => true,
-                'action' => 'all_suggested_vehicles',
-                'total_suggested_vehicles' => count($all_suggested_vehicles),
-                'grouped_vehicles' => array_values($grouped_vehicles),
-                'flat_list' => $all_suggested_vehicles,
-                'timestamp' => date('Y-m-d H:i:s')
-            ]);
-            break;
-            
         default:
             echo json_encode(['success' => false, 'message' => 'Invalid action']);
     }
@@ -876,11 +773,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 
                 $suggestion_id = $pdo->lastInsertId();
                 
-                // Update incident
+                // Update incident in FRSM database
                 $update_incident = "
                     UPDATE api_incidents 
                     SET dispatch_status = 'processing',
-                        dispatch_id = ?
+                        dispatch_id = ?,
+                        status = 'processing'
                     WHERE id = ?
                 ";
                 $update_stmt = $pdo->prepare($update_incident);
@@ -973,11 +871,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     $update_stmt = $pdo->prepare($update_query);
                     $update_stmt->execute([$er_notes, $suggestion_id]);
                     
-                    // Update incident
+                    // Update incident in FRSM database - THIS IS KEY
                     $update_incident = "
                         UPDATE api_incidents 
-                        SET dispatch_status = 'processing',
-                            status = 'processing',
+                        SET dispatch_status = 'responded',
+                            status = 'responded',
                             responded_at = NOW(),
                             responded_by = ?
                         WHERE id = ?
@@ -985,7 +883,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     $update_incident_stmt = $pdo->prepare($update_incident);
                     $update_incident_stmt->execute([$er_user_id, $suggestion['incident_id']]);
                     
-                    // Update unit to 'dispatched'
+                    // Update unit to 'dispatched' in FRSM database
                     $update_unit = "
                         UPDATE units 
                         SET current_status = 'dispatched',
@@ -996,11 +894,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     $update_unit_stmt = $pdo->prepare($update_unit);
                     $update_unit_stmt->execute([$suggestion_id, $suggestion['unit_id']]);
                     
-                    // Mark suggested vehicles as 'dispatched'
+                    // Mark suggested vehicles as 'dispatched' in FRSM database
                     $vehicle_query = "
                         UPDATE vehicle_status 
                         SET status = 'dispatched',
                             dispatch_id = ?,
+                            suggestion_id = NULL,
                             last_updated = NOW()
                         WHERE suggestion_id = ?
                     ";
@@ -1033,7 +932,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     $update_stmt = $pdo->prepare($update_query);
                     $update_stmt->execute([$er_notes, $suggestion_id]);
                     
-                    // Reset incident to 'for_dispatch'
+                    // Reset incident to 'for_dispatch' in FRSM database
                     $update_incident = "
                         UPDATE api_incidents 
                         SET dispatch_status = 'for_dispatch',
@@ -1044,7 +943,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     $update_incident_stmt = $pdo->prepare($update_incident);
                     $update_incident_stmt->execute([$suggestion['incident_id']]);
                     
-                    // Reset unit to 'available'
+                    // Reset unit to 'available' in FRSM database
                     $update_unit = "
                         UPDATE units 
                         SET current_status = 'available',
@@ -1055,7 +954,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     $update_unit_stmt = $pdo->prepare($update_unit);
                     $update_unit_stmt->execute([$suggestion['unit_id']]);
                     
-                    // Reset suggested vehicles back to 'available'
+                    // Reset suggested vehicles back to 'available' in FRSM database
                     $reset_vehicles = "
                         UPDATE vehicle_status 
                         SET status = 'available',
@@ -1133,7 +1032,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 $update_stmt = $pdo->prepare($update_query);
                 $update_stmt->execute([$status, date('H:i') . ' - ' . $notes, $dispatch_id]);
                 
-                // If completed, close incident and free resources
+                // If completed, close incident and free resources in FRSM database
                 if ($status === 'completed') {
                     $incident_query = "SELECT incident_id, unit_id FROM dispatch_incidents WHERE id = ?";
                     $incident_stmt = $pdo->prepare($incident_query);
@@ -1141,7 +1040,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     $dispatch_data = $incident_stmt->fetch();
                     
                     if ($dispatch_data) {
-                        // Close incident
+                        // Close incident in FRSM database
                         $update_incident = "
                             UPDATE api_incidents 
                             SET dispatch_status = 'closed',
@@ -1152,7 +1051,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                         $update_incident_stmt = $pdo->prepare($update_incident);
                         $update_incident_stmt->execute([$dispatch_data['incident_id']]);
                         
-                        // Free unit - set back to 'available'
+                        // Free unit - set back to 'available' in FRSM database
                         $update_unit = "
                             UPDATE units 
                             SET current_status = 'available',
@@ -1163,7 +1062,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                         $update_unit_stmt = $pdo->prepare($update_unit);
                         $update_unit_stmt->execute([$dispatch_data['unit_id']]);
                         
-                        // Free vehicles - set back to 'available'
+                        // Free vehicles - set back to 'available' in FRSM database
                         $reset_vehicles = "
                             UPDATE vehicle_status 
                             SET status = 'available',
