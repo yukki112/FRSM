@@ -1214,10 +1214,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="inventory" class="submenu">
-                        <a href="../inventory/log_usage.php" class="submenu-item">Log Usage</a>
-                        <a href="../inventory/report_damages.php" class="submenu-item">Report Damages</a>
-                        <a href="../inventory/request_supplies.php" class="submenu-item">Request Supplies</a>
-                        <a href="../inventory/tag_resources.php" class="submenu-item">Tag Resources</a>
+                        <a href="../ri/log_usage.php" class="submenu-item">Log Usage</a>
+                        <a href="../ri/report_damages.php" class="submenu-item">Report Damages</a>
+                        <a href="../ri/request_supplies.php" class="submenu-item">Request Supplies</a>
+                        <a href="../ri/tag_resources.php" class="submenu-item">Tag Resources</a>
                     </div>
                     
                     <!-- Shift & Duty Scheduling -->
