@@ -35,21 +35,30 @@ $error_message = '';
 $form_data = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $request_type = $_POST['request_type'] ?? '';
     $resource_id = $_POST['resource_id'] ?? '';
-    $damage_type = $_POST['damage_type'] ?? '';
-    $damage_severity = $_POST['damage_severity'] ?? '';
-    $damage_description = $_POST['damage_description'] ?? '';
-    $affected_quantity = $_POST['affected_quantity'] ?? 1;
-    $incident_id = $_POST['incident_id'] ?? '';
-    $unit_id = $_POST['unit_id'] ?? '';
-    $estimated_repair_cost = $_POST['estimated_repair_cost'] ?? '';
-    $estimated_repair_time = $_POST['estimated_repair_time'] ?? '';
+    $quantity_requested = $_POST['quantity_requested'] ?? 1;
+    $priority = $_POST['priority'] ?? 'medium';
+    $description = $_POST['description'] ?? '';
+    $justification = $_POST['justification'] ?? '';
     $urgency_level = $_POST['urgency_level'] ?? '';
-    $notes = $_POST['notes'] ?? '';
+    $estimated_cost = $_POST['estimated_cost'] ?? '';
+    $expected_delivery_date = $_POST['expected_delivery_date'] ?? '';
+    $unit_id = $_POST['unit_id'] ?? '';
+    $incident_id = $_POST['incident_id'] ?? '';
     
     // Validate required fields
-    if (empty($resource_id) || empty($damage_type) || empty($damage_severity) || empty($damage_description)) {
-        $error_message = "Please fill in all required fields.";
+    $required_fields = ['request_type', 'resource_id', 'quantity_requested', 'priority', 'description'];
+    $missing_fields = [];
+    
+    foreach ($required_fields as $field) {
+        if (empty($_POST[$field])) {
+            $missing_fields[] = $field;
+        }
+    }
+    
+    if (!empty($missing_fields)) {
+        $error_message = "Please fill in all required fields: " . implode(', ', $missing_fields);
         $form_data = $_POST;
     } else {
         try {
@@ -57,7 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
             
             // Get current resource information
-            $resource_query = "SELECT id, resource_name, quantity, available_quantity, condition_status 
+            $resource_query = "SELECT id, resource_name, quantity, available_quantity, 
+                              condition_status, minimum_stock_level, reorder_quantity 
                              FROM resources WHERE id = ?";
             $resource_stmt = $pdo->prepare($resource_query);
             $resource_stmt->execute([$resource_id]);
@@ -67,162 +77,171 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Resource not found.");
             }
             
-            // Validate affected quantity - FIXED LOGIC
-            if ($affected_quantity <= 0) {
-                throw new Exception("Affected quantity must be at least 1.");
+            // Validate quantity requested
+            if ($quantity_requested <= 0) {
+                throw new Exception("Quantity requested must be at least 1.");
             }
             
-            if ($affected_quantity > $resource['quantity']) {
-                throw new Exception("Affected quantity cannot exceed total quantity of " . $resource['quantity']);
-            }
-            
-            // FIX: Allow reporting damage even when available_quantity is 0
-            // We only need to check that we're not affecting more than total quantity
-            // The available_quantity will be adjusted after the damage is reported
-            
-            // Update resource condition status
-            $new_status = 'Under Maintenance';
-            if ($damage_severity === 'severe' || $damage_severity === 'total_loss') {
-                $new_status = 'Condemned';
-            }
-            
-            // Calculate new available quantity (but don't go below 0)
-            $new_available_quantity = max(0, $resource['available_quantity'] - $affected_quantity);
-            
-            $update_resource_query = "UPDATE resources SET 
-                                     condition_status = ?,
-                                     available_quantity = ?,
-                                     maintenance_notes = CONCAT(COALESCE(maintenance_notes, ''), '\n', ?)
-                                     WHERE id = ?";
-            
-            $maintenance_note = date('Y-m-d H:i:s') . " - DAMAGE REPORTED:\n" .
-                              "Type: " . $damage_type . "\n" .
-                              "Severity: " . $damage_severity . "\n" .
-                              "Description: " . $damage_description . "\n" .
-                              "Affected Quantity: " . $affected_quantity . "\n" .
-                              "Previous Available: " . $resource['available_quantity'] . "\n" .
-                              "New Available: " . $new_available_quantity . "\n" .
-                              "Reported By: Employee ID " . $user_id . " (" . $full_name . ")\n";
-            
-            if ($incident_id) {
-                $maintenance_note .= "Incident ID: " . $incident_id . "\n";
-            }
-            if ($urgency_level) {
-                $maintenance_note .= "Urgency: " . $urgency_level . "\n";
-            }
-            if ($notes) {
-                $maintenance_note .= "Additional Notes: " . $notes . "\n";
-            }
-            
-            $update_stmt = $pdo->prepare($update_resource_query);
-            $update_stmt->execute([
-                $new_status,
-                $new_available_quantity,
-                $maintenance_note,
-                $resource_id
-            ]);
-            
-            // Create maintenance request
-            $maintenance_query = "INSERT INTO maintenance_requests 
-                                 (resource_id, requested_by, request_type, priority, description, 
-                                  requested_date, status, estimated_cost) 
-                                 VALUES (?, ?, 'repair', ?, ?, NOW(), 'pending', ?)";
-            
-            $maintenance_desc = "Damage Report - " . $damage_type . "\n" .
-                               "Severity: " . $damage_severity . "\n" .
-                               "Description: " . $damage_description . "\n" .
-                               "Affected Quantity: " . $affected_quantity . "\n" .
-                               "Previous Available: " . $resource['available_quantity'] . "\n" .
-                               "New Available: " . $new_available_quantity;
-            
-            if ($unit_id) {
-                $maintenance_desc .= "\nUnit ID: " . $unit_id;
-            }
-            if ($incident_id) {
-                $maintenance_desc .= "\nIncident ID: " . $incident_id;
-            }
-            if ($urgency_level) {
-                $maintenance_desc .= "\nUrgency Level: " . $urgency_level;
-            }
-            if ($notes) {
-                $maintenance_desc .= "\nNotes: " . $notes;
+            // Create maintenance request with different request types
+            if ($request_type === 'supply_request') {
+                // For supply requests
+                $maintenance_query = "INSERT INTO maintenance_requests 
+                                     (resource_id, requested_by, request_type, priority, description, 
+                                      requested_date, status, estimated_cost) 
+                                     VALUES (?, ?, 'routine_maintenance', ?, ?, NOW(), 'pending', ?)";
+                
+                $maintenance_desc = "SUPPLY REQUEST - Need to Replenish Stock\n" .
+                                   "==============================\n" .
+                                   "Resource: " . $resource['resource_name'] . "\n" .
+                                   "Quantity Requested: " . $quantity_requested . "\n" .
+                                   "Current Stock: " . $resource['available_quantity'] . "/" . $resource['quantity'] . "\n" .
+                                   "Minimum Stock Level: " . $resource['minimum_stock_level'] . "\n" .
+                                   "Justification: " . $justification . "\n";
+                
+                if ($urgency_level) {
+                    $maintenance_desc .= "Urgency Level: " . $urgency_level . "\n";
+                }
+                if ($unit_id) {
+                    $maintenance_desc .= "For Unit ID: " . $unit_id . "\n";
+                }
+                if ($incident_id) {
+                    $maintenance_desc .= "Related to Incident ID: " . $incident_id . "\n";
+                }
+                if ($expected_delivery_date) {
+                    $maintenance_desc .= "Expected Delivery: " . $expected_delivery_date . "\n";
+                }
+                $maintenance_desc .= "\nAdditional Details:\n" . $description;
+                
+            } else {
+                // For repair requests
+                $maintenance_query = "INSERT INTO maintenance_requests 
+                                     (resource_id, requested_by, request_type, priority, description, 
+                                      requested_date, status, estimated_cost) 
+                                     VALUES (?, ?, 'repair', ?, ?, NOW(), 'pending', ?)";
+                
+                $maintenance_desc = "REPAIR REQUEST - Equipment Needs Repair\n" .
+                                   "==============================\n" .
+                                   "Resource: " . $resource['resource_name'] . "\n" .
+                                   "Current Condition: " . $resource['condition_status'] . "\n" .
+                                   "Justification: " . $justification . "\n";
+                
+                if ($urgency_level) {
+                    $maintenance_desc .= "Urgency Level: " . $urgency_level . "\n";
+                }
+                if ($unit_id) {
+                    $maintenance_desc .= "For Unit ID: " . $unit_id . "\n";
+                }
+                if ($incident_id) {
+                    $maintenance_desc .= "Related to Incident ID: " . $incident_id . "\n";
+                }
+                if ($expected_delivery_date) {
+                    $maintenance_desc .= "Expected Completion: " . $expected_delivery_date . "\n";
+                }
+                $maintenance_desc .= "\nIssue Description:\n" . $description;
             }
             
             $maintenance_stmt = $pdo->prepare($maintenance_query);
             $maintenance_stmt->execute([
                 $resource_id,
                 $user_id,
-                $urgency_level ?: 'medium',
+                $priority,
                 $maintenance_desc,
-                $estimated_repair_cost ?: null
+                $estimated_cost ?: null
             ]);
             $maintenance_id = $pdo->lastInsertId();
             
             // Create service history entry
             $service_query = "INSERT INTO service_history 
                              (resource_id, maintenance_id, service_type, service_date, 
-                              performed_by_id, service_notes, status_after_service, 
-                              parts_replaced, cost, labor_hours) 
-                             VALUES (?, ?, 'damage_report', NOW(), ?, ?, ?, ?, ?, ?)";
+                              performed_by_id, service_notes, status_after_service, cost) 
+                             VALUES (?, ?, ?, NOW(), ?, ?, ?, ?)";
             
-            $service_notes = "DAMAGE REPORTED\n" .
-                            "===============\n" .
-                            "Damage Type: " . $damage_type . "\n" .
-                            "Severity: " . $damage_severity . "\n" .
-                            "Description: " . $damage_description . "\n" .
-                            "Affected Quantity: " . $affected_quantity . "\n" .
-                            "Previous Available Quantity: " . $resource['available_quantity'] . "\n" .
-                            "New Available Quantity: " . $new_available_quantity . "\n" .
-                            "Urgency Level: " . ($urgency_level ?: 'Not specified') . "\n";
+            $service_type = ($request_type === 'supply_request') ? 'supply_request' : 'repair_request';
+            $service_notes = ($request_type === 'supply_request') ? 
+                "SUPPLY REQUEST\n==============\n" : 
+                "REPAIR REQUEST\n==============\n";
+            
+            $service_notes .= "Requested By: " . $full_name . " (Employee ID: " . $user_id . ")\n" .
+                            "Resource: " . $resource['resource_name'] . "\n" .
+                            "Priority: " . strtoupper($priority) . "\n" .
+                            "Justification: " . $justification . "\n";
+            
+            if ($request_type === 'supply_request') {
+                $service_notes .= "Quantity Requested: " . $quantity_requested . "\n" .
+                                "Current Available: " . $resource['available_quantity'] . "/" . $resource['quantity'] . "\n" .
+                                "Minimum Stock Level: " . $resource['minimum_stock_level'] . "\n";
+            }
             
             if ($unit_id) {
-                $service_notes .= "Unit ID: " . $unit_id . "\n";
+                $service_notes .= "For Unit ID: " . $unit_id . "\n";
             }
             if ($incident_id) {
-                $service_notes .= "Incident ID: " . $incident_id . "\n";
+                $service_notes .= "Related to Incident ID: " . $incident_id . "\n";
             }
-            if ($estimated_repair_cost) {
-                $service_notes .= "Estimated Repair Cost: ₱" . number_format($estimated_repair_cost, 2) . "\n";
+            if ($urgency_level) {
+                $service_notes .= "Urgency: " . $urgency_level . "\n";
             }
-            if ($estimated_repair_time) {
-                $service_notes .= "Estimated Repair Time: " . $estimated_repair_time . " days\n";
+            if ($expected_delivery_date) {
+                $service_notes .= "Expected Date: " . $expected_delivery_date . "\n";
             }
-            if ($notes) {
-                $service_notes .= "Additional Notes: " . $notes . "\n";
+            if ($estimated_cost) {
+                $service_notes .= "Estimated Cost: ₱" . number_format($estimated_cost, 2) . "\n";
             }
+            
+            $service_notes .= "\nDescription:\n" . $description;
             
             $service_stmt = $pdo->prepare($service_query);
             $service_stmt->execute([
                 $resource_id,
                 $maintenance_id,
+                $service_type,
                 $user_id,
                 $service_notes,
-                $new_status,
-                'Damage reported - requires repair/replacement',
-                $estimated_repair_cost ?: null,
-                $estimated_repair_time ?: null
+                $resource['condition_status'],
+                $estimated_cost ?: null
             ]);
+            
+            // Update resource if it's a supply request and stock is low
+            if ($request_type === 'supply_request') {
+                // Check if current stock is below minimum
+                if ($resource['available_quantity'] <= $resource['minimum_stock_level']) {
+                    $update_resource_query = "UPDATE resources SET 
+                                             maintenance_notes = CONCAT(COALESCE(maintenance_notes, ''), '\n', ?)
+                                             WHERE id = ?";
+                    
+                    $stock_note = date('Y-m-d H:i:s') . " - LOW STOCK ALERT:\n" .
+                                 "Current: " . $resource['available_quantity'] . "\n" .
+                                 "Minimum: " . $resource['minimum_stock_level'] . "\n" .
+                                 "Supply Request #" . $maintenance_id . " submitted by " . $full_name . "\n" .
+                                 "Quantity Requested: " . $quantity_requested . "\n";
+                    
+                    $update_stmt = $pdo->prepare($update_resource_query);
+                    $update_stmt->execute([
+                        $stock_note,
+                        $resource_id
+                    ]);
+                }
+            }
             
             $pdo->commit();
             
-            $success_message = "Damage report submitted successfully for " . $resource['resource_name'] . 
-                             ". Maintenance request #" . $maintenance_id . " has been created.";
+            $success_message = ucfirst(str_replace('_', ' ', $request_type)) . " submitted successfully for " . 
+                             $resource['resource_name'] . ". Request #" . $maintenance_id . " has been created and is pending approval.";
             $form_data = [];
             
         } catch (Exception $e) {
             $pdo->rollBack();
-            $error_message = "Error submitting damage report: " . $e->getMessage();
+            $error_message = "Error submitting request: " . $e->getMessage();
             $form_data = $_POST;
         }
     }
 }
 
-// Fetch resources for dropdown (only serviceable or under maintenance)
+// Fetch resources for dropdown (all active resources)
 $resources_query = "SELECT id, resource_name, resource_type, quantity, available_quantity, 
-                   condition_status, category, unit_of_measure 
+                   condition_status, category, unit_of_measure, minimum_stock_level, reorder_quantity 
                    FROM resources 
                    WHERE is_active = 1 
-                   AND condition_status IN ('Serviceable', 'Under Maintenance')
                    ORDER BY resource_name";
 $resources_stmt = $pdo->query($resources_query);
 $resources = $resources_stmt->fetchAll();
@@ -242,32 +261,30 @@ $incidents_query = "SELECT id, emergency_type, location, created_at, severity
 $incidents_stmt = $pdo->query($incidents_query);
 $incidents = $incidents_stmt->fetchAll();
 
-// Fetch recent damage reports
-$damage_reports_query = "SELECT sh.id, r.resource_name, r.resource_type, r.category,
-                         sh.service_date, sh.service_notes, 
+// Fetch recent requests
+$recent_requests_query = "SELECT mr.id, r.resource_name, r.resource_type, r.category,
+                         mr.request_type, mr.priority, mr.requested_date, 
+                         mr.description, mr.status, mr.estimated_cost,
                          u.first_name, u.last_name,
-                         sh.status_after_service, sh.cost,
-                         mr.status as maintenance_status
-                         FROM service_history sh
-                         JOIN resources r ON sh.resource_id = r.id
-                         JOIN maintenance_requests mr ON sh.maintenance_id = mr.id
-                         LEFT JOIN users u ON sh.performed_by_id = u.id
-                         WHERE sh.service_type = 'damage_report'
-                         ORDER BY sh.service_date DESC
+                         mr.scheduled_date
+                         FROM maintenance_requests mr
+                         JOIN resources r ON mr.resource_id = r.id
+                         JOIN users u ON mr.requested_by = u.id
+                         WHERE mr.request_type IN ('routine_maintenance', 'repair')
+                         ORDER BY mr.requested_date DESC
                          LIMIT 15";
-$damage_reports_stmt = $pdo->query($damage_reports_query);
-$recent_damage_reports = $damage_reports_stmt->fetchAll();
+$recent_requests_stmt = $pdo->query($recent_requests_query);
+$recent_requests = $recent_requests_stmt->fetchAll();
 
-// Get statistics
+// Get statistics for low stock items
 $stats_query = "SELECT 
-                COUNT(*) as total_damage_reports,
-                COUNT(CASE WHEN r.condition_status = 'Under Maintenance' THEN 1 END) as under_maintenance,
-                COUNT(CASE WHEN r.condition_status = 'Condemned' THEN 1 END) as condemned,
-                SUM(CASE WHEN sh.cost IS NOT NULL THEN sh.cost ELSE 0 END) as total_repair_cost
-                FROM service_history sh
-                JOIN resources r ON sh.resource_id = r.id
-                WHERE sh.service_type = 'damage_report'
-                AND sh.service_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+                COUNT(*) as total_resources,
+                COUNT(CASE WHEN available_quantity <= minimum_stock_level THEN 1 END) as low_stock,
+                COUNT(CASE WHEN condition_status = 'Under Maintenance' THEN 1 END) as under_maintenance,
+                COUNT(CASE WHEN condition_status = 'Condemned' THEN 1 END) as condemned,
+                SUM(CASE WHEN available_quantity <= minimum_stock_level THEN reorder_quantity ELSE 0 END) as total_reorder_qty
+                FROM resources 
+                WHERE is_active = 1";
 $stats_stmt = $pdo->query($stats_query);
 $stats = $stats_stmt->fetch();
 
@@ -278,7 +295,7 @@ $stmt = null;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Report Damages - FRSM</title>
+    <title>Request Supplies/Repairs - FRSM</title>
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="icon" type="image/png" sizes="32x32" href="../img/frsm-logo.png">
     <link rel="stylesheet" href="../../css/dashboard.css">
@@ -364,7 +381,7 @@ $stmt = null;
             }
         }
 
-        .form-section, .reports-section {
+        .form-section, .requests-section {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 25px;
@@ -465,6 +482,18 @@ $stmt = null;
             color: var(--text-color);
         }
 
+        .stock-adequate {
+            color: #059669;
+        }
+
+        .stock-low {
+            color: #d97706;
+        }
+
+        .stock-critical {
+            color: #dc2626;
+        }
+
         .condition-serviceable {
             color: #059669;
         }
@@ -475,6 +504,61 @@ $stmt = null;
 
         .condition-condemned {
             color: #dc2626;
+        }
+
+        .request-type-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        .request-type-tab {
+            flex: 1;
+            padding: 15px 20px;
+            text-align: center;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            color: var(--text-light);
+            background: var(--background-color);
+        }
+
+        .request-type-tab:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .request-type-tab.active {
+            border-color: var(--primary-color);
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .request-type-tab i {
+            margin-right: 8px;
+            font-size: 1.2rem;
+        }
+
+        .request-details {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .request-details.active {
+            display: block;
         }
 
         .btn-submit {
@@ -552,13 +636,13 @@ $stmt = null;
             border-color: #ef4444;
         }
 
-        .reports-table {
+        .requests-table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
         }
 
-        .reports-table th {
+        .requests-table th {
             text-align: left;
             padding: 12px 16px;
             background: var(--border-color);
@@ -567,26 +651,26 @@ $stmt = null;
             border-bottom: 2px solid var(--border-color);
         }
 
-        .dark-mode .reports-table th {
+        .dark-mode .requests-table th {
             background: #334155;
             border-bottom-color: #475569;
         }
 
-        .reports-table td {
+        .requests-table td {
             padding: 12px 16px;
             border-bottom: 1px solid var(--border-color);
             color: var(--text-light);
         }
 
-        .dark-mode .reports-table td {
+        .dark-mode .requests-table td {
             border-bottom-color: #475569;
         }
 
-        .reports-table tr:hover {
+        .requests-table tr:hover {
             background: rgba(220, 38, 38, 0.05);
         }
 
-        .dark-mode .reports-table tr:hover {
+        .dark-mode .requests-table tr:hover {
             background: rgba(220, 38, 38, 0.1);
         }
 
@@ -595,7 +679,7 @@ $stmt = null;
             color: var(--text-color);
         }
 
-        .damage-severity {
+        .request-type-badge {
             display: inline-block;
             padding: 4px 12px;
             border-radius: 20px;
@@ -604,42 +688,45 @@ $stmt = null;
             text-transform: uppercase;
         }
 
-        .severity-minor {
+        .type-supply {
             background: #dbeafe;
             color: #1d4ed8;
         }
 
-        .severity-moderate {
+        .type-repair {
             background: #fef3c7;
             color: #d97706;
         }
 
-        .severity-severe {
-            background: #fecaca;
+        .priority-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .priority-low {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .priority-medium {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .priority-high {
+            background: #fee2e2;
             color: #dc2626;
         }
 
-        .severity-total_loss {
+        .priority-critical {
             background: #1f2937;
             color: #ffffff;
         }
 
-        .dark-mode .severity-minor {
-            background: #1e3a8a;
-            color: #93c5fd;
-        }
-
-        .dark-mode .severity-moderate {
-            background: #92400e;
-            color: #fcd34d;
-        }
-
-        .dark-mode .severity-severe {
-            background: #7f1d1d;
-            color: #fecaca;
-        }
-
-        .maintenance-status {
+        .status-badge {
             display: inline-block;
             padding: 4px 12px;
             border-radius: 20px;
@@ -710,15 +797,15 @@ $stmt = null;
             color: #4f46e5;
         }
 
-        .stat-maintenance {
+        .stat-low-stock {
             color: #d97706;
         }
 
-        .stat-condemned {
-            color: #dc2626;
+        .stat-maintenance {
+            color: #ef4444;
         }
 
-        .stat-cost {
+        .stat-reorder {
             color: #059669;
         }
 
@@ -732,22 +819,6 @@ $stmt = null;
             font-size: 0.8rem;
             color: var(--text-light);
             margin-top: 5px;
-        }
-
-        .damage-type-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background: #e5e7eb;
-            color: #374151;
-            margin-top: 5px;
-        }
-
-        .dark-mode .damage-type-badge {
-            background: #475569;
-            color: #e2e8f0;
         }
 
         .cost-cell {
@@ -774,13 +845,17 @@ $stmt = null;
                 padding: 0 25px;
             }
             
-            .form-section, .reports-section {
+            .form-section, .requests-section {
                 padding: 30px 25px;
             }
             
             .quick-stats {
                 grid-template-columns: 1fr;
                 padding: 0 25px;
+            }
+            
+            .request-type-tabs {
+                flex-direction: column;
             }
         }
     </style>
@@ -869,8 +944,8 @@ $stmt = null;
                     </div>
                     <div id="inventory" class="submenu active">
                         <a href="log_usage.php" class="submenu-item">Log Usage</a>
-                        <a href="report_damages.php" class="submenu-item active">Report Damages</a>
-                        <a href="request_supplies.php" class="submenu-item">Request Supplies</a>
+                        <a href="report_damages.php" class="submenu-item">Report Damages</a>
+                        <a href="request_supplies.php" class="submenu-item active">Request Supplies</a>
                         <a href="tag_resources.php" class="submenu-item">Tag Resources</a>
                     </div>
                     
@@ -979,7 +1054,7 @@ $stmt = null;
                             <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                             </svg>
-                            <input type="text" placeholder="Search damage reports, resources..." class="search-input">
+                            <input type="text" placeholder="Search requests, resources..." class="search-input">
                         </div>
                     </div>
                     
@@ -1008,17 +1083,22 @@ $stmt = null;
                 <!-- Hero Header -->
                 <div class="dashboard-header">
                     <div>
-                        <h1 class="dashboard-title">Report Damages</h1>
-                        <p class="dashboard-subtitle">Report and track damaged equipment for maintenance or replacement</p>
+                        <h1 class="dashboard-title">Request Supplies/Repairs</h1>
+                        <p class="dashboard-subtitle">Request new supplies or repairs for equipment and resources</p>
                     </div>
                 </div>
 
-                <!-- Damage Statistics -->
+                <!-- Inventory Statistics -->
                 <div class="quick-stats">
                     <div class="quick-stat-item">
-                        <div class="quick-stat-number stat-total"><?php echo $stats['total_damage_reports'] ?? 0; ?></div>
-                        <div class="quick-stat-label">Damage Reports (30 days)</div>
-                        <div class="quick-stat-desc">Total reported damages</div>
+                        <div class="quick-stat-number stat-total"><?php echo $stats['total_resources'] ?? 0; ?></div>
+                        <div class="quick-stat-label">Total Resources</div>
+                        <div class="quick-stat-desc">Active inventory items</div>
+                    </div>
+                    <div class="quick-stat-item">
+                        <div class="quick-stat-number stat-low-stock"><?php echo $stats['low_stock'] ?? 0; ?></div>
+                        <div class="quick-stat-label">Low Stock</div>
+                        <div class="quick-stat-desc">Below minimum level</div>
                     </div>
                     <div class="quick-stat-item">
                         <div class="quick-stat-number stat-maintenance"><?php echo $stats['under_maintenance'] ?? 0; ?></div>
@@ -1026,14 +1106,9 @@ $stmt = null;
                         <div class="quick-stat-desc">Items being repaired</div>
                     </div>
                     <div class="quick-stat-item">
-                        <div class="quick-stat-number stat-condemned"><?php echo $stats['condemned'] ?? 0; ?></div>
-                        <div class="quick-stat-label">Condemned</div>
-                        <div class="quick-stat-desc">Beyond repair</div>
-                    </div>
-                    <div class="quick-stat-item">
-                        <div class="quick-stat-number stat-cost">₱<?php echo number_format($stats['total_repair_cost'] ?? 0, 0); ?></div>
-                        <div class="quick-stat-label">Repair Cost (30 days)</div>
-                        <div class="quick-stat-desc">Estimated total</div>
+                        <div class="quick-stat-number stat-reorder"><?php echo $stats['total_reorder_qty'] ?? 0; ?></div>
+                        <div class="quick-stat-label">Reorder Quantity</div>
+                        <div class="quick-stat-desc">Total needed units</div>
                     </div>
                 </div>
 
@@ -1054,14 +1129,28 @@ $stmt = null;
 
                 <!-- Main Content -->
                 <div class="content-wrapper">
-                    <!-- Report Damage Form -->
+                    <!-- Request Form -->
                     <div class="form-section">
                         <h2 class="section-title">
-                            <i class='bx bxs-report'></i>
-                            Report New Damage
+                            <i class='bx bxs-package'></i>
+                            Submit Request
                         </h2>
 
-                        <form method="POST" id="damage-form">
+                        <!-- Request Type Tabs -->
+                        <div class="request-type-tabs">
+                            <div class="request-type-tab active" data-type="supply_request">
+                                <i class='bx bxs-cart-add'></i>
+                                Request Supplies
+                            </div>
+                            <div class="request-type-tab" data-type="repair_request">
+                                <i class='bx bxs-wrench'></i>
+                                Request Repairs
+                            </div>
+                        </div>
+
+                        <form method="POST" id="request-form">
+                            <input type="hidden" name="request_type" id="request_type_input" value="supply_request">
+                            
                             <div class="form-group">
                                 <label class="form-label">
                                     <span class="required">*</span> Resource
@@ -1069,6 +1158,29 @@ $stmt = null;
                                 <select class="form-control" name="resource_id" id="resource_id" required>
                                     <option value="">Select a resource...</option>
                                     <?php foreach ($resources as $resource): 
+                                        // Determine stock status
+                                        $stock_class = '';
+                                        $stock_status = '';
+                                        $available = $resource['available_quantity'];
+                                        $minimum = $resource['minimum_stock_level'];
+                                        
+                                        if ($minimum > 0) {
+                                            if ($available <= 0) {
+                                                $stock_class = 'stock-critical';
+                                                $stock_status = 'OUT OF STOCK';
+                                            } elseif ($available <= $minimum) {
+                                                $stock_class = 'stock-low';
+                                                $stock_status = 'LOW STOCK';
+                                            } else {
+                                                $stock_class = 'stock-adequate';
+                                                $stock_status = 'IN STOCK';
+                                            }
+                                        } else {
+                                            $stock_class = 'stock-adequate';
+                                            $stock_status = 'IN STOCK';
+                                        }
+                                        
+                                        // Determine condition class
                                         $condition_class = '';
                                         switch ($resource['condition_status']) {
                                             case 'Serviceable':
@@ -1087,9 +1199,13 @@ $stmt = null;
                                             data-quantity="<?php echo $resource['quantity']; ?>"
                                             data-available="<?php echo $resource['available_quantity']; ?>"
                                             data-condition="<?php echo $resource['condition_status']; ?>"
+                                            data-minimum="<?php echo $resource['minimum_stock_level']; ?>"
+                                            data-reorder="<?php echo $resource['reorder_quantity']; ?>"
                                             data-type="<?php echo $resource['resource_type']; ?>"
                                             data-category="<?php echo $resource['category']; ?>"
-                                            data-unit="<?php echo $resource['unit_of_measure'] ?? 'units'; ?>">
+                                            data-unit="<?php echo $resource['unit_of_measure'] ?? 'units'; ?>"
+                                            data-stock-class="<?php echo $stock_class; ?>"
+                                            data-stock-status="<?php echo $stock_status; ?>">
                                             <?php echo htmlspecialchars($resource['resource_name']); ?> 
                                             (<?php echo $resource['resource_type']; ?>)
                                         </option>
@@ -1097,13 +1213,17 @@ $stmt = null;
                                 </select>
                                 <div id="resource-info-display" class="resource-info" style="display: none;">
                                     <div class="info-item">
-                                        <span class="info-label">Total:</span>
-                                        <span class="info-value" id="total-quantity">0</span>
-                                        <span id="quantity-unit">units</span>
+                                        <span class="info-label">Stock:</span>
+                                        <span class="info-value" id="stock-status"></span>
                                     </div>
                                     <div class="info-item">
                                         <span class="info-label">Available:</span>
                                         <span class="info-value" id="available-quantity">0</span>
+                                        <span id="quantity-unit">units</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label">Total:</span>
+                                        <span class="info-value" id="total-quantity">0</span>
                                         <span>units</span>
                                     </div>
                                     <div class="info-item">
@@ -1111,98 +1231,167 @@ $stmt = null;
                                         <span class="info-value" id="condition-status"></span>
                                     </div>
                                     <div class="info-item">
-                                        <span class="info-label">Category:</span>
-                                        <span class="info-value" id="resource-category"></span>
+                                        <span class="info-label">Minimum:</span>
+                                        <span class="info-value" id="minimum-stock">0</span>
+                                        <span>units</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label">Reorder Qty:</span>
+                                        <span class="info-value" id="reorder-quantity">0</span>
+                                        <span>units</span>
                                     </div>
                                 </div>
                             </div>
 
+                            <!-- Supply Request Details (Default) -->
+                            <div id="supply-details" class="request-details active">
+                                <div class="form-group">
+                                    <label class="form-label">
+                                        <span class="required">*</span> Quantity Requested
+                                    </label>
+                                    <input type="number" 
+                                           class="form-control" 
+                                           name="quantity_requested" 
+                                           id="quantity_requested"
+                                           min="1" 
+                                           step="1" 
+                                           required
+                                           value="<?php echo htmlspecialchars($form_data['quantity_requested'] ?? '1'); ?>"
+                                           placeholder="Number of units needed">
+                                    <div class="form-text" id="quantity-hint">Suggested reorder quantity: <span id="suggested-quantity">0</span> units</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">
+                                        <span class="required">*</span> Justification for Request
+                                    </label>
+                                    <textarea class="form-control" 
+                                              name="justification" 
+                                              rows="3"
+                                              required
+                                              placeholder="Why do you need these supplies? (e.g., running low, upcoming event, emergency response needs...)"><?php echo htmlspecialchars($form_data['justification'] ?? ''); ?></textarea>
+                                    <div class="form-text">Explain why these supplies are needed</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Expected Delivery Date (Optional)</label>
+                                    <input type="date" 
+                                           class="form-control" 
+                                           name="expected_delivery_date"
+                                           min="<?php echo date('Y-m-d'); ?>"
+                                           value="<?php echo htmlspecialchars($form_data['expected_delivery_date'] ?? ''); ?>">
+                                    <div class="form-text">When do you expect to receive these supplies?</div>
+                                </div>
+                            </div>
+
+                            <!-- Repair Request Details (Hidden by default) -->
+                            <div id="repair-details" class="request-details">
+                                <div class="form-group">
+                                    <label class="form-label">
+                                        <span class="required">*</span> Justification for Repair
+                                    </label>
+                                    <textarea class="form-control" 
+                                              name="justification" 
+                                              rows="3"
+                                              required
+                                              placeholder="Why does this equipment need repair? (e.g., malfunction, damage, safety concern...)"><?php echo htmlspecialchars($form_data['justification'] ?? ''); ?></textarea>
+                                    <div class="form-text">Explain why this repair is necessary</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Expected Completion Date (Optional)</label>
+                                    <input type="date" 
+                                           class="form-control" 
+                                           name="expected_delivery_date"
+                                           min="<?php echo date('Y-m-d'); ?>"
+                                           value="<?php echo htmlspecialchars($form_data['expected_delivery_date'] ?? ''); ?>">
+                                    <div class="form-text">When should the repair be completed?</div>
+                                </div>
+                            </div>
+
+                            <!-- Common Fields -->
                             <div class="form-group">
                                 <label class="form-label">
-                                    <span class="required">*</span> Damage Type
+                                    <span class="required">*</span> Priority
                                 </label>
-                                <select class="form-control" name="damage_type" required>
-                                    <option value="">Select damage type...</option>
-                                    <option value="mechanical_failure" <?php echo ($form_data['damage_type'] ?? '') == 'mechanical_failure' ? 'selected' : ''; ?>>Mechanical Failure</option>
-                                    <option value="structural_damage" <?php echo ($form_data['damage_type'] ?? '') == 'structural_damage' ? 'selected' : ''; ?>>Structural Damage</option>
-                                    <option value="electrical_fault" <?php echo ($form_data['damage_type'] ?? '') == 'electrical_fault' ? 'selected' : ''; ?>>Electrical Fault</option>
-                                    <option value="wear_and_tear" <?php echo ($form_data['damage_type'] ?? '') == 'wear_and_tear' ? 'selected' : ''; ?>>Wear and Tear</option>
-                                    <option value="water_damage" <?php echo ($form_data['damage_type'] ?? '') == 'water_damage' ? 'selected' : ''; ?>>Water Damage</option>
-                                    <option value="fire_damage" <?php echo ($form_data['damage_type'] ?? '') == 'fire_damage' ? 'selected' : ''; ?>>Fire Damage</option>
-                                    <option value="impact_damage" <?php echo ($form_data['damage_type'] ?? '') == 'impact_damage' ? 'selected' : ''; ?>>Impact Damage</option>
-                                    <option value="corrosion" <?php echo ($form_data['damage_type'] ?? '') == 'corrosion' ? 'selected' : ''; ?>>Corrosion</option>
-                                    <option value="other" <?php echo ($form_data['damage_type'] ?? '') == 'other' ? 'selected' : ''; ?>>Other</option>
+                                <select class="form-control" name="priority" id="priority" required>
+                                    <option value="">Select priority...</option>
+                                    <option value="low" <?php echo ($form_data['priority'] ?? '') == 'low' ? 'selected' : ''; ?>>Low - Routine request</option>
+                                    <option value="medium" <?php echo ($form_data['priority'] ?? '') == 'medium' ? 'selected' : ''; ?>>Medium - Important but not urgent</option>
+                                    <option value="high" <?php echo ($form_data['priority'] ?? '') == 'high' ? 'selected' : ''; ?>>High - Urgent request</option>
+                                    <option value="critical" <?php echo ($form_data['priority'] ?? '') == 'critical' ? 'selected' : ''; ?>>Critical - Emergency situation</option>
                                 </select>
                             </div>
 
                             <div class="form-group">
-                                <label class="form-label">
-                                    <span class="required">*</span> Damage Severity
-                                </label>
-                                <select class="form-control" name="damage_severity" required>
-                                    <option value="">Select severity...</option>
-                                    <option value="minor" <?php echo ($form_data['damage_severity'] ?? '') == 'minor' ? 'selected' : ''; ?>>Minor - Light repair needed</option>
-                                    <option value="moderate" <?php echo ($form_data['damage_severity'] ?? '') == 'moderate' ? 'selected' : ''; ?>>Moderate - Significant repair needed</option>
-                                    <option value="severe" <?php echo ($form_data['damage_severity'] ?? '') == 'severe' ? 'selected' : ''; ?>>Severe - Major repair/replacement</option>
-                                    <option value="total_loss" <?php echo ($form_data['damage_severity'] ?? '') == 'total_loss' ? 'selected' : ''; ?>>Total Loss - Cannot be repaired</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">
-                                    <span class="required">*</span> Damage Description
-                                </label>
-                                <textarea class="form-control" 
-                                          name="damage_description" 
-                                          rows="4"
-                                          required
-                                          placeholder="Describe the damage in detail..."><?php echo htmlspecialchars($form_data['damage_description'] ?? ''); ?></textarea>
-                                <div class="form-text">Be specific about what is damaged and how it affects functionality</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">
-                                    <span class="required">*</span> Affected Quantity
-                                </label>
-                                <input type="number" 
-                                       class="form-control" 
-                                       name="affected_quantity" 
-                                       id="affected_quantity"
-                                       min="1" 
-                                       step="1" 
-                                       required
-                                       value="<?php echo htmlspecialchars($form_data['affected_quantity'] ?? '1'); ?>"
-                                       placeholder="Number of units affected">
-                                <div class="form-text" id="quantity-hint">Must be between 1 and total quantity</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Urgency Level</label>
+                                <label class="form-label">Urgency Level (Optional)</label>
                                 <select class="form-control" name="urgency_level">
                                     <option value="">Select urgency...</option>
-                                    <option value="low" <?php echo ($form_data['urgency_level'] ?? '') == 'low' ? 'selected' : ''; ?>>Low - Can wait 1-2 weeks</option>
-                                    <option value="medium" <?php echo ($form_data['urgency_level'] ?? '') == 'medium' ? 'selected' : ''; ?>>Medium - Needs attention within days</option>
-                                    <option value="high" <?php echo ($form_data['urgency_level'] ?? '') == 'high' ? 'selected' : ''; ?>>High - Needs immediate attention</option>
-                                    <option value="critical" <?php echo ($form_data['urgency_level'] ?? '') == 'critical' ? 'selected' : ''; ?>>Critical - Affects emergency response</option>
+                                    <option value="routine" <?php echo ($form_data['urgency_level'] ?? '') == 'routine' ? 'selected' : ''; ?>>Routine - Normal processing</option>
+                                    <option value="urgent" <?php echo ($form_data['urgency_level'] ?? '') == 'urgent' ? 'selected' : ''; ?>>Urgent - Expedite processing</option>
+                                    <option value="emergency" <?php echo ($form_data['urgency_level'] ?? '') == 'emergency' ? 'selected' : ''; ?>>Emergency - Immediate attention</option>
                                 </select>
                             </div>
 
                             <div class="form-group">
-                                <label class="form-label">Associated Incident (Optional)</label>
+                                <label class="form-label">
+                                    <span class="required">*</span> Description
+                                </label>
+                                <textarea class="form-control" 
+                                          name="description" 
+                                          id="description"
+                                          rows="4"
+                                          required
+                                          placeholder="Provide detailed description..."><?php echo htmlspecialchars($form_data['description'] ?? ''); ?></textarea>
+                                <div class="form-text" id="description-hint">Describe what supplies are needed or what needs to be repaired</div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Estimated Cost (Optional)</label>
+                                <div style="position: relative;">
+                                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-light);">₱</span>
+                                    <input type="number" 
+                                           class="form-control" 
+                                           name="estimated_cost"
+                                           style="padding-left: 30px;"
+                                           min="0" 
+                                           step="0.01"
+                                           value="<?php echo htmlspecialchars($form_data['estimated_cost'] ?? ''); ?>"
+                                           placeholder="0.00">
+                                </div>
+                                <div class="form-text">Estimated cost in PHP (leave blank if unknown)</div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">For Specific Unit (Optional)</label>
+                                <select class="form-control" name="unit_id">
+                                    <option value="">Select unit...</option>
+                                    <?php foreach ($units as $unit): ?>
+                                        <option value="<?php echo $unit['id']; ?>"
+                                            <?php echo ($form_data['unit_id'] ?? '') == $unit['id'] ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($unit['unit_name']); ?> (<?php echo $unit['unit_code']; ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text">Which unit needs this resource?</div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Related to Incident (Optional)</label>
                                 <select class="form-control" name="incident_id">
                                     <option value="">Select incident...</option>
                                     <?php foreach ($incidents as $incident): 
                                         $severity_class = '';
                                         switch ($incident['severity']) {
                                             case 'low':
-                                                $severity_class = 'severity-minor';
+                                                $severity_class = 'priority-low';
                                                 break;
                                             case 'medium':
-                                                $severity_class = 'severity-moderate';
+                                                $severity_class = 'priority-medium';
                                                 break;
                                             case 'high':
                                             case 'critical':
-                                                $severity_class = 'severity-severe';
+                                                $severity_class = 'priority-critical';
                                                 break;
                                         }
                                     ?>
@@ -1215,130 +1404,69 @@ $stmt = null;
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <div class="form-text">Link this damage to a specific incident</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Assigned Unit (Optional)</label>
-                                <select class="form-control" name="unit_id">
-                                    <option value="">Select unit...</option>
-                                    <?php foreach ($units as $unit): ?>
-                                        <option value="<?php echo $unit['id']; ?>"
-                                            <?php echo ($form_data['unit_id'] ?? '') == $unit['id'] ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($unit['unit_name']); ?> (<?php echo $unit['unit_code']; ?>)
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Estimated Repair Cost (Optional)</label>
-                                <div style="position: relative;">
-                                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-light);">₱</span>
-                                    <input type="number" 
-                                           class="form-control" 
-                                           name="estimated_repair_cost"
-                                           style="padding-left: 30px;"
-                                           min="0" 
-                                           step="0.01"
-                                           value="<?php echo htmlspecialchars($form_data['estimated_repair_cost'] ?? ''); ?>"
-                                           placeholder="0.00">
-                                </div>
-                                <div class="form-text">Estimated cost to repair in PHP</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Estimated Repair Time (Optional)</label>
-                                <input type="number" 
-                                       class="form-control" 
-                                       name="estimated_repair_time"
-                                       min="1" 
-                                       step="1"
-                                       value="<?php echo htmlspecialchars($form_data['estimated_repair_time'] ?? ''); ?>"
-                                       placeholder="Number of days">
-                                <div class="form-text">Estimated days needed for repair</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Additional Notes (Optional)</label>
-                                <textarea class="form-control" 
-                                          name="notes" 
-                                          rows="3"
-                                          placeholder="Any additional information..."><?php echo htmlspecialchars($form_data['notes'] ?? ''); ?></textarea>
+                                <div class="form-text">Link this request to a specific incident</div>
                             </div>
 
                             <button type="submit" class="btn-submit" id="submit-btn">
-                                <i class='bx bx-save'></i>
-                                Submit Damage Report
+                                <i class='bx bx-send'></i>
+                                Submit Request
                             </button>
                         </form>
                     </div>
 
-                    <!-- Recent Damage Reports -->
-                    <div class="reports-section">
+                    <!-- Recent Requests -->
+                    <div class="requests-section">
                         <h2 class="section-title">
                             <i class='bx bxs-history'></i>
-                            Recent Damage Reports
+                            Recent Requests
                         </h2>
 
-                        <?php if (empty($recent_damage_reports)): ?>
+                        <?php if (empty($recent_requests)): ?>
                             <div class="no-data">
-                                <i class='bx bx-check-shield'></i>
-                                <p>No damage reports found</p>
-                                <p class="form-text">Damage reports will appear here after submission</p>
+                                <i class='bx bx-package'></i>
+                                <p>No recent requests found</p>
+                                <p class="form-text">Requests will appear here after submission</p>
                             </div>
                         <?php else: ?>
                             <div style="overflow-x: auto;">
-                                <table class="reports-table">
+                                <table class="requests-table">
                                     <thead>
                                         <tr>
                                             <th>Resource</th>
-                                            <th>Date</th>
-                                            <th>Severity</th>
+                                            <th>Type</th>
+                                            <th>Priority</th>
                                             <th>Status</th>
-                                            <th>Cost</th>
+                                            <th>Date</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($recent_damage_reports as $report): 
-                                            // Parse service notes to get damage details
-                                            $damage_type = 'Unknown';
-                                            $damage_severity = 'minor';
+                                        <?php foreach ($recent_requests as $request): 
+                                            // Determine CSS class for request type
+                                            $type_class = ($request['request_type'] === 'routine_maintenance') ? 'type-supply' : 'type-repair';
+                                            $type_text = ($request['request_type'] === 'routine_maintenance') ? 'Supply' : 'Repair';
                                             
-                                            if (strpos($report['service_notes'], 'Damage Type:') !== false) {
-                                                $lines = explode("\n", $report['service_notes']);
-                                                foreach ($lines as $line) {
-                                                    if (strpos($line, 'Damage Type:') === 0) {
-                                                        $damage_type = trim(str_replace('Damage Type:', '', $line));
-                                                    }
-                                                    if (strpos($line, 'Severity:') === 0) {
-                                                        $damage_severity = trim(str_replace('Severity:', '', $line));
-                                                    }
-                                                }
-                                            }
-                                            
-                                            // Determine CSS class for severity
-                                            $severity_class = '';
-                                            switch ($damage_severity) {
-                                                case 'minor':
-                                                    $severity_class = 'severity-minor';
+                                            // Determine CSS class for priority
+                                            $priority_class = '';
+                                            switch ($request['priority']) {
+                                                case 'low':
+                                                    $priority_class = 'priority-low';
                                                     break;
-                                                case 'moderate':
-                                                    $severity_class = 'severity-moderate';
+                                                case 'medium':
+                                                    $priority_class = 'priority-medium';
                                                     break;
-                                                case 'severe':
-                                                    $severity_class = 'severity-severe';
+                                                case 'high':
+                                                    $priority_class = 'priority-high';
                                                     break;
-                                                case 'total_loss':
-                                                    $severity_class = 'severity-total_loss';
+                                                case 'critical':
+                                                    $priority_class = 'priority-critical';
                                                     break;
                                                 default:
-                                                    $severity_class = 'severity-minor';
+                                                    $priority_class = 'priority-medium';
                                             }
                                             
-                                            // Determine CSS class for maintenance status
+                                            // Determine CSS class for status
                                             $status_class = '';
-                                            switch ($report['maintenance_status']) {
+                                            switch ($request['status']) {
                                                 case 'pending':
                                                     $status_class = 'status-pending';
                                                     break;
@@ -1357,34 +1485,31 @@ $stmt = null;
                                         ?>
                                         <tr>
                                             <td>
-                                                <div class="resource-name-cell"><?php echo htmlspecialchars($report['resource_name']); ?></div>
-                                                <div class="damage-type-badge"><?php echo str_replace('_', ' ', $damage_type); ?></div>
+                                                <div class="resource-name-cell"><?php echo htmlspecialchars($request['resource_name']); ?></div>
                                                 <div class="form-text" style="font-size: 0.75rem;">
-                                                    <?php echo $report['category']; ?> • <?php echo $report['resource_type']; ?>
+                                                    <?php echo $request['category']; ?> • <?php echo $request['resource_type']; ?>
                                                 </div>
                                             </td>
                                             <td>
-                                                <?php echo date('M j, Y', strtotime($report['service_date'])); ?><br>
+                                                <span class="request-type-badge <?php echo $type_class; ?>">
+                                                    <?php echo $type_text; ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="priority-badge <?php echo $priority_class; ?>">
+                                                    <?php echo ucfirst($request['priority']); ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="status-badge <?php echo $status_class; ?>">
+                                                    <?php echo ucfirst(str_replace('_', ' ', $request['status'])); ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <?php echo date('M j', strtotime($request['requested_date'])); ?><br>
                                                 <div class="form-text" style="font-size: 0.75rem;">
-                                                    <?php echo date('g:i A', strtotime($report['service_date'])); ?>
+                                                    <?php echo date('g:i A', strtotime($request['requested_date'])); ?>
                                                 </div>
-                                            </td>
-                                            <td>
-                                                <span class="damage-severity <?php echo $severity_class; ?>">
-                                                    <?php echo ucfirst($damage_severity); ?>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span class="maintenance-status <?php echo $status_class; ?>">
-                                                    <?php echo ucfirst(str_replace('_', ' ', $report['maintenance_status'])); ?>
-                                                </span>
-                                            </td>
-                                            <td class="cost-cell">
-                                                <?php if ($report['cost']): ?>
-                                                    ₱<?php echo number_format($report['cost'], 2); ?>
-                                                <?php else: ?>
-                                                    <span style="color: var(--text-light);">—</span>
-                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                         <?php endforeach; ?>
@@ -1395,7 +1520,7 @@ $stmt = null;
                             <div style="text-align: center; margin-top: 20px;">
                                 <a href="#" class="btn-submit" style="width: auto; padding: 10px 20px;">
                                     <i class='bx bx-list-ul'></i>
-                                    View All Reports
+                                    View All Requests
                                 </a>
                             </div>
                         <?php endif; ?>
@@ -1438,16 +1563,54 @@ $stmt = null;
             updateTime();
             setInterval(updateTime, 1000);
             
+            // Request type tabs
+            const tabs = document.querySelectorAll('.request-type-tab');
+            const supplyDetails = document.getElementById('supply-details');
+            const repairDetails = document.getElementById('repair-details');
+            const requestTypeInput = document.getElementById('request_type_input');
+            const descriptionField = document.getElementById('description');
+            const descriptionHint = document.getElementById('description-hint');
+            const quantityField = document.getElementById('quantity_requested');
+            const suggestedQuantitySpan = document.getElementById('suggested-quantity');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const type = this.getAttribute('data-type');
+                    
+                    // Update active tab
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Update request type input
+                    requestTypeInput.value = type === 'supply_request' ? 'supply_request' : 'repair_request';
+                    
+                    // Show/hide appropriate details
+                    if (type === 'supply_request') {
+                        supplyDetails.classList.add('active');
+                        repairDetails.classList.remove('active');
+                        descriptionField.placeholder = 'Provide detailed description of supplies needed...';
+                        descriptionHint.textContent = 'Describe what supplies are needed, specifications, and intended use';
+                        if (quantityField) quantityField.required = true;
+                    } else {
+                        supplyDetails.classList.remove('active');
+                        repairDetails.classList.add('active');
+                        descriptionField.placeholder = 'Describe the repair needed, symptoms, and troubleshooting steps tried...';
+                        descriptionHint.textContent = 'Describe what needs to be repaired, symptoms, and any troubleshooting already attempted';
+                        if (quantityField) quantityField.required = false;
+                    }
+                });
+            });
+            
             // Resource information display
             const resourceSelect = document.getElementById('resource_id');
             const resourceInfo = document.getElementById('resource-info-display');
             const totalQuantity = document.getElementById('total-quantity');
             const availableQuantity = document.getElementById('available-quantity');
             const conditionStatus = document.getElementById('condition-status');
-            const resourceCategory = document.getElementById('resource-category');
+            const stockStatus = document.getElementById('stock-status');
+            const minimumStock = document.getElementById('minimum-stock');
+            const reorderQuantity = document.getElementById('reorder-quantity');
             const quantityUnit = document.getElementById('quantity-unit');
-            const affectedQuantityInput = document.getElementById('affected_quantity');
-            const quantityHint = document.getElementById('quantity-hint');
             const submitBtn = document.getElementById('submit-btn');
             
             resourceSelect.addEventListener('change', function() {
@@ -1455,13 +1618,17 @@ $stmt = null;
                 const total = selectedOption.getAttribute('data-quantity');
                 const available = selectedOption.getAttribute('data-available');
                 const condition = selectedOption.getAttribute('data-condition');
-                const category = selectedOption.getAttribute('data-category');
+                const minimum = selectedOption.getAttribute('data-minimum');
+                const reorder = selectedOption.getAttribute('data-reorder');
                 const unit = selectedOption.getAttribute('data-unit') || 'units';
-                const type = selectedOption.getAttribute('data-type');
+                const stockClass = selectedOption.getAttribute('data-stock-class');
+                const stockStatusText = selectedOption.getAttribute('data-stock-status');
                 
                 if (total !== null) {
                     totalQuantity.textContent = total;
                     availableQuantity.textContent = available;
+                    minimumStock.textContent = minimum;
+                    reorderQuantity.textContent = reorder;
                     
                     // Set condition with color
                     conditionStatus.textContent = condition;
@@ -1474,44 +1641,42 @@ $stmt = null;
                         conditionStatus.classList.add('condition-condemned');
                     }
                     
-                    resourceCategory.textContent = category;
+                    // Set stock status with color
+                    stockStatus.textContent = stockStatusText;
+                    stockStatus.className = 'info-value ' + stockClass;
+                    
                     quantityUnit.textContent = unit;
                     resourceInfo.style.display = 'flex';
                     
-                    // FIX: Set max to total quantity (not available quantity)
-                    const maxAffected = parseInt(total);
-                    affectedQuantityInput.max = maxAffected;
-                    affectedQuantityInput.value = Math.min(1, maxAffected);
+                    // Update suggested quantity for supply requests
+                    const minQty = parseInt(minimum) || 0;
+                    const availQty = parseInt(available) || 0;
+                    const reorderQty = parseInt(reorder) || 0;
                     
-                    // Update hint
-                    quantityHint.textContent = `Must be between 1 and ${maxAffected} ${unit}`;
+                    if (reorderQty > 0) {
+                        suggestedQuantitySpan.textContent = reorderQty;
+                    } else if (minQty > 0 && availQty < minQty) {
+                        suggestedQuantitySpan.textContent = minQty - availQty;
+                    } else {
+                        suggestedQuantitySpan.textContent = '1';
+                    }
                     
-                    // Update placeholder
-                    affectedQuantityInput.placeholder = `Max: ${maxAffected} ${unit}`;
+                    // Set default quantity for supply requests
+                    if (document.querySelector('.request-type-tab.active').getAttribute('data-type') === 'supply_request') {
+                        quantityField.value = suggestedQuantitySpan.textContent;
+                    }
+                    
                 } else {
                     resourceInfo.style.display = 'none';
-                    affectedQuantityInput.max = '';
-                    affectedQuantityInput.placeholder = 'Number of units affected';
-                    quantityHint.textContent = 'Must be a positive whole number';
-                }
-            });
-            
-            // Validate affected quantity
-            affectedQuantityInput.addEventListener('input', function() {
-                const max = parseInt(this.max);
-                const value = parseInt(this.value);
-                
-                if (!isNaN(max) && !isNaN(value) && value > max) {
-                    this.value = max;
-                    alert(`Cannot exceed total quantity of ${max}`);
+                    suggestedQuantitySpan.textContent = '0';
                 }
             });
             
             // Validate form before submission
-            document.getElementById('damage-form').addEventListener('submit', function(e) {
+            document.getElementById('request-form').addEventListener('submit', function(e) {
                 const resourceId = resourceSelect.value;
-                const affectedQuantity = parseInt(affectedQuantityInput.value);
-                const maxQuantity = parseInt(affectedQuantityInput.max);
+                const requestType = requestTypeInput.value;
+                const description = descriptionField.value.trim();
                 
                 if (!resourceId) {
                     e.preventDefault();
@@ -1520,23 +1685,26 @@ $stmt = null;
                     return false;
                 }
                 
-                if (affectedQuantity <= 0) {
+                if (description.length < 10) {
                     e.preventDefault();
-                    alert('Error: Affected quantity must be at least 1.');
-                    affectedQuantityInput.focus();
+                    alert('Please provide a more detailed description (at least 10 characters).');
+                    descriptionField.focus();
                     return false;
                 }
                 
-                if (!isNaN(maxQuantity) && affectedQuantity > maxQuantity) {
-                    e.preventDefault();
-                    alert(`Error: Cannot affect more than ${maxQuantity} units. Total quantity: ${maxQuantity}`);
-                    affectedQuantityInput.focus();
-                    return false;
+                if (requestType === 'supply_request') {
+                    const quantity = parseInt(quantityField.value);
+                    if (isNaN(quantity) || quantity <= 0) {
+                        e.preventDefault();
+                        alert('Please enter a valid quantity (must be at least 1).');
+                        quantityField.focus();
+                        return false;
+                    }
                 }
                 
                 // Show loading state
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="bx bx-loader-circle bx-spin"></i> Submitting Report...';
+                submitBtn.innerHTML = '<i class="bx bx-loader-circle bx-spin"></i> Submitting Request...';
             });
             
             // Auto-hide success messages after 5 seconds
@@ -1563,6 +1731,14 @@ $stmt = null;
             
             // Attach toggle function to window for sidebar
             window.toggleSubmenu = toggleSubmenu;
+            
+            // Set default date for expected delivery (1 week from now)
+            const deliveryDateField = document.querySelector('input[name="expected_delivery_date"]');
+            if (deliveryDateField && !deliveryDateField.value) {
+                const oneWeekLater = new Date();
+                oneWeekLater.setDate(oneWeekLater.getDate() + 7);
+                deliveryDateField.value = oneWeekLater.toISOString().split('T')[0];
+            }
         });
     </script>
 </body>

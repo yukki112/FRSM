@@ -1108,12 +1108,15 @@ $hours_stmt = null;
                 </div>
                 <span class="logo-text">Fire & Rescue</span>
             </div>
+
+
+            
             <!-- Menu Section -->
 <div class="menu-section">
     <p class="menu-title">FIRE & RESCUE MANAGEMENT</p>
     
     <div class="menu-items">
-        <a href="../dashboard.php" class="menu-item" id="dashboard-menu">
+        <a href="../user_dashboard.php" class="menu-item" id="dashboard-menu">
             <div class="icon-box icon-bg-red">
                 <i class='bx bxs-dashboard icon-red'></i>
             </div>
@@ -1130,9 +1133,23 @@ $hours_stmt = null;
             </svg>
         </div>
         <div id="fire-incident" class="submenu">
-            <a href="#" class="submenu-item">Active Incidents</a>
-            <a href="#" class="submenu-item">Incident Reports</a>
-            <a href="#" class="submenu-item">Response History</a>
+            <a href="../fir/active_incidents.php" class="submenu-item">Active Incidents</a>
+            <a href="../fir/response_history.php" class="submenu-item">Response History</a>
+        </div>
+
+          <div class="menu-item" onclick="toggleSubmenu('postincident')">
+            <div class="icon-box icon-bg-pink">
+                <i class='bx bxs-file-doc icon-pink'></i>
+            </div>
+            <span class="font-medium">Dispatch Coordination</span>
+            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="postincident" class="submenu">
+            <a href="../dc/suggested_unit.php" class="submenu-item">Suggested Unit</a>
+            <a href="../dc/incident_location.php" class="submenu-item">Incident Location</a>
+            
         </div>
         
         <div class="menu-item" onclick="toggleSubmenu('volunteer')">
@@ -1145,9 +1162,9 @@ $hours_stmt = null;
             </svg>
         </div>
         <div id="volunteer" class="submenu">
-            <a href="#" class="submenu-item">Volunteer List</a>
-            <a href="#" class="submenu-item">Roles & Skills</a>
-            <a href="#" class="submenu-item">Availability</a>
+            <a href="../vra/volunteer_list.php" class="submenu-item">Volunteer List</a>
+            <a href="../vra/roles_skills.php" class="submenu-item">Roles & Skills</a>
+            <a href="../vra/availability.php" class="submenu-item">Availability</a>
         </div>
         
         <div class="menu-item" onclick="toggleSubmenu('inventory')">
@@ -1160,9 +1177,9 @@ $hours_stmt = null;
             </svg>
         </div>
         <div id="inventory" class="submenu">
-            <a href="#" class="submenu-item">Equipment List</a>
-            <a href="#" class="submenu-item">Stock Levels</a>
-            <a href="#" class="submenu-item">Maintenance Logs</a>
+            <a href="../ri/equipment_list.php" class="submenu-item">Equipment List</a>
+            <a href="../ri/stock_levels.php" class="submenu-item">Stock Levels</a>
+            <a href="../ri/maintenance_logs.php" class="submenu-item">Maintenance Logs</a>
         </div>
         
         <div class="menu-item" onclick="toggleSubmenu('schedule')">
@@ -1182,36 +1199,20 @@ $hours_stmt = null;
         </div>
         
         <div class="menu-item" onclick="toggleSubmenu('training')">
-            <div class="icon-box icon-bg-teal">
-                <i class='bx bxs-graduation icon-teal'></i>
-            </div>
-            <span class="font-medium">Training & Certification</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="training" class="submenu">
-            <a href="#" class="submenu-item">Training Records</a>
-            <a href="#" class="submenu-item">Certification Status</a>
-            <a href="#" class="submenu-item">Upcoming Seminars</a>
-        </div>
-        
-        
-        
-        <div class="menu-item" onclick="toggleSubmenu('postincident')">
-            <div class="icon-box icon-bg-pink">
-                <i class='bx bxs-file-doc icon-pink'></i>
-            </div>
-            <span class="font-medium">Post-Incident Analytics</span>
-            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </div>
-        <div id="postincident" class="submenu">
-            <a href="#" class="submenu-item">Analytics Dashboard</a>
-            <a href="#" class="submenu-item">Incident Trends</a>
-            <a href="#" class="submenu-item">Lessons Learned</a>
-        </div>
+                        <div class="icon-box icon-bg-teal">
+                            <i class='bx bxs-graduation icon-teal'></i>
+                        </div>
+                        <span class="font-medium">Training & Certification</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="training" class="submenu">
+                        <a href="../tc/register_training.php" class="submenu-item">Register for Training</a>
+                        <a href="../tc/training_records.php" class="submenu-item">Training Records</a>
+                        <a href="../tc/certification_status.php" class="submenu-item">Certification Status</a>
+                    </div>
+       
     </div>
     
     <p class="menu-title" style="margin-top: 32px;">GENERAL</p>
@@ -1239,7 +1240,7 @@ $hours_stmt = null;
         </a>
     </div>
 </div>
-        </div>
+</div>
         
       <!-- Main Content -->
         <div class="main-content">

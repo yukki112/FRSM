@@ -88,15 +88,10 @@ $status_counts_stmt = null;
             --background-color: #ffffff;
             --text-color: #1f2937;
             --text-light: #6b7280;
-            --border-color: rgba(255, 255, 255, 0.2);
-            --card-bg: rgba(255, 255, 255, 0.15);
-            --sidebar-bg: rgba(255, 255, 255, 0.15);
+            --border-color: #e5e7eb;
+            --card-bg: #ffffff;
+            --sidebar-bg: #f9fafb;
 
-            --glass-bg: rgba(255, 255, 255, 0.25);
-            --glass-border: rgba(255, 255, 255, 0.3);
-            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-            --glass-blur: blur(12px);
-            
             --icon-red: #ef4444;
             --icon-blue: #3b82f6;
             --icon-green: #10b981;
@@ -108,16 +103,16 @@ $status_counts_stmt = null;
             --icon-pink: #ec4899;
             --icon-teal: #14b8a6;
             
-            --icon-bg-red: rgba(254, 226, 226, 0.7);
-            --icon-bg-blue: rgba(219, 234, 254, 0.7);
-            --icon-bg-green: rgba(220, 252, 231, 0.7);
-            --icon-bg-purple: rgba(243, 232, 255, 0.7);
-            --icon-bg-yellow: rgba(254, 243, 199, 0.7);
-            --icon-bg-indigo: rgba(224, 231, 255, 0.7);
-            --icon-bg-cyan: rgba(207, 250, 254, 0.7);
-            --icon-bg-orange: rgba(255, 237, 213, 0.7);
-            --icon-bg-pink: rgba(252, 231, 243, 0.7);
-            --icon-bg-teal: rgba(204, 251, 241, 0.7);
+            --icon-bg-red: #fee2e2;
+            --icon-bg-blue: #dbeafe;
+            --icon-bg-green: #dcfce7;
+            --icon-bg-purple: #f3e8ff;
+            --icon-bg-yellow: #fef3c7;
+            --icon-bg-indigo: #e0e7ff;
+            --icon-bg-cyan: #cffafe;
+            --icon-bg-orange: #ffedd5;
+            --icon-bg-pink: #fce7f3;
+            --icon-bg-teal: #ccfbf1;
 
             --chart-red: #ef4444;
             --chart-orange: #f97316;
@@ -150,16 +145,12 @@ $status_counts_stmt = null;
         
         /* Dark mode variables */
         .dark-mode {
-            --background-color: #0f172a;
-            --text-color: #f1f5f9;
-            --text-light: #94a3b8;
-            --border-color: rgba(255, 255, 255, 0.1);
-            --card-bg: rgba(30, 41, 59, 0.4);
-            --sidebar-bg: rgba(30, 41, 59, 0.4);
-            
-            --glass-bg: rgba(30, 41, 59, 0.6);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            --background-color: #111827;
+            --text-color: #f9fafb;
+            --text-light: #9ca3af;
+            --border-color: #374151;
+            --card-bg: #1f2937;
+            --sidebar-bg: #111827;
         }
 
         /* Font and size from reference */
@@ -169,6 +160,8 @@ $status_counts_stmt = null;
             line-height: 1.5;
             color: var(--text-color);
             background-color: var(--background-color);
+            margin: 0;
+            padding: 0;
         }
 
         h1, h2, h3, h4, h5, h6 {
@@ -192,27 +185,18 @@ $status_counts_stmt = null;
 
         .dashboard-header {
             color: white;
-            padding: 60px 40px 40px;
-            border-radius: 0 0 30px 30px;
-            margin-bottom: 40px;
+            padding: 40px;
+            margin-bottom: 20px;
             position: relative;
             overflow: hidden;
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            background: var(--background-color);
+            border-bottom: 1px solid var(--border-color);
         }
 
-        .dark-mode .dashboard-header {
-            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-        }
-        
         .dashboard-title {
-            font-size: 40px;
-            margin-bottom: 12px;
+            font-size: 32px;
+            margin-bottom: 8px;
             color: var(--text-color);
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
         }
 
         .dashboard-subtitle {
@@ -229,7 +213,7 @@ $status_counts_stmt = null;
 
         .primary-button, .secondary-button {
             padding: 12px 20px;
-            border-radius: 12px;
+            border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -241,31 +225,33 @@ $status_counts_stmt = null;
         }
 
         .primary-button {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background: var(--primary-color);
             color: white;
-            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
         }
 
         .primary-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+            background: var(--primary-dark);
+            transform: translateY(-1px);
         }
 
         .secondary-button {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
+            background: var(--gray-100);
+            border: 1px solid var(--border-color);
             color: var(--text-color);
         }
 
         .secondary-button:hover {
-            background: var(--gray-100);
-            transform: translateY(-2px);
+            background: var(--gray-200);
+            transform: translateY(-1px);
+        }
+
+        .dark-mode .secondary-button {
+            background: var(--gray-800);
+            border-color: var(--border-color);
         }
 
         .dark-mode .secondary-button:hover {
-            background: var(--gray-800);
+            background: var(--gray-700);
         }
 
         .review-data-container {
@@ -285,9 +271,7 @@ $status_counts_stmt = null;
         .review-title {
             font-size: 28px;
             font-weight: 800;
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--text-color);
             margin-bottom: 8px;
         }
         
@@ -326,11 +310,9 @@ $status_counts_stmt = null;
         
         .filter-select, .filter-input {
             padding: 10px 16px;
-            border-radius: 10px;
+            border-radius: 8px;
             border: 1px solid var(--border-color);
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
+            background: var(--card-bg);
             font-size: 14px;
             min-width: 180px;
             transition: all 0.3s ease;
@@ -347,7 +329,7 @@ $status_counts_stmt = null;
         
         .stats-container {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
             position: relative;
@@ -355,12 +337,9 @@ $status_counts_stmt = null;
         }
         
         .stat-card {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
-            border-radius: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
             padding: 20px;
             display: flex;
             flex-direction: column;
@@ -371,6 +350,7 @@ $status_counts_stmt = null;
             cursor: pointer;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
         
         .stat-card::before {
@@ -383,7 +363,7 @@ $status_counts_stmt = null;
         }
         
         .stat-card[data-status="all"]::before {
-            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            background: var(--primary-color);
         }
         
         .stat-card[data-status="pending"]::before {
@@ -399,8 +379,8 @@ $status_counts_stmt = null;
         }
         
         .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
         .stat-card.active {
@@ -456,21 +436,19 @@ $status_counts_stmt = null;
         }
         
         .volunteer-card {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
-            border-radius: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
             padding: 20px;
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
         
         .volunteer-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
         .volunteer-card::before {
@@ -480,7 +458,7 @@ $status_counts_stmt = null;
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            background: var(--primary-color);
         }
         
         .volunteer-header {
@@ -494,7 +472,7 @@ $status_counts_stmt = null;
             width: 50px;
             height: 50px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background: var(--primary-color);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -531,16 +509,19 @@ $status_counts_stmt = null;
         .status-pending {
             background: rgba(245, 158, 11, 0.1);
             color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.2);
         }
         
         .status-approved {
             background: rgba(16, 185, 129, 0.1);
             color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
         }
         
         .status-rejected {
             background: rgba(220, 38, 38, 0.1);
             color: var(--danger);
+            border: 1px solid rgba(220, 38, 38, 0.2);
         }
         
         .volunteer-details {
@@ -574,7 +555,7 @@ $status_counts_stmt = null;
         .action-button {
             flex: 1;
             padding: 8px 12px;
-            border-radius: 8px;
+            border-radius: 6px;
             font-weight: 500;
             border: none;
             cursor: pointer;
@@ -589,6 +570,7 @@ $status_counts_stmt = null;
         .view-button {
             background-color: rgba(59, 130, 246, 0.1);
             color: var(--info);
+            border: 1px solid rgba(59, 130, 246, 0.2);
         }
         
         .view-button:hover {
@@ -599,6 +581,7 @@ $status_counts_stmt = null;
         .approve-button {
             background-color: rgba(16, 185, 129, 0.1);
             color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
         }
         
         .approve-button:hover {
@@ -609,6 +592,7 @@ $status_counts_stmt = null;
         .reject-button {
             background-color: rgba(220, 38, 38, 0.1);
             color: var(--danger);
+            border: 1px solid rgba(220, 38, 38, 0.2);
         }
         
         .reject-button:hover {
@@ -626,11 +610,9 @@ $status_counts_stmt = null;
         
         .pagination-button {
             padding: 8px 16px;
-            border-radius: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             color: var(--gray-700);
             cursor: pointer;
             transition: all 0.3s ease;
@@ -691,18 +673,16 @@ $status_counts_stmt = null;
         }
         
         .modal {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
-            border-radius: 20px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
             width: 90%;
             max-width: 900px;
             max-height: 90vh;
             overflow-y: auto;
             transform: scale(0.9);
             transition: all 0.3s ease;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
         
         .modal-overlay.active .modal {
@@ -785,6 +765,7 @@ $status_counts_stmt = null;
             color: var(--primary-color);
             border-radius: 20px;
             font-size: 14px;
+            border: 1px solid rgba(220, 38, 38, 0.2);
         }
         
         .skill-tag.active {
@@ -812,7 +793,7 @@ $status_counts_stmt = null;
         .id-photo {
             max-width: 100%;
             max-height: 300px;
-            border-radius: 12px;
+            border-radius: 8px;
             border: 1px solid var(--border-color);
             object-fit: contain;
             background: #f8f9fa;
@@ -826,8 +807,12 @@ $status_counts_stmt = null;
             padding: 40px;
             text-align: center;
             color: var(--text-light);
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
+            background: var(--gray-100);
+            border-radius: 8px;
+        }
+        
+        .dark-mode .no-photo {
+            background: var(--gray-800);
         }
         
         .modal-footer {
@@ -840,7 +825,7 @@ $status_counts_stmt = null;
         
         .modal-button {
             padding: 10px 20px;
-            border-radius: 10px;
+            border-radius: 8px;
             font-weight: 600;
             border: none;
             cursor: pointer;
@@ -896,12 +881,9 @@ $status_counts_stmt = null;
         
         .notification {
             padding: 16px 20px;
-            border-radius: 12px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            border-radius: 8px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             gap: 12px;
@@ -909,6 +891,7 @@ $status_counts_stmt = null;
             opacity: 0;
             transition: all 0.3s ease;
             max-width: 350px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
         
         .notification.show {
@@ -971,12 +954,9 @@ $status_counts_stmt = null;
             top: 100%;
             right: 0;
             margin-top: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
-            border-radius: 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
             padding: 8px;
             min-width: 200px;
             z-index: 1001;
@@ -984,6 +964,7 @@ $status_counts_stmt = null;
             visibility: hidden;
             transform: translateY(-10px);
             transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
 
         .user-profile-dropdown.show {
@@ -997,7 +978,7 @@ $status_counts_stmt = null;
             align-items: center;
             gap: 12px;
             padding: 12px 16px;
-            border-radius: 8px;
+            border-radius: 6px;
             color: var(--text-color);
             text-decoration: none;
             transition: all 0.3s ease;
@@ -1045,12 +1026,9 @@ $status_counts_stmt = null;
             top: 100%;
             right: 0;
             margin-top: 8px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
-            border-radius: 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
             width: 320px;
             max-height: 400px;
             overflow-y: auto;
@@ -1059,6 +1037,7 @@ $status_counts_stmt = null;
             visibility: hidden;
             transform: translateY(-10px);
             transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
 
         .notification-dropdown.show {
@@ -1147,70 +1126,6 @@ $status_counts_stmt = null;
             margin-bottom: 12px;
             opacity: 0.5;
         }
-
-        /* Loading Animation */
-        .dashboard-animation {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--background-color);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease;
-        }
-
-        .animation-logo {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 30px;
-            opacity: 0;
-            transform: translateY(20px);
-            transition: all 0.5s ease;
-        }
-
-        .animation-logo-icon img {
-            width: 70px;
-            height: 75px;
-            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
-        }
-
-        .animation-logo-text {
-            font-size: 28px;
-            font-weight: 800;
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .animation-progress {
-            width: 200px;
-            height: 4px;
-            background: var(--gray-200);
-            border-radius: 2px;
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-
-        .animation-progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-            border-radius: 2px;
-            transition: width 1s ease;
-            width: 0%;
-        }
-
-        .animation-text {
-            font-size: 16px;
-            color: var(--text-light);
-            opacity: 0;
-            transition: opacity 0.5s ease;
-        }
         
         @media (max-width: 768px) {
             .volunteers-grid {
@@ -1238,15 +1153,15 @@ $status_counts_stmt = null;
             }
 
             .dashboard-header {
-                padding: 40px 25px 30px;
+                padding: 30px 20px;
             }
             
             .dashboard-title {
-                font-size: 32px;
+                font-size: 28px;
             }
             
             .review-data-container {
-                padding: 0 25px 30px;
+                padding: 0 20px 30px;
             }
             
             .stats-container {
@@ -1256,20 +1171,6 @@ $status_counts_stmt = null;
     </style>
 </head>
 <body>
-
-
-    <div class="dashboard-animation" id="dashboard-animation">
-        <div class="animation-logo">
-            <div class="animation-logo-icon">
-                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo">
-            </div>
-            <span class="animation-logo-text">Fire & Rescue</span>
-        </div>
-        <div class="animation-progress">
-            <div class="animation-progress-fill" id="animation-progress"></div>
-        </div>
-        <div class="animation-text" id="animation-text">Loading Dashboard...</div>
-    </div>
     
     <!-- Notification Container -->
     <div class="notification-container" id="notification-container"></div>
@@ -1766,41 +1667,14 @@ $status_counts_stmt = null;
         const itemsPerPage = 9;
         
         document.addEventListener('DOMContentLoaded', function() {
-            const animationOverlay = document.getElementById('dashboard-animation');
-            const animationProgress = document.getElementById('animation-progress');
-            const animationText = document.getElementById('animation-text');
-            const animationLogo = document.querySelector('.animation-logo');
-            
-            // Show logo and text immediately
-            setTimeout(() => {
-                animationLogo.style.opacity = '1';
-                animationLogo.style.transform = 'translateY(0)';
-            }, 100);
-            
-            setTimeout(() => {
-                animationText.style.opacity = '1';
-            }, 300);
-            
-            // Faster loading - 1 second only
-            setTimeout(() => {
-                animationProgress.style.width = '100%';
-            }, 100);
-            
-            setTimeout(() => {
-                animationOverlay.style.opacity = '0';
-                setTimeout(() => {
-                    animationOverlay.style.display = 'none';
-                }, 300);
-            }, 1000);
+            // Show welcome notification
+            showNotification('success', 'System Ready', 'Volunteer review system is now active');
             
             // Initialize event listeners
             initEventListeners();
             
             // Check for new applications periodically
             setInterval(checkForNewApplications, 30000);
-            
-            // Show welcome notification
-            showNotification('success', 'System Ready', 'Volunteer review system is now active');
         });
         
         function initEventListeners() {

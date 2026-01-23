@@ -1367,12 +1367,12 @@ if (isset($mark_read_stmt)) $mark_read_stmt = null;
                 <span class="logo-text">Fire & Rescue</span>
             </div>
             
-            <!-- Menu Section -->
+          <!-- Menu Section -->
             <div class="menu-section">
                 <p class="menu-title">FIRE & RESCUE MANAGEMENT</p>
                 
                 <div class="menu-items">
-                    <a href="../dashboard.php" class="menu-item" id="dashboard-menu">
+                    <a href="../user_dashboard.php" class="menu-item" id="dashboard-menu">
                         <div class="icon-box icon-bg-red">
                             <i class='bx bxs-dashboard icon-red'></i>
                         </div>
@@ -1390,8 +1390,23 @@ if (isset($mark_read_stmt)) $mark_read_stmt = null;
                     </div>
                     <div id="fire-incident" class="submenu active">
                         <a href="active_incidents.php" class="submenu-item">Active Incidents</a>
-                        <a href="response_history.php" class="submenu-item active">Response History</a>
+                        <a href="response_history.php" class="submenu-item <?php echo !$incident_id ? 'active' : ''; ?>">Response History</a>
                     </div>
+
+                    <div class="menu-item" onclick="toggleSubmenu('postincident')">
+            <div class="icon-box icon-bg-pink">
+                <i class='bx bxs-file-doc icon-pink'></i>
+            </div>
+            <span class="font-medium">Dispatch Coordination</span>
+            <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="postincident" class="submenu">
+            <a href="../dc/suggested_unit.php" class="submenu-item">Suggested Unit</a>
+            <a href="../dc/incident_location.php" class="submenu-item">Incident Location</a>
+            
+        </div>
                     
                     <div class="menu-item" onclick="toggleSubmenu('volunteer')">
                         <div class="icon-box icon-bg-blue">
@@ -1418,9 +1433,9 @@ if (isset($mark_read_stmt)) $mark_read_stmt = null;
                         </svg>
                     </div>
                     <div id="inventory" class="submenu">
-                        <a href="#" class="submenu-item">Equipment List</a>
-                        <a href="#" class="submenu-item">Stock Levels</a>
-                        <a href="#" class="submenu-item">Maintenance Logs</a>
+                        <a href="../ri/equipment_list.php" class="submenu-item">Equipment List</a>
+                        <a href="../ri/stock_levels.php" class="submenu-item">Stock Levels</a>
+                        <a href="../ri/maintenance_logs.php" class="submenu-item">Maintenance Logs</a>
                     </div>
                     
                     <div class="menu-item" onclick="toggleSubmenu('schedule')">
@@ -1433,13 +1448,13 @@ if (isset($mark_read_stmt)) $mark_read_stmt = null;
                         </svg>
                     </div>
                     <div id="schedule" class="submenu">
-                        <a href="view_shifts.php" class="submenu-item">Shift Calendar</a>
-                        <a href="confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="duty_assignments.php" class="submenu-item">Duty Assignments</a>
-                        <a href="attendance_logs.php" class="submenu-item">Attendance Logs</a>
+                        <a href="../sds/view_shifts.php" class="submenu-item">Shift Calendar</a>
+                        <a href="../sds/confirm_availability.php" class="submenu-item">Confirm Availability</a>
+                        <a href="../sds/duty_assignments.php" class="submenu-item">Duty Assignments</a>
+                        <a href="../sds/attendance_logs.php" class="submenu-item">Attendance Logs</a>
                     </div>
                     
-                    <div class="menu-item" onclick="toggleSubmenu('training')">
+                  <div class="menu-item" onclick="toggleSubmenu('training')">
                         <div class="icon-box icon-bg-teal">
                             <i class='bx bxs-graduation icon-teal'></i>
                         </div>
@@ -1449,40 +1464,10 @@ if (isset($mark_read_stmt)) $mark_read_stmt = null;
                         </svg>
                     </div>
                     <div id="training" class="submenu">
-                        <a href="#" class="submenu-item">Training Records</a>
-                        <a href="#" class="submenu-item">Certification Status</a>
-                        <a href="#" class="submenu-item">Upcoming Seminars</a>
-                    </div>
-                    
-                    <div class="menu-item" onclick="toggleSubmenu('inspection')">
-                        <div class="icon-box icon-bg-yellow">
-                            <i class='bx bxs-check-shield icon-yellow'></i>
-                        </div>
-                        <span class="font-medium">Establishment Inspections</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="inspection" class="submenu">
-                        <a href="#" class="submenu-item">Inspection Scheduler</a>
-                        <a href="#" class="submenu-item">Inspection Results</a>
-                        <a href="#" class="submenu-item">Violation Notices</a>
-                    </div>
-                    
-                    <div class="menu-item" onclick="toggleSubmenu('postincident')">
-                        <div class="icon-box icon-bg-pink">
-                            <i class='bx bxs-file-doc icon-pink'></i>
-                        </div>
-                        <span class="font-medium">Post-Incident Analytics</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="postincident" class="submenu">
-                        <a href="#" class="submenu-item">Analytics Dashboard</a>
-                        <a href="#" class="submenu-item">Incident Trends</a>
-                        <a href="#" class="submenu-item">Lessons Learned</a>
-                    </div>
+                         <a href="register_training.php" class="submenu-item">Register for Training</a>
+            <a href="training_records.php" class="submenu-item">Training Records</a>
+            <a href="certification_status.php" class="submenu-item">Certification Status</a>
+                    </div>       
                 </div>
                 
                 <p class="menu-title" style="margin-top: 32px;">GENERAL</p>

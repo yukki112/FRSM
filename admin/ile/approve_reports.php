@@ -31,143 +31,123 @@ if (!empty($middle_name)) {
 $full_name .= " " . $last_name;
 
 // Get filter parameters
-$filter_status = isset($_GET['status']) ? $_GET['status'] : 'all';
+$filter_status = isset($_GET['status']) ? $_GET['status'] : 'submitted';
 $filter_date = isset($_GET['date']) ? $_GET['date'] : '';
 $search_query = isset($_GET['search']) ? $_GET['search'] : '';
-$filter_duty_type = isset($_GET['duty_type']) ? $_GET['duty_type'] : '';
-$filter_unit = isset($_GET['unit']) ? $_GET['unit'] : '';
+$filter_barangay = isset($_GET['barangay']) ? $_GET['barangay'] : '';
+$filter_establishment_type = isset($_GET['establishment_type']) ? $_GET['establishment_type'] : '';
 
-// Get all shifts with duty assignments (Admin can see all)
-function getAllShifts($pdo, $filter_status = 'all', $filter_date = '', $search_query = '', $filter_duty_type = '', $filter_unit = '') {
+// Get all inspection reports for admin approval
+function getInspectionReports($pdo, $filter_status = 'submitted', $filter_date = '', $search_query = '', $filter_barangay = '', $filter_establishment_type = '') {
     $sql = "SELECT 
-                s.id,
-                s.user_id,
-                s.volunteer_id,
-                s.shift_for,
-                s.unit_id,
-                s.shift_date,
-                s.shift_type,
-                s.start_time,
-                s.end_time,
-                s.status,
-                s.location,
-                s.notes,
-                s.created_at,
-                s.updated_at,
-                s.duty_assignment_id,
-                s.confirmation_status,
-                s.check_in_time,
-                s.check_out_time,
-                s.attendance_status,
-                s.attendance_notes,
-                u.unit_name,
-                u.unit_code,
-                u.unit_type,
-                CONCAT(creator.first_name, ' ', creator.last_name) as created_by_name,
-                da.duty_type,
-                da.duty_description,
-                da.priority,
-                da.required_equipment,
-                da.required_training,
-                CASE 
-                    WHEN s.shift_for = 'user' THEN CONCAT(usr.first_name, ' ', usr.last_name)
-                    WHEN s.shift_for = 'volunteer' THEN CONCAT(v.first_name, ' ', v.last_name)
-                    ELSE 'Unassigned'
-                END as assigned_to_name,
-                CASE 
-                    WHEN s.shift_for = 'user' THEN usr.email
-                    WHEN s.shift_for = 'volunteer' THEN v.email
-                    ELSE ''
-                END as assigned_to_email
-            FROM shifts s
-            LEFT JOIN units u ON s.unit_id = u.id
-            LEFT JOIN users creator ON s.created_by = creator.id
-            LEFT JOIN users usr ON s.user_id = usr.id
-            LEFT JOIN volunteers v ON s.volunteer_id = v.id
-            LEFT JOIN duty_assignments da ON s.duty_assignment_id = da.id
+                ir.id,
+                ir.report_number,
+                ir.inspection_date,
+                ir.status,
+                ir.overall_compliance_score,
+                ir.risk_assessment,
+                ir.fire_hazard_level,
+                ir.admin_reviewed_by,
+                ir.admin_reviewed_at,
+                ir.created_at,
+                ie.establishment_name,
+                ie.establishment_type,
+                ie.barangay,
+                ie.address,
+                ie.owner_name,
+                ie.owner_contact,
+                CONCAT(inspector.first_name, ' ', inspector.last_name) as inspector_name,
+                CONCAT(reviewer.first_name, ' ', reviewer.last_name) as reviewer_name,
+                COUNT(DISTINCT CASE WHEN iv.severity = 'critical' THEN iv.id END) as critical_violations,
+                COUNT(DISTINCT CASE WHEN iv.severity = 'major' THEN iv.id END) as major_violations,
+                COUNT(DISTINCT CASE WHEN iv.severity = 'minor' THEN iv.id END) as minor_violations,
+                COUNT(DISTINCT CASE WHEN iv.status != 'rectified' THEN iv.id END) as pending_violations
+            FROM inspection_reports ir
+            LEFT JOIN inspection_establishments ie ON ir.establishment_id = ie.id
+            LEFT JOIN users inspector ON ir.inspected_by = inspector.id
+            LEFT JOIN users reviewer ON ir.admin_reviewed_by = reviewer.id
+            LEFT JOIN inspection_violations iv ON ir.id = iv.inspection_id
             WHERE 1=1";
     
     $params = [];
     
     // Apply status filter
     if ($filter_status !== 'all') {
-        $sql .= " AND s.status = ?";
-        $params[] = $filter_status;
+        if ($filter_status === 'pending_review') {
+            $sql .= " AND ir.status IN ('submitted', 'under_review')";
+        } else if ($filter_status === 'completed') {
+            $sql .= " AND ir.status IN ('approved', 'rejected', 'completed')";
+        } else {
+            $sql .= " AND ir.status = ?";
+            $params[] = $filter_status;
+        }
     }
     
     // Apply date filter
     if (!empty($filter_date)) {
         if ($filter_date === 'today') {
-            $sql .= " AND s.shift_date = CURDATE()";
-        } elseif ($filter_date === 'tomorrow') {
-            $sql .= " AND s.shift_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY)";
+            $sql .= " AND ir.inspection_date = CURDATE()";
+        } elseif ($filter_date === 'yesterday') {
+            $sql .= " AND ir.inspection_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
         } elseif ($filter_date === 'week') {
-            $sql .= " AND s.shift_date >= CURDATE() AND s.shift_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)";
+            $sql .= " AND ir.inspection_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
         } elseif ($filter_date === 'month') {
-            $sql .= " AND s.shift_date >= CURDATE() AND s.shift_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)";
-        } elseif ($filter_date === 'past') {
-            $sql .= " AND s.shift_date < CURDATE()";
-        } elseif ($filter_date === 'future') {
-            $sql .= " AND s.shift_date > CURDATE()";
+            $sql .= " AND ir.inspection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+        } elseif ($filter_date === 'year') {
+            $sql .= " AND ir.inspection_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)";
         }
     }
     
-    // Apply unit filter
-    if (!empty($filter_unit)) {
-        $sql .= " AND s.unit_id = ?";
-        $params[] = $filter_unit;
+    // Apply barangay filter
+    if (!empty($filter_barangay)) {
+        $sql .= " AND ie.barangay LIKE ?";
+        $params[] = "%$filter_barangay%";
+    }
+    
+    // Apply establishment type filter
+    if (!empty($filter_establishment_type)) {
+        $sql .= " AND ie.establishment_type = ?";
+        $params[] = $filter_establishment_type;
     }
     
     // Apply search query
     if (!empty($search_query)) {
         $sql .= " AND (
-                    u.unit_name LIKE ? OR 
-                    u.unit_code LIKE ? OR 
-                    usr.first_name LIKE ? OR 
-                    usr.last_name LIKE ? OR 
-                    v.first_name LIKE ? OR 
-                    v.last_name LIKE ? OR
-                    s.location LIKE ? OR
-                    da.duty_type LIKE ? OR
-                    da.duty_description LIKE ? OR
-                    usr.email LIKE ? OR
-                    v.email LIKE ?
+                    ir.report_number LIKE ? OR 
+                    ie.establishment_name LIKE ? OR 
+                    ie.owner_name LIKE ? OR 
+                    ie.address LIKE ? OR 
+                    ie.barangay LIKE ? OR
+                    CONCAT(inspector.first_name, ' ', inspector.last_name) LIKE ?
                 )";
         $search_param = "%$search_query%";
         $params = array_merge($params, [
-            $search_param, $search_param, $search_param, $search_param, 
-            $search_param, $search_param, $search_param,
-            $search_param, $search_param, $search_param, $search_param
+            $search_param, $search_param, $search_param, $search_param,
+            $search_param, $search_param
         ]);
     }
     
-    // Apply duty type filter
-    if (!empty($filter_duty_type)) {
-        $sql .= " AND da.duty_type LIKE ?";
-        $params[] = "%$filter_duty_type%";
-    }
-    
-    $sql .= " ORDER BY s.shift_date DESC, s.start_time ASC";
+    $sql .= " GROUP BY ir.id ORDER BY ir.inspection_date DESC, ir.created_at DESC";
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Get shift statistics for admin
-function getAdminShiftStats($pdo) {
+// Get report statistics for admin
+function getInspectionStats($pdo) {
     $sql = "SELECT 
                 COUNT(*) as total,
-                SUM(CASE WHEN shift_date >= CURDATE() AND status != 'cancelled' THEN 1 ELSE 0 END) as upcoming,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled,
-                SUM(CASE WHEN shift_date = CURDATE() AND status != 'cancelled' THEN 1 ELSE 0 END) as today,
-                SUM(CASE WHEN duty_assignment_id IS NOT NULL THEN 1 ELSE 0 END) as with_duty,
-                SUM(CASE WHEN confirmation_status = 'pending' AND shift_for = 'volunteer' THEN 1 ELSE 0 END) as pending_confirmation,
-                SUM(CASE WHEN confirmation_status = 'confirmed' THEN 1 ELSE 0 END) as confirmed,
-                SUM(CASE WHEN attendance_status = 'checked_in' THEN 1 ELSE 0 END) as checked_in,
-                SUM(CASE WHEN attendance_status = 'absent' THEN 1 ELSE 0 END) as absent
-            FROM shifts";
+                SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as submitted,
+                SUM(CASE WHEN status = 'under_review' THEN 1 ELSE 0 END) as under_review,
+                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+                SUM(CASE WHEN status IN ('submitted', 'under_review') THEN 1 ELSE 0 END) as pending_review,
+                SUM(CASE WHEN status IN ('approved', 'completed') THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN risk_assessment = 'critical' THEN 1 ELSE 0 END) as critical_risk,
+                SUM(CASE WHEN risk_assessment = 'high' THEN 1 ELSE 0 END) as high_risk,
+                SUM(CASE WHEN fire_hazard_level = 'extreme' THEN 1 ELSE 0 END) as extreme_hazard
+            FROM inspection_reports";
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
@@ -175,15 +155,15 @@ function getAdminShiftStats($pdo) {
     
     $stats = [
         'total' => 0,
-        'upcoming' => 0,
+        'submitted' => 0,
+        'under_review' => 0,
+        'approved' => 0,
+        'rejected' => 0,
+        'pending_review' => 0,
         'completed' => 0,
-        'cancelled' => 0,
-        'today' => 0,
-        'with_duty' => 0,
-        'pending_confirmation' => 0,
-        'confirmed' => 0,
-        'checked_in' => 0,
-        'absent' => 0
+        'critical_risk' => 0,
+        'high_risk' => 0,
+        'extreme_hazard' => 0
     ];
     
     if ($result) {
@@ -193,97 +173,78 @@ function getAdminShiftStats($pdo) {
     return $stats;
 }
 
-// Get all duty types for filtering
-function getDutyTypes($pdo) {
-    $sql = "SELECT DISTINCT duty_type FROM duty_assignments ORDER BY duty_type";
+// Get all barangays for filtering
+function getBarangays($pdo) {
+    $sql = "SELECT DISTINCT barangay FROM inspection_establishments WHERE barangay IS NOT NULL AND barangay != '' ORDER BY barangay";
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
 }
 
-// Get all units for filtering
-function getAllUnits($pdo) {
-    $sql = "SELECT id, unit_name, unit_code FROM units ORDER BY unit_name";
+// Get all establishment types for filtering
+function getEstablishmentTypes($pdo) {
+    $sql = "SELECT DISTINCT establishment_type FROM inspection_establishments ORDER BY establishment_type";
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    return $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
 }
 
 // Get data for filters
-$duty_types = getDutyTypes($pdo);
-$units = getAllUnits($pdo);
+$barangays = getBarangays($pdo);
+$establishment_types = getEstablishmentTypes($pdo);
 
-// Get shifts based on filters
-$shifts = getAllShifts($pdo, $filter_status, $filter_date, $search_query, $filter_duty_type, $filter_unit);
-$stats = getAdminShiftStats($pdo);
+// Get reports based on filters
+$reports = getInspectionReports($pdo, $filter_status, $filter_date, $search_query, $filter_barangay, $filter_establishment_type);
+$stats = getInspectionStats($pdo);
 
 // Date filter options
 $date_options = [
     '' => 'All Dates',
     'today' => 'Today',
-    'tomorrow' => 'Tomorrow',
-    'week' => 'Next 7 Days',
-    'month' => 'Next 30 Days',
-    'future' => 'Future Shifts',
-    'past' => 'Past Shifts'
+    'yesterday' => 'Yesterday',
+    'week' => 'Last 7 Days',
+    'month' => 'Last 30 Days',
+    'year' => 'Last Year'
 ];
 
 // Status options
 $status_options = [
-    'all' => 'All Status',
-    'scheduled' => 'Scheduled',
-    'confirmed' => 'Confirmed',
+    'all' => 'All Reports',
+    'pending_review' => 'Pending Review',
+    'submitted' => 'Submitted',
+    'under_review' => 'Under Review',
+    'approved' => 'Approved',
+    'rejected' => 'Rejected',
     'completed' => 'Completed',
-    'cancelled' => 'Cancelled',
-    'absent' => 'Absent'
+    'revision_requested' => 'Revision Requested'
 ];
 
-// Shift type icons and colors
-$shift_type_icons = [
-    'morning' => 'bx-sun',
-    'afternoon' => 'bx-cloud',
-    'evening' => 'bx-moon',
-    'night' => 'bx-bed',
-    'full_day' => 'bx-calendar'
+// Risk level colors
+$risk_colors = [
+    'low' => '#10b981',
+    'medium' => '#f59e0b',
+    'high' => '#dc2626',
+    'critical' => '#7c2d12'
 ];
 
-$shift_type_colors = [
-    'morning' => '#f59e0b',
-    'afternoon' => '#3b82f6',
-    'evening' => '#8b5cf6',
-    'night' => '#1e293b',
-    'full_day' => '#10b981'
+// Hazard level colors
+$hazard_colors = [
+    'low' => '#10b981',
+    'medium' => '#f59e0b',
+    'high' => '#dc2626',
+    'extreme' => '#7c2d12'
 ];
 
 // Status colors
 $status_colors = [
-    'scheduled' => '#f59e0b',
-    'confirmed' => '#3b82f6',
-    'completed' => '#10b981',
-    'cancelled' => '#dc2626',
-    'absent' => '#6b7280'
+    'draft' => '#6b7280',
+    'submitted' => '#3b82f6',
+    'under_review' => '#f59e0b',
+    'approved' => '#10b981',
+    'rejected' => '#dc2626',
+    'completed' => '#6366f1',
+    'revision_requested' => '#8b5cf6'
 ];
-
-// Priority colors
-$priority_colors = [
-    'primary' => '#dc2626',
-    'secondary' => '#f59e0b',
-    'support' => '#3b82f6'
-];
-
-// Confirmation status colors
-$confirmation_colors = [
-    'pending' => '#f59e0b',
-    'confirmed' => '#10b981',
-    'declined' => '#dc2626',
-    'change_requested' => '#8b5cf6'
-];
-
-// Format time helper
-function formatTime($time) {
-    if (!$time) return 'N/A';
-    return date('g:i A', strtotime($time));
-}
 
 // Format date helper
 function formatDate($date) {
@@ -291,15 +252,43 @@ function formatDate($date) {
     return date('M j, Y', strtotime($date));
 }
 
-// Get confirmation status badge HTML
-function getConfirmationBadge($status) {
-    global $confirmation_colors;
+// Get status badge HTML
+function getStatusBadge($status) {
+    global $status_colors;
     $status = strtolower($status);
-    $color = $confirmation_colors[$status] ?? '#6b7280';
+    $color = $status_colors[$status] ?? '#6b7280';
     $text = ucfirst(str_replace('_', ' ', $status));
     
     return <<<HTML
-        <span class="confirmation-badge" style="background: rgba(220, 38, 38, 0.1); color: {$color};">
+        <span class="status-badge" style="background: rgba(${hexToRgb($color)}, 0.1); color: {$color}; border-color: rgba(${hexToRgb($color)}, 0.3);">
+            {$text}
+        </span>
+    HTML;
+}
+
+// Get risk level badge HTML
+function getRiskBadge($risk) {
+    global $risk_colors;
+    $risk = strtolower($risk);
+    $color = $risk_colors[$risk] ?? '#6b7280';
+    $text = ucfirst($risk);
+    
+    return <<<HTML
+        <span class="risk-badge" style="background: rgba(${hexToRgb($color)}, 0.1); color: {$color}; border-color: rgba(${hexToRgb($color)}, 0.3);">
+            {$text}
+        </span>
+    HTML;
+}
+
+// Get hazard level badge HTML
+function getHazardBadge($hazard) {
+    global $hazard_colors;
+    $hazard = strtolower($hazard);
+    $color = $hazard_colors[$hazard] ?? '#6b7280';
+    $text = ucfirst($hazard);
+    
+    return <<<HTML
+        <span class="hazard-badge" style="background: rgba(${hexToRgb($color)}, 0.1); color: {$color}; border-color: rgba(${hexToRgb($color)}, 0.3);">
             {$text}
         </span>
     HTML;
@@ -325,7 +314,7 @@ function hexToRgb($hex) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Shifts - Admin - FRSM</title>
+    <title>Approve Inspection Reports - Admin - FRSM</title>
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="icon" type="image/png" sizes="32x32" href="../../img/frsm-logo.png">
     <link rel="stylesheet" href="../../css/dashboard.css">
@@ -350,6 +339,16 @@ function hexToRgb($hex) {
             --indigo: #6366f1;
             --pink: #ec4899;
             --teal: #14b8a6;
+            --orange: #f97316;
+            --amber: #f59e0b;
+            --lime: #84cc16;
+            --emerald: #10b981;
+            --cyan: #06b6d4;
+            --light-blue: #0ea5e9;
+            --violet: #8b5cf6;
+            --fuchsia: #d946ef;
+            --rose: #f43f5e;
+            --warm-gray: #78716c;
             
             --gray-100: #f3f4f6;
             --gray-200: #e5e7eb;
@@ -475,49 +474,49 @@ function hexToRgb($hex) {
             color: var(--info);
         }
         
-        .stat-card[data-type="upcoming"] .stat-icon-container {
-            background: rgba(220, 38, 38, 0.1);
-            color: var(--primary-color);
-        }
-        
-        .stat-card[data-type="completed"] .stat-icon-container {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success);
-        }
-        
-        .stat-card[data-type="cancelled"] .stat-icon-container {
-            background: rgba(107, 114, 128, 0.1);
-            color: var(--gray-500);
-        }
-        
-        .stat-card[data-type="today"] .stat-icon-container {
+        .stat-card[data-type="pending_review"] .stat-icon-container {
             background: rgba(245, 158, 11, 0.1);
             color: var(--warning);
         }
         
-        .stat-card[data-type="with_duty"] .stat-icon-container {
-            background: rgba(139, 92, 246, 0.1);
-            color: var(--purple);
-        }
-        
-        .stat-card[data-type="pending_confirmation"] .stat-icon-container {
-            background: rgba(245, 158, 11, 0.1);
-            color: var(--warning);
-        }
-        
-        .stat-card[data-type="confirmed"] .stat-icon-container {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success);
-        }
-        
-        .stat-card[data-type="checked_in"] .stat-icon-container {
+        .stat-card[data-type="submitted"] .stat-icon-container {
             background: rgba(59, 130, 246, 0.1);
             color: var(--info);
         }
         
-        .stat-card[data-type="absent"] .stat-icon-container {
+        .stat-card[data-type="under_review"] .stat-icon-container {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--purple);
+        }
+        
+        .stat-card[data-type="approved"] .stat-icon-container {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+        
+        .stat-card[data-type="rejected"] .stat-icon-container {
             background: rgba(220, 38, 38, 0.1);
             color: var(--danger);
+        }
+        
+        .stat-card[data-type="completed"] .stat-icon-container {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--indigo);
+        }
+        
+        .stat-card[data-type="critical_risk"] .stat-icon-container {
+            background: rgba(124, 45, 18, 0.1);
+            color: #7c2d12;
+        }
+        
+        .stat-card[data-type="high_risk"] .stat-icon-container {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--danger);
+        }
+        
+        .stat-card[data-type="extreme_hazard"] .stat-icon-container {
+            background: rgba(124, 45, 18, 0.1);
+            color: #7c2d12;
         }
         
         .stat-info {
@@ -751,7 +750,7 @@ function hexToRgb($hex) {
         }
 
         /* Enhanced Table Styles */
-        .shifts-table-container {
+        .reports-table-container {
             background: var(--card-bg);
             border-radius: 16px;
             overflow: hidden;
@@ -760,7 +759,7 @@ function hexToRgb($hex) {
 
         .table-header {
             display: grid;
-            grid-template-columns: 80px 150px 140px 120px 200px 120px 120px 120px;
+            grid-template-columns: 120px 200px 120px 100px 120px 120px 140px 150px;
             gap: 15px;
             padding: 20px;
             background: rgba(220, 38, 38, 0.03);
@@ -774,7 +773,7 @@ function hexToRgb($hex) {
         
         .table-row {
             display: grid;
-            grid-template-columns: 80px 150px 140px 120px 200px 120px 120px 120px;
+            grid-template-columns: 120px 200px 120px 100px 120px 120px 140px 150px;
             gap: 15px;
             padding: 20px;
             border-bottom: 1px solid var(--border-color);
@@ -800,67 +799,24 @@ function hexToRgb($hex) {
             justify-content: center;
         }
         
-        .shift-id {
+        .report-number {
             font-weight: 700;
             color: var(--primary-color);
             font-size: 15px;
         }
         
-        .shift-date {
+        .establishment-name {
             font-weight: 600;
             color: var(--text-color);
+            font-size: 15px;
         }
         
-        .shift-time {
+        .establishment-info {
             font-size: 12px;
             color: var(--text-light);
         }
         
-        /* Enhanced Shift Type Badge */
-        .shift-type-badge {
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            width: fit-content;
-            white-space: nowrap;
-            border: 2px solid transparent;
-        }
-        
-        .shift-type-morning {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.2));
-            color: #f59e0b;
-            border-color: rgba(245, 158, 11, 0.3);
-        }
-        
-        .shift-type-afternoon {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2));
-            color: #3b82f6;
-            border-color: rgba(59, 130, 246, 0.3);
-        }
-        
-        .shift-type-evening {
-            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.2));
-            color: #8b5cf6;
-            border-color: rgba(139, 92, 246, 0.3);
-        }
-        
-        .shift-type-night {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.1), rgba(30, 41, 59, 0.2));
-            color: #1e293b;
-            border-color: rgba(30, 41, 59, 0.3);
-        }
-        
-        .shift-type-full_day {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.2));
-            color: #10b981;
-            border-color: rgba(16, 185, 129, 0.3);
-        }
-        
-        /* Enhanced Status Badge */
+        /* Status Badge */
         .status-badge {
             padding: 8px 12px;
             border-radius: 20px;
@@ -875,38 +831,7 @@ function hexToRgb($hex) {
             border: 2px solid transparent;
         }
         
-        .status-scheduled {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.2));
-            color: var(--warning);
-            border-color: rgba(245, 158, 11, 0.3);
-        }
-        
-        .status-confirmed {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2));
-            color: var(--info);
-            border-color: rgba(59, 130, 246, 0.3);
-        }
-        
-        .status-completed {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.2));
-            color: var(--success);
-            border-color: rgba(16, 185, 129, 0.3);
-        }
-        
-        .status-cancelled {
-            background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(220, 38, 38, 0.2));
-            color: var(--danger);
-            border-color: rgba(220, 38, 38, 0.3);
-        }
-        
-        .status-absent {
-            background: linear-gradient(135deg, rgba(107, 114, 128, 0.1), rgba(107, 114, 128, 0.2));
-            color: var(--gray-500);
-            border-color: rgba(107, 114, 128, 0.3);
-        }
-        
-        /* Confirmation Status Badge */
-        .confirmation-badge {
+        .risk-badge, .hazard-badge {
             padding: 6px 10px;
             border-radius: 20px;
             font-size: 11px;
@@ -915,23 +840,6 @@ function hexToRgb($hex) {
             letter-spacing: 0.5px;
             border: 1px solid;
             border-color: inherit;
-        }
-        
-        .unit-info {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-        
-        .unit-name {
-            font-weight: 600;
-            color: var(--text-color);
-            font-size: 13px;
-        }
-        
-        .unit-code {
-            font-size: 11px;
-            color: var(--text-light);
         }
 
         /* Enhanced Action Buttons */
@@ -985,57 +893,134 @@ function hexToRgb($hex) {
             box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
         }
         
-        .edit-button {
+        .review-button {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.2));
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        
+        .review-button:hover {
+            background: var(--warning);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+        
+        .approve-button {
             background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.2));
             color: var(--success);
             border: 1px solid rgba(16, 185, 129, 0.3);
         }
         
-        .edit-button:hover {
+        .approve-button:hover {
             background: var(--success);
             color: white;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
         
-        .delete-button {
+        .reject-button {
             background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(220, 38, 38, 0.2));
             color: var(--danger);
             border: 1px solid rgba(220, 38, 38, 0.3);
         }
         
-        .delete-button:hover {
+        .reject-button:hover {
             background: var(--danger);
             color: white;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
         }
-
-        .attendance-button {
+        
+        .certificate-button {
             background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.2));
             color: var(--purple);
             border: 1px solid rgba(139, 92, 246, 0.3);
         }
         
-        .attendance-button:hover {
+        .certificate-button:hover {
             background: var(--purple);
             color: white;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
         }
 
-        .no-shifts {
+        .no-reports {
             text-align: center;
             padding: 60px 20px;
             color: var(--text-light);
             grid-column: 1 / -1;
         }
         
-        .no-shifts-icon {
+        .no-reports-icon {
             font-size: 64px;
             margin-bottom: 16px;
             color: var(--text-light);
             opacity: 0.5;
+        }
+
+        /* Violation Indicators */
+        .violation-indicators {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .violation-badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .critical-violation {
+            background: rgba(124, 45, 18, 0.1);
+            color: #7c2d12;
+            border: 1px solid rgba(124, 45, 18, 0.3);
+        }
+        
+        .major-violation {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+        }
+        
+        .minor-violation {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        
+        .pending-violation {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--info);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        /* Compliance Score */
+        .compliance-score {
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1;
+        }
+        
+        .compliance-score-high {
+            color: var(--success);
+        }
+        
+        .compliance-score-medium {
+            color: var(--warning);
+        }
+        
+        .compliance-score-low {
+            color: var(--danger);
+        }
+        
+        .compliance-score-critical {
+            color: #7c2d12;
         }
 
         /* Quick Actions Panel */
@@ -1145,7 +1130,7 @@ function hexToRgb($hex) {
             border: 1px solid var(--border-color);
             border-radius: 20px;
             width: 90%;
-            max-width: 800px;
+            max-width: 1000px;
             max-height: 90vh;
             overflow-y: auto;
             transform: scale(0.9);
@@ -1286,7 +1271,7 @@ function hexToRgb($hex) {
         /* Responsive Design */
         @media (max-width: 1400px) {
             .table-header, .table-row {
-                grid-template-columns: 70px 140px 120px 100px 180px 110px 100px 100px;
+                grid-template-columns: 100px 180px 100px 90px 110px 110px 120px 140px;
                 gap: 12px;
                 padding: 16px;
             }
@@ -1294,7 +1279,7 @@ function hexToRgb($hex) {
 
         @media (max-width: 1200px) {
             .table-header, .table-row {
-                grid-template-columns: 60px 130px 110px 90px 160px 100px 90px 90px;
+                grid-template-columns: 90px 160px 90px 80px 100px 100px 110px 130px;
                 gap: 10px;
                 padding: 14px;
             }
@@ -1428,38 +1413,38 @@ function hexToRgb($hex) {
             }
         }
 
-        .shifts-table-container {
+        .reports-table-container {
             max-height: 600px;
             overflow-y: auto;
         }
 
-        .shifts-table-container::-webkit-scrollbar {
+        .reports-table-container::-webkit-scrollbar {
             width: 6px;
         }
         
-        .shifts-table-container::-webkit-scrollbar-track {
+        .reports-table-container::-webkit-scrollbar-track {
             background: var(--gray-100);
             border-radius: 3px;
         }
         
-        .shifts-table-container::-webkit-scrollbar-thumb {
+        .reports-table-container::-webkit-scrollbar-thumb {
             background: var(--gray-400);
             border-radius: 3px;
         }
         
-        .shifts-table-container::-webkit-scrollbar-thumb:hover {
+        .reports-table-container::-webkit-scrollbar-thumb:hover {
             background: var(--gray-500);
         }
         
-        .dark-mode .shifts-table-container::-webkit-scrollbar-track {
+        .dark-mode .reports-table-container::-webkit-scrollbar-track {
             background: var(--gray-800);
         }
         
-        .dark-mode .shifts-table-container::-webkit-scrollbar-thumb {
+        .dark-mode .reports-table-container::-webkit-scrollbar-thumb {
             background: var(--gray-600);
         }
         
-        .dark-mode .shifts-table-container::-webkit-scrollbar-thumb:hover {
+        .dark-mode .reports-table-container::-webkit-scrollbar-thumb:hover {
             background: var(--gray-500);
         }
 
@@ -1504,14 +1489,52 @@ function hexToRgb($hex) {
         .dark-mode .table-row:nth-child(even) {
             background: rgba(255, 255, 255, 0.01);
         }
+
+        /* Compliance Score Circle */
+        .compliance-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 18px;
+            position: relative;
+            margin: 0 auto;
+        }
+        
+        .compliance-circle-high {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 3px solid var(--success);
+        }
+        
+        .compliance-circle-medium {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+            border: 3px solid var(--warning);
+        }
+        
+        .compliance-circle-low {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--danger);
+            border: 3px solid var(--danger);
+        }
+        
+        .compliance-circle-critical {
+            background: rgba(124, 45, 18, 0.1);
+            color: #7c2d12;
+            border: 3px solid #7c2d12;
+        }
     </style>
 </head>
 <body>
-    <!-- Shift Details Modal -->
+    <!-- Report Details Modal -->
     <div class="modal-overlay" id="details-modal">
         <div class="modal">
             <div class="modal-header">
-                <h2 class="modal-title">Shift Details</h2>
+                <h2 class="modal-title">Inspection Report Details</h2>
                 <button class="modal-close" id="details-modal-close">&times;</button>
             </div>
             <div class="modal-body">
@@ -1525,92 +1548,96 @@ function hexToRgb($hex) {
         </div>
     </div>
     
-    <!-- Edit Shift Modal -->
-    <div class="modal-overlay" id="edit-modal">
+    <!-- Review Report Modal -->
+    <div class="modal-overlay" id="review-modal">
         <div class="modal">
             <div class="modal-header">
-                <h2 class="modal-title">Edit Shift</h2>
-                <button class="modal-close" id="edit-modal-close">&times;</button>
+                <h2 class="modal-title">Review Inspection Report</h2>
+                <button class="modal-close" id="review-modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="edit-shift-form">
-                    <input type="hidden" id="edit-shift-id" name="shift_id">
+                <form id="review-report-form">
+                    <input type="hidden" id="review-report-id" name="report_id">
                     
                     <div class="form-group">
-                        <label class="form-label" for="edit_status">Status</label>
-                        <select class="form-select" id="edit_status" name="status" required>
-                            <option value="scheduled">Scheduled</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
-                            <option value="absent">Absent</option>
+                        <label class="form-label" for="review_status">Review Status</label>
+                        <select class="form-select" id="review_status" name="status" required>
+                            <option value="approved">Approve Report</option>
+                            <option value="rejected">Reject Report</option>
+                            <option value="revision_requested">Request Revision</option>
+                            <option value="under_review">Mark as Under Review</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="edit_confirmation_status">Confirmation Status</label>
-                        <select class="form-select" id="edit_confirmation_status" name="confirmation_status">
-                            <option value="pending">Pending</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="declined">Declined</option>
-                            <option value="change_requested">Change Requested</option>
-                        </select>
+                        <label class="form-label" for="review_notes">Review Notes & Comments</label>
+                        <textarea class="form-textarea" id="review_notes" name="review_notes" placeholder="Enter your review comments, suggestions for revision, or reasons for approval/rejection..." required></textarea>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="edit_notes">Admin Notes</label>
-                        <textarea class="form-textarea" id="edit_notes" name="notes" placeholder="Enter any administrative notes..."></textarea>
+                        <label class="form-label" for="compliance_deadline">Compliance Deadline (if applicable)</label>
+                        <input type="date" class="form-input" id="compliance_deadline" name="compliance_deadline">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="certificate_decision">Certificate Decision</label>
+                        <select class="form-select" id="certificate_decision" name="certificate_decision">
+                            <option value="none">No Decision</option>
+                            <option value="issue">Issue Fire Safety Certificate</option>
+                            <option value="renew">Renew Existing Certificate</option>
+                            <option value="revoke">Revoke Certificate</option>
+                        </select>
                     </div>
                     
                     <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" id="cancel-edit">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Update Shift</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-review">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Submit Review</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
     
-    <!-- Attendance Modal -->
-    <div class="modal-overlay" id="attendance-modal">
+    <!-- Certificate Issue Modal -->
+    <div class="modal-overlay" id="certificate-modal">
         <div class="modal">
             <div class="modal-header">
-                <h2 class="modal-title">Update Attendance</h2>
-                <button class="modal-close" id="attendance-modal-close">&times;</button>
+                <h2 class="modal-title">Issue Fire Safety Certificate</h2>
+                <button class="modal-close" id="certificate-modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="update-attendance-form">
-                    <input type="hidden" id="attendance-shift-id" name="shift_id">
+                <form id="issue-certificate-form">
+                    <input type="hidden" id="certificate-report-id" name="report_id">
+                    <input type="hidden" id="certificate-establishment-id" name="establishment_id">
                     
                     <div class="form-group">
-                        <label class="form-label" for="attendance_status">Attendance Status</label>
-                        <select class="form-select" id="attendance_status" name="attendance_status" required>
-                            <option value="pending">Pending</option>
-                            <option value="checked_in">Checked In</option>
-                            <option value="checked_out">Checked Out</option>
-                            <option value="absent">Absent</option>
-                            <option value="excused">Excused</option>
+                        <label class="form-label" for="certificate_type">Certificate Type</label>
+                        <select class="form-select" id="certificate_type" name="certificate_type" required>
+                            <option value="fsic">Fire Safety Inspection Certificate (FSIC)</option>
+                            <option value="compliance">Compliance Certificate</option>
+                            <option value="provisional">Provisional Certificate</option>
+                            <option value="exemption">Exemption Certificate</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="attendance_check_in">Check-in Time</label>
-                        <input type="datetime-local" class="form-input" id="attendance_check_in" name="check_in">
+                        <label class="form-label" for="issue_date">Issue Date</label>
+                        <input type="date" class="form-input" id="issue_date" name="issue_date" required value="<?php echo date('Y-m-d'); ?>">
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="attendance_check_out">Check-out Time</label>
-                        <input type="datetime-local" class="form-input" id="attendance_check_out" name="check_out">
+                        <label class="form-label" for="valid_until">Valid Until</label>
+                        <input type="date" class="form-input" id="valid_until" name="valid_until" required>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="attendance_notes">Attendance Notes</label>
-                        <textarea class="form-textarea" id="attendance_notes" name="attendance_notes" placeholder="Enter attendance notes..."></textarea>
+                        <label class="form-label" for="certificate_notes">Certificate Notes (Optional)</label>
+                        <textarea class="form-textarea" id="certificate_notes" name="certificate_notes" placeholder="Any additional notes for the certificate..."></textarea>
                     </div>
                     
                     <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" id="cancel-attendance">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Update Attendance</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-certificate">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Issue Certificate</button>
                     </div>
                 </form>
             </div>
@@ -1711,17 +1738,17 @@ function hexToRgb($hex) {
                     </div>
                     
                     <!-- Shift & Duty Scheduling -->
-                    <div class="menu-item active" onclick="toggleSubmenu('schedule-management')">
+                    <div class="menu-item" onclick="toggleSubmenu('schedule-management')">
                         <div class="icon-box icon-bg-purple">
                             <i class='bx bxs-calendar icon-purple'></i>
                         </div>
                         <span class="font-medium">Schedule Management</span>
-                        <svg class="dropdown-arrow menu-icon rotated" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </div>
-                    <div id="schedule-management" class="submenu active">
-                       <a href="view_shifts.php" class="submenu-item active">View Shifts</a>
+                    <div id="schedule-management" class="submenu">
+                       <a href="view_shifts.php" class="submenu-item">View Shifts</a>
                         <a href="create_schedule.php" class="submenu-item">Create Schedule</a>
                           <a href="confirm_availability.php" class="submenu-item">Confirm Availability</a>
                         <a href="request_change.php" class="submenu-item">Request Change</a>
@@ -1746,20 +1773,20 @@ function hexToRgb($hex) {
                     </div>
                     
                     <!-- Inspection Logs for Establishments -->
-                    <div class="menu-item" onclick="toggleSubmenu('inspection-management')">
+                    <div class="menu-item active" onclick="toggleSubmenu('inspection-management')">
                         <div class="icon-box icon-bg-cyan">
                             <i class='bx bxs-check-shield icon-cyan'></i>
                         </div>
                         <span class="font-medium">Inspection Management</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="dropdown-arrow menu-icon rotated" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </div>
-                    <div id="inspection-management" class="submenu">
-                        <a href="../ile/approve_reports.php" class="submenu-item">Approve Reports</a>
-                        <a href="../ile/review_violations.php" class="submenu-item">Review Violations</a>
-                        <a href="../ile/issue_certificates.php" class="submenu-item">Issue Certificates</a>
-                        <a href="../ile/track_follow_up.php" class="submenu-item">Track Follow-Up</a>
+                    <div id="inspection-management" class="submenu active">
+                        <a href="approve_reports.php" class="submenu-item active">Approve Reports</a>
+                        <a href="review_violations.php" class="submenu-item">Review Violations</a>
+                        <a href="issue_certificates.php" class="submenu-item">Issue Certificates</a>
+                        <a href="track_follow_up.php" class="submenu-item">Track Follow-Up</a>
                     </div>
                     
                     <!-- Post-Incident Reporting & Analytics -->
@@ -1816,7 +1843,7 @@ function hexToRgb($hex) {
                             <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                             </svg>
-                            <input type="text" placeholder="Search shifts..." class="search-input" id="search-input">
+                            <input type="text" placeholder="Search inspection reports..." class="search-input" id="search-input">
                         </div>
                     </div>
                     
@@ -1850,8 +1877,8 @@ function hexToRgb($hex) {
             <div class="dashboard-content">
                 <div class="dashboard-header">
                     <div>
-                        <h1 class="dashboard-title">Shift Management</h1>
-                        <p class="dashboard-subtitle">Admin Panel - View and manage all shifts across the organization</p>
+                        <h1 class="dashboard-title">Inspection Reports Approval</h1>
+                        <p class="dashboard-subtitle">Admin Panel - Review and approve establishment inspection reports</p>
                     </div>
                 </div>
                 
@@ -1859,40 +1886,40 @@ function hexToRgb($hex) {
                 <div class="content-container">
                     <!-- Quick Actions -->
                     <div class="quick-actions">
-                        <a href="../sm/create_schedule.php" class="quick-action-card">
+                        <a href="../ile/review_violations.php" class="quick-action-card">
                             <div class="action-icon">
-                                <i class='bx bxs-calendar-plus'></i>
+                                <i class='bx bxs-error-circle'></i>
                             </div>
                             <div class="action-content">
-                                <div class="action-title">Create New Schedule</div>
-                                <div class="action-description">Create bulk schedules for volunteers or employees</div>
+                                <div class="action-title">Review Violations</div>
+                                <div class="action-description">Review and process violation reports</div>
                             </div>
                         </a>
-                        <a href="../sm/approve_shifts.php" class="quick-action-card">
+                        <a href="../ile/issue_certificates.php" class="quick-action-card">
                             <div class="action-icon">
-                                <i class='bx bxs-check-shield'></i>
+                                <i class='bx bxs-certificate'></i>
                             </div>
                             <div class="action-content">
-                                <div class="action-title">Approve Shifts</div>
-                                <div class="action-description">Review and approve pending shift confirmations</div>
+                                <div class="action-title">Issue Certificates</div>
+                                <div class="action-description">Generate and issue fire safety certificates</div>
                             </div>
                         </a>
-                        <a href="../sm/override_assignments.php" class="quick-action-card">
+                        <a href="../ile/track_follow_up.php" class="quick-action-card">
                             <div class="action-icon">
-                                <i class='bx bxs-calendar-exclamation'></i>
+                                <i class='bx bxs-calendar-check'></i>
                             </div>
                             <div class="action-content">
-                                <div class="action-title">Override Assignments</div>
-                                <div class="action-description">Make manual adjustments to shift assignments</div>
+                                <div class="action-title">Track Follow-ups</div>
+                                <div class="action-description">Monitor compliance follow-up actions</div>
                             </div>
                         </a>
-                        <a href="../sm/monitor_attendance.php" class="quick-action-card">
+                        <a href="#" class="quick-action-card" onclick="generateInspectionSummary()">
                             <div class="action-icon">
-                                <i class='bx bxs-user-check'></i>
+                                <i class='bx bxs-report'></i>
                             </div>
                             <div class="action-content">
-                                <div class="action-title">Monitor Attendance</div>
-                                <div class="action-description">Track attendance and generate reports</div>
+                                <div class="action-title">Generate Report</div>
+                                <div class="action-description">Create inspection summary report</div>
                             </div>
                         </a>
                     </div>
@@ -1902,106 +1929,106 @@ function hexToRgb($hex) {
                         <div class="stat-card" data-type="total" onclick="filterByStatus('all')">
                             <div class="stat-header">
                                 <div class="stat-icon-container">
-                                    <i class='bx bxs-calendar'></i>
-                                </div>
-                                <div class="stat-trend">
-                                    <i class='bx bx-up-arrow-alt'></i>
-                                    +12%
-                                </div>
-                            </div>
-                            <div class="stat-value"><?php echo $stats['total']; ?></div>
-                            <div class="stat-label">Total Shifts</div>
-                        </div>
-                        <div class="stat-card" data-type="upcoming" onclick="filterByStatus('scheduled')">
-                            <div class="stat-header">
-                                <div class="stat-icon-container">
-                                    <i class='bx bxs-up-arrow'></i>
-                                </div>
-                                <div class="stat-trend">
-                                    <i class='bx bx-up-arrow-alt'></i>
-                                    +5%
-                                </div>
-                            </div>
-                            <div class="stat-value"><?php echo $stats['upcoming']; ?></div>
-                            <div class="stat-label">Upcoming Shifts</div>
-                        </div>
-                        <div class="stat-card" data-type="completed" onclick="filterByStatus('completed')">
-                            <div class="stat-header">
-                                <div class="stat-icon-container">
-                                    <i class='bx bxs-check-circle'></i>
-                                </div>
-                                <div class="stat-trend">
-                                    <i class='bx bx-up-arrow-alt'></i>
-                                    +8%
-                                </div>
-                            </div>
-                            <div class="stat-value"><?php echo $stats['completed']; ?></div>
-                            <div class="stat-label">Completed</div>
-                        </div>
-                        <div class="stat-card" data-type="cancelled" onclick="filterByStatus('cancelled')">
-                            <div class="stat-header">
-                                <div class="stat-icon-container">
-                                    <i class='bx bxs-x-circle'></i>
-                                </div>
-                                <div class="stat-trend">
-                                    <i class='bx bx-down-arrow-alt'></i>
-                                    -2%
-                                </div>
-                            </div>
-                            <div class="stat-value"><?php echo $stats['cancelled']; ?></div>
-                            <div class="stat-label">Cancelled</div>
-                        </div>
-                        <div class="stat-card" data-type="today" onclick="filterByDate('today')">
-                            <div class="stat-header">
-                                <div class="stat-icon-container">
-                                    <i class='bx bxs-sun'></i>
-                                </div>
-                                <div class="stat-trend">
-                                    <i class='bx bx-up-arrow-alt'></i>
-                                    +3%
-                                </div>
-                            </div>
-                            <div class="stat-value"><?php echo $stats['today']; ?></div>
-                            <div class="stat-label">Today's Shifts</div>
-                        </div>
-                        <div class="stat-card" data-type="with_duty" onclick="filterByDuty()">
-                            <div class="stat-header">
-                                <div class="stat-icon-container">
-                                    <i class='bx bxs-briefcase'></i>
+                                    <i class='bx bxs-file'></i>
                                 </div>
                                 <div class="stat-trend">
                                     <i class='bx bx-up-arrow-alt'></i>
                                     +15%
                                 </div>
                             </div>
-                            <div class="stat-value"><?php echo $stats['with_duty']; ?></div>
-                            <div class="stat-label">With Duty Assignment</div>
+                            <div class="stat-value"><?php echo $stats['total']; ?></div>
+                            <div class="stat-label">Total Reports</div>
                         </div>
-                        <div class="stat-card" data-type="pending_confirmation" onclick="showPendingConfirmations()">
+                        <div class="stat-card" data-type="pending_review" onclick="filterByStatus('pending_review')">
                             <div class="stat-header">
                                 <div class="stat-icon-container">
                                     <i class='bx bxs-time-five'></i>
                                 </div>
                                 <div class="stat-trend">
                                     <i class='bx bx-up-arrow-alt'></i>
-                                    +2%
+                                    +8%
                                 </div>
                             </div>
-                            <div class="stat-value"><?php echo $stats['pending_confirmation']; ?></div>
-                            <div class="stat-label">Pending Confirmation</div>
+                            <div class="stat-value"><?php echo $stats['pending_review']; ?></div>
+                            <div class="stat-label">Pending Review</div>
                         </div>
-                        <div class="stat-card" data-type="checked_in" onclick="showCheckedIn()">
+                        <div class="stat-card" data-type="approved" onclick="filterByStatus('approved')">
                             <div class="stat-header">
                                 <div class="stat-icon-container">
-                                    <i class='bx bxs-log-in'></i>
+                                    <i class='bx bxs-check-circle'></i>
+                                </div>
+                                <div class="stat-trend">
+                                    <i class='bx bx-up-arrow-alt'></i>
+                                    +12%
+                                </div>
+                            </div>
+                            <div class="stat-value"><?php echo $stats['approved']; ?></div>
+                            <div class="stat-label">Approved</div>
+                        </div>
+                        <div class="stat-card" data-type="rejected" onclick="filterByStatus('rejected')">
+                            <div class="stat-header">
+                                <div class="stat-icon-container">
+                                    <i class='bx bxs-x-circle'></i>
+                                </div>
+                                <div class="stat-trend">
+                                    <i class='bx bx-down-arrow-alt'></i>
+                                    -3%
+                                </div>
+                            </div>
+                            <div class="stat-value"><?php echo $stats['rejected']; ?></div>
+                            <div class="stat-label">Rejected</div>
+                        </div>
+                        <div class="stat-card" data-type="critical_risk" onclick="filterByRisk('critical')">
+                            <div class="stat-header">
+                                <div class="stat-icon-container">
+                                    <i class='bx bxs-alarm-exclamation'></i>
+                                </div>
+                                <div class="stat-trend">
+                                    <i class='bx bx-up-arrow-alt'></i>
+                                    +5%
+                                </div>
+                            </div>
+                            <div class="stat-value"><?php echo $stats['critical_risk']; ?></div>
+                            <div class="stat-label">Critical Risk</div>
+                        </div>
+                        <div class="stat-card" data-type="high_risk" onclick="filterByRisk('high')">
+                            <div class="stat-header">
+                                <div class="stat-icon-container">
+                                    <i class='bx bxs-error-circle'></i>
                                 </div>
                                 <div class="stat-trend">
                                     <i class='bx bx-up-arrow-alt'></i>
                                     +7%
                                 </div>
                             </div>
-                            <div class="stat-value"><?php echo $stats['checked_in']; ?></div>
-                            <div class="stat-label">Checked In</div>
+                            <div class="stat-value"><?php echo $stats['high_risk']; ?></div>
+                            <div class="stat-label">High Risk</div>
+                        </div>
+                        <div class="stat-card" data-type="extreme_hazard" onclick="filterByHazard('extreme')">
+                            <div class="stat-header">
+                                <div class="stat-icon-container">
+                                    <i class='bx bxs-flame'></i>
+                                </div>
+                                <div class="stat-trend">
+                                    <i class='bx bx-up-arrow-alt'></i>
+                                    +4%
+                                </div>
+                            </div>
+                            <div class="stat-value"><?php echo $stats['extreme_hazard']; ?></div>
+                            <div class="stat-label">Extreme Hazard</div>
+                        </div>
+                        <div class="stat-card" data-type="completed" onclick="filterByStatus('completed')">
+                            <div class="stat-header">
+                                <div class="stat-icon-container">
+                                    <i class='bx bxs-check-double'></i>
+                                </div>
+                                <div class="stat-trend">
+                                    <i class='bx bx-up-arrow-alt'></i>
+                                    +10%
+                                </div>
+                            </div>
+                            <div class="stat-value"><?php echo $stats['completed']; ?></div>
+                            <div class="stat-label">Completed</div>
                         </div>
                     </div>
                     
@@ -2009,36 +2036,39 @@ function hexToRgb($hex) {
                     <div class="filter-tabs-container">
                         <div class="filter-header">
                             <h3 class="filter-title">
-                                <i class='bx bxs-calendar'></i>
-                                Shift Overview - Admin View
+                                <i class='bx bxs-check-shield'></i>
+                                Inspection Reports - Approval Queue
                             </h3>
                         </div>
                         
                         <div class="filter-tabs">
-                            <a href="?status=all&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'all' ? 'active' : ''; ?>">
+                            <a href="?status=all&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&establishment_type=<?php echo $filter_establishment_type; ?>" class="filter-tab <?php echo $filter_status === 'all' ? 'active' : ''; ?>">
                                 <i class='bx bxs-dashboard'></i>
-                                All Shifts
+                                All Reports
                                 <span class="filter-tab-count"><?php echo $stats['total']; ?></span>
                             </a>
-                            <a href="?status=scheduled&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'scheduled' ? 'active' : ''; ?>">
-                                <i class='bx bxs-time'></i>
-                                Scheduled
+                            <a href="?status=pending_review&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&establishment_type=<?php echo $filter_establishment_type; ?>" class="filter-tab <?php echo $filter_status === 'pending_review' ? 'active' : ''; ?>">
+                                <i class='bx bxs-time-five'></i>
+                                Pending Review
+                                <span class="filter-tab-count"><?php echo $stats['pending_review']; ?></span>
                             </a>
-                            <a href="?status=confirmed&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'confirmed' ? 'active' : ''; ?>">
+                            <a href="?status=submitted&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&establishment_type=<?php echo $filter_establishment_type; ?>" class="filter-tab <?php echo $filter_status === 'submitted' ? 'active' : ''; ?>">
+                                <i class='bx bxs-send'></i>
+                                Submitted
+                                <span class="filter-tab-count"><?php echo $stats['submitted']; ?></span>
+                            </a>
+                            <a href="?status=under_review&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&establishment_type=<?php echo $filter_establishment_type; ?>" class="filter-tab <?php echo $filter_status === 'under_review' ? 'active' : ''; ?>">
+                                <i class='bx bxs-edit'></i>
+                                Under Review
+                                <span class="filter-tab-count"><?php echo $stats['under_review']; ?></span>
+                            </a>
+                            <a href="?status=approved&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&establishment_type=<?php echo $filter_establishment_type; ?>" class="filter-tab <?php echo $filter_status === 'approved' ? 'active' : ''; ?>">
                                 <i class='bx bxs-check-circle'></i>
-                                Confirmed
+                                Approved
                             </a>
-                            <a href="?status=completed&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'completed' ? 'active' : ''; ?>">
-                                <i class='bx bxs-check-double'></i>
-                                Completed
-                            </a>
-                            <a href="?status=cancelled&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'cancelled' ? 'active' : ''; ?>">
+                            <a href="?status=rejected&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&establishment_type=<?php echo $filter_establishment_type; ?>" class="filter-tab <?php echo $filter_status === 'rejected' ? 'active' : ''; ?>">
                                 <i class='bx bxs-x-circle'></i>
-                                Cancelled
-                            </a>
-                            <a href="?status=absent&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'absent' ? 'active' : ''; ?>">
-                                <i class='bx bxs-user-x'></i>
-                                Absent
+                                Rejected
                             </a>
                         </div>
                     </div>
@@ -2056,7 +2086,7 @@ function hexToRgb($hex) {
                                     <div class="filter-group">
                                         <label class="filter-label">
                                             <i class='bx bx-calendar'></i>
-                                            Date Range
+                                            Inspection Date
                                         </label>
                                         <select class="filter-select" name="date">
                                             <?php foreach ($date_options as $value => $label): ?>
@@ -2069,14 +2099,14 @@ function hexToRgb($hex) {
                                     
                                     <div class="filter-group">
                                         <label class="filter-label">
-                                            <i class='bx bxs-briefcase'></i>
-                                            Duty Type
+                                            <i class='bx bxs-building'></i>
+                                            Barangay
                                         </label>
-                                        <select class="filter-select" name="duty_type">
-                                            <option value="">All Duty Types</option>
-                                            <?php foreach ($duty_types as $duty_type): ?>
-                                                <option value="<?php echo htmlspecialchars($duty_type); ?>" <?php echo $filter_duty_type === $duty_type ? 'selected' : ''; ?>>
-                                                    <?php echo ucfirst(str_replace('_', ' ', $duty_type)); ?>
+                                        <select class="filter-select" name="barangay">
+                                            <option value="">All Barangays</option>
+                                            <?php foreach ($barangays as $barangay): ?>
+                                                <option value="<?php echo htmlspecialchars($barangay); ?>" <?php echo $filter_barangay === $barangay ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($barangay); ?>
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
@@ -2084,14 +2114,14 @@ function hexToRgb($hex) {
                                     
                                     <div class="filter-group">
                                         <label class="filter-label">
-                                            <i class='bx bxs-building'></i>
-                                            Unit
+                                            <i class='bx bxs-business'></i>
+                                            Establishment Type
                                         </label>
-                                        <select class="filter-select" name="unit">
-                                            <option value="">All Units</option>
-                                            <?php foreach ($units as $unit): ?>
-                                                <option value="<?php echo $unit['id']; ?>" <?php echo $filter_unit == $unit['id'] ? 'selected' : ''; ?>>
-                                                    <?php echo htmlspecialchars($unit['unit_name'] . ' (' . $unit['unit_code'] . ')'); ?>
+                                        <select class="filter-select" name="establishment_type">
+                                            <option value="">All Types</option>
+                                            <?php foreach ($establishment_types as $type): ?>
+                                                <option value="<?php echo htmlspecialchars($type); ?>" <?php echo $filter_establishment_type === $type ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($type); ?>
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
@@ -2104,12 +2134,12 @@ function hexToRgb($hex) {
                                             <i class='bx bx-search'></i>
                                             Search
                                         </label>
-                                        <input type="text" class="filter-input" name="search" placeholder="Search by name, email, unit, location..." value="<?php echo htmlspecialchars($search_query); ?>">
+                                        <input type="text" class="filter-input" name="search" placeholder="Search by report number, establishment name, owner..." value="<?php echo htmlspecialchars($search_query); ?>">
                                     </div>
                                 </div>
                                 
                                 <div class="filter-actions">
-                                    <a href="view_shifts.php" class="filter-button clear-filters">
+                                    <a href="approve_reports.php" class="filter-button clear-filters">
                                         <i class='bx bx-x'></i>
                                         Clear All Filters
                                     </a>
@@ -2125,98 +2155,136 @@ function hexToRgb($hex) {
                         </div>
                     </div>
                     
-                    <!-- Shifts Table -->
-                    <div class="shifts-table-container">
+                    <!-- Reports Table -->
+                    <div class="reports-table-container">
                         <div class="table-header">
-                            <div>ID</div>
-                            <div>Date & Time</div>
-                            <div>Assigned To</div>
-                            <div>Unit</div>
-                            <div>Shift Type</div>
+                            <div>Report #</div>
+                            <div>Establishment</div>
+                            <div>Inspection Date</div>
+                            <div>Compliance</div>
+                            <div>Risk Level</div>
+                            <div>Violations</div>
                             <div>Status</div>
-                            <div>Confirmation</div>
                             <div>Actions</div>
                         </div>
-                        <div class="shifts-table-container" style="max-height: 500px;">
-                            <?php if (count($shifts) > 0): ?>
-                                <?php foreach ($shifts as $index => $shift): ?>
+                        <div class="reports-table-container" style="max-height: 500px;">
+                            <?php if (count($reports) > 0): ?>
+                                <?php foreach ($reports as $index => $report): ?>
                                     <?php 
-                                    $shiftDate = new DateTime($shift['shift_date']);
-                                    $shiftTypeClass = 'shift-type-' . strtolower($shift['shift_type']);
-                                    $statusClass = 'status-' . strtolower($shift['status']);
+                                    $inspectionDate = new DateTime($report['inspection_date']);
+                                    $complianceScore = $report['overall_compliance_score'];
+                                    
+                                    // Determine compliance score class
+                                    if ($complianceScore >= 80) {
+                                        $scoreClass = 'compliance-score-high';
+                                        $circleClass = 'compliance-circle-high';
+                                    } elseif ($complianceScore >= 60) {
+                                        $scoreClass = 'compliance-score-medium';
+                                        $circleClass = 'compliance-circle-medium';
+                                    } elseif ($complianceScore >= 40) {
+                                        $scoreClass = 'compliance-score-low';
+                                        $circleClass = 'compliance-circle-low';
+                                    } else {
+                                        $scoreClass = 'compliance-score-critical';
+                                        $circleClass = 'compliance-circle-critical';
+                                    }
                                     ?>
                                     <div class="table-row" style="animation-delay: <?php echo $index * 0.05; ?>s;">
-                                        <div class="table-cell" data-label="ID">
-                                            <div class="shift-id">#<?php echo $shift['id']; ?></div>
+                                        <div class="table-cell" data-label="Report #">
+                                            <div class="report-number"><?php echo $report['report_number']; ?></div>
                                         </div>
-                                        <div class="table-cell" data-label="Date & Time">
-                                            <div class="shift-date"><?php echo $shiftDate->format('M j, Y'); ?></div>
-                                            <div class="shift-time">
-                                                <?php echo formatTime($shift['start_time']); ?> - <?php echo formatTime($shift['end_time']); ?>
+                                        <div class="table-cell" data-label="Establishment">
+                                            <div class="establishment-name"><?php echo htmlspecialchars($report['establishment_name']); ?></div>
+                                            <div class="establishment-info">
+                                                <?php echo htmlspecialchars($report['establishment_type']); ?> • <?php echo htmlspecialchars($report['barangay']); ?>
+                                            </div>
+                                            <div class="establishment-info" style="font-size: 11px;">
+                                                Owner: <?php echo htmlspecialchars($report['owner_name']); ?>
                                             </div>
                                         </div>
-                                        <div class="table-cell" data-label="Assigned To">
-                                            <div class="unit-info">
-                                                <div class="unit-name"><?php echo htmlspecialchars($shift['assigned_to_name']); ?></div>
-                                                <?php if ($shift['assigned_to_email']): ?>
-                                                    <div class="unit-code"><?php echo htmlspecialchars($shift['assigned_to_email']); ?></div>
+                                        <div class="table-cell" data-label="Inspection Date">
+                                            <div style="font-weight: 600;"><?php echo formatDate($report['inspection_date']); ?></div>
+                                            <div style="font-size: 12px; color: var(--text-light);">
+                                                Inspector: <?php echo htmlspecialchars($report['inspector_name']); ?>
+                                            </div>
+                                        </div>
+                                        <div class="table-cell" data-label="Compliance">
+                                            <div class="compliance-circle <?php echo $circleClass; ?>">
+                                                <?php echo $complianceScore; ?>%
+                                            </div>
+                                        </div>
+                                        <div class="table-cell" data-label="Risk Level">
+                                            <div>
+                                                <?php echo getRiskBadge($report['risk_assessment']); ?>
+                                            </div>
+                                            <div style="margin-top: 4px;">
+                                                <?php echo getHazardBadge($report['fire_hazard_level']); ?>
+                                            </div>
+                                        </div>
+                                        <div class="table-cell" data-label="Violations">
+                                            <div class="violation-indicators">
+                                                <?php if ($report['critical_violations'] > 0): ?>
+                                                    <span class="violation-badge critical-violation">
+                                                        <i class='bx bxs-error'></i>
+                                                        <?php echo $report['critical_violations']; ?> Critical
+                                                    </span>
                                                 <?php endif; ?>
-                                                <div class="unit-code" style="font-size: 10px; color: var(--text-light);">
-                                                    <?php echo ucfirst($shift['shift_for']); ?>
-                                                    <?php if ($shift['user_id']): ?> (User ID: <?php echo $shift['user_id']; ?>)<?php endif; ?>
-                                                    <?php if ($shift['volunteer_id']): ?> (Volunteer ID: <?php echo $shift['volunteer_id']; ?>)<?php endif; ?>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="table-cell" data-label="Unit">
-                                            <?php if ($shift['unit_name']): ?>
-                                                <div class="unit-info">
-                                                    <div class="unit-name"><?php echo htmlspecialchars($shift['unit_name']); ?></div>
-                                                    <div class="unit-code"><?php echo htmlspecialchars($shift['unit_code']); ?></div>
-                                                </div>
-                                            <?php else: ?>
-                                                <div>Not assigned</div>
-                                            <?php endif; ?>
-                                        </div>
-                                        <div class="table-cell" data-label="Shift Type">
-                                            <div class="shift-type-badge <?php echo $shiftTypeClass; ?>">
-                                                <i class='bx <?php echo $shift_type_icons[strtolower($shift['shift_type'])]; ?>'></i>
-                                                <?php echo ucfirst(str_replace('_', ' ', $shift['shift_type'])); ?>
+                                                <?php if ($report['major_violations'] > 0): ?>
+                                                    <span class="violation-badge major-violation">
+                                                        <i class='bx bxs-error-circle'></i>
+                                                        <?php echo $report['major_violations']; ?> Major
+                                                    </span>
+                                                <?php endif; ?>
+                                                <?php if ($report['minor_violations'] > 0): ?>
+                                                    <span class="violation-badge minor-violation">
+                                                        <i class='bx bxs-error-alt'></i>
+                                                        <?php echo $report['minor_violations']; ?> Minor
+                                                    </span>
+                                                <?php endif; ?>
+                                                <?php if ($report['pending_violations'] > 0): ?>
+                                                    <span class="violation-badge pending-violation">
+                                                        <i class='bx bxs-time'></i>
+                                                        <?php echo $report['pending_violations']; ?> Pending
+                                                    </span>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                         <div class="table-cell" data-label="Status">
-                                            <div class="status-badge <?php echo $statusClass; ?>">
-                                                <?php echo ucfirst($shift['status']); ?>
-                                            </div>
-                                        </div>
-                                        <div class="table-cell" data-label="Confirmation">
-                                            <?php if ($shift['confirmation_status']): ?>
-                                                <?php echo getConfirmationBadge($shift['confirmation_status']); ?>
-                                            <?php else: ?>
-                                                <span style="color: var(--text-light); font-size: 12px;">N/A</span>
+                                            <?php echo getStatusBadge($report['status']); ?>
+                                            <?php if ($report['reviewer_name']): ?>
+                                                <div style="font-size: 11px; color: var(--text-light); margin-top: 4px;">
+                                                    Reviewed by: <?php echo htmlspecialchars($report['reviewer_name']); ?>
+                                                </div>
                                             <?php endif; ?>
                                         </div>
                                         <div class="table-cell" data-label="Actions">
                                             <div class="action-buttons">
-                                                <button class="action-button view-button" onclick="viewShiftDetails(<?php echo $shift['id']; ?>)">
+                                                <button class="action-button view-button" onclick="viewReportDetails(<?php echo $report['id']; ?>)">
                                                     <i class='bx bxs-info-circle'></i>
                                                     View
                                                 </button>
                                                 
-                                                <button class="action-button edit-button" onclick="editShift(<?php echo $shift['id']; ?>)">
-                                                    <i class='bx bxs-edit'></i>
-                                                    Edit
-                                                </button>
+                                                <?php if (in_array($report['status'], ['submitted', 'under_review', 'revision_requested'])): ?>
+                                                    <button class="action-button review-button" onclick="reviewReport(<?php echo $report['id']; ?>)">
+                                                        <i class='bx bxs-edit'></i>
+                                                        Review
+                                                    </button>
+                                                    
+                                                    <button class="action-button approve-button" onclick="quickApprove(<?php echo $report['id']; ?>)">
+                                                        <i class='bx bxs-check-circle'></i>
+                                                        Approve
+                                                    </button>
+                                                    
+                                                    <button class="action-button reject-button" onclick="quickReject(<?php echo $report['id']; ?>)">
+                                                        <i class='bx bxs-x-circle'></i>
+                                                        Reject
+                                                    </button>
+                                                <?php endif; ?>
                                                 
-                                                <button class="action-button attendance-button" onclick="updateAttendance(<?php echo $shift['id']; ?>)">
-                                                    <i class='bx bxs-log-in'></i>
-                                                    Attendance
-                                                </button>
-                                                
-                                                <?php if ($shift['status'] !== 'cancelled'): ?>
-                                                    <button class="action-button delete-button" onclick="cancelShift(<?php echo $shift['id']; ?>)">
-                                                        <i class='bx bxs-trash'></i>
-                                                        Cancel
+                                                <?php if ($report['status'] === 'approved' && !$report['certificate_number']): ?>
+                                                    <button class="action-button certificate-button" onclick="issueCertificate(<?php echo $report['id']; ?>, <?php echo isset($report['establishment_id']) ? $report['establishment_id'] : 'null'; ?>)">
+                                                        <i class='bx bxs-certificate'></i>
+                                                        Certificate
                                                     </button>
                                                 <?php endif; ?>
                                             </div>
@@ -2224,14 +2292,14 @@ function hexToRgb($hex) {
                                     </div>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <div class="no-shifts">
-                                    <div class="no-shifts-icon">
-                                        <i class='bx bxs-calendar-x'></i>
+                                <div class="no-reports">
+                                    <div class="no-reports-icon">
+                                        <i class='bx bxs-file-blank'></i>
                                     </div>
-                                    <h3>No Shifts Found</h3>
-                                    <p>No shifts match your current filters.</p>
-                                    <?php if ($filter_status !== 'all' || $filter_date !== '' || $search_query !== '' || $filter_duty_type !== '' || $filter_unit !== ''): ?>
-                                        <a href="view_shifts.php" class="filter-button" style="margin-top: 16px;">
+                                    <h3>No Inspection Reports Found</h3>
+                                    <p>No reports match your current filters.</p>
+                                    <?php if ($filter_status !== 'all' || $filter_date !== '' || $search_query !== '' || $filter_barangay !== '' || $filter_establishment_type !== ''): ?>
+                                        <a href="approve_reports.php" class="filter-button" style="margin-top: 16px;">
                                             <i class='bx bx-x'></i>
                                             Clear Filters
                                         </a>
@@ -2260,11 +2328,16 @@ function hexToRgb($hex) {
             // Add data labels for mobile view
             addDataLabels();
             
-            // Initialize tooltips
-            initTooltips();
-            
             // Add animation to stat cards
             animateStatCards();
+            
+            // Set default valid until date to one year from now
+            const validUntilInput = document.getElementById('valid_until');
+            if (validUntilInput) {
+                const oneYearFromNow = new Date();
+                oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+                validUntilInput.value = oneYearFromNow.toISOString().split('T')[0];
+            }
         });
         
         function initEventListeners() {
@@ -2310,46 +2383,46 @@ function hexToRgb($hex) {
                 }
             });
             
-            // Edit modal functionality
-            const editModal = document.getElementById('edit-modal');
-            const editModalClose = document.getElementById('edit-modal-close');
-            const cancelEdit = document.getElementById('cancel-edit');
+            // Review modal functionality
+            const reviewModal = document.getElementById('review-modal');
+            const reviewModalClose = document.getElementById('review-modal-close');
+            const cancelReview = document.getElementById('cancel-review');
             
-            editModalClose.addEventListener('click', closeEditModal);
-            cancelEdit.addEventListener('click', closeEditModal);
+            reviewModalClose.addEventListener('click', closeReviewModal);
+            cancelReview.addEventListener('click', closeReviewModal);
             
-            editModal.addEventListener('click', function(e) {
+            reviewModal.addEventListener('click', function(e) {
                 if (e.target === this) {
-                    closeEditModal();
+                    closeReviewModal();
                 }
             });
             
-            // Attendance modal functionality
-            const attendanceModal = document.getElementById('attendance-modal');
-            const attendanceModalClose = document.getElementById('attendance-modal-close');
-            const cancelAttendance = document.getElementById('cancel-attendance');
+            // Certificate modal functionality
+            const certificateModal = document.getElementById('certificate-modal');
+            const certificateModalClose = document.getElementById('certificate-modal-close');
+            const cancelCertificate = document.getElementById('cancel-certificate');
             
-            attendanceModalClose.addEventListener('click', closeAttendanceModal);
-            cancelAttendance.addEventListener('click', closeAttendanceModal);
+            certificateModalClose.addEventListener('click', closeCertificateModal);
+            cancelCertificate.addEventListener('click', closeCertificateModal);
             
-            attendanceModal.addEventListener('click', function(e) {
+            certificateModal.addEventListener('click', function(e) {
                 if (e.target === this) {
-                    closeAttendanceModal();
+                    closeCertificateModal();
                 }
             });
             
-            // Edit shift form submission
-            const editForm = document.getElementById('edit-shift-form');
-            editForm.addEventListener('submit', function(e) {
+            // Review report form submission
+            const reviewForm = document.getElementById('review-report-form');
+            reviewForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                submitEditShift();
+                submitReview();
             });
             
-            // Update attendance form submission
-            const attendanceForm = document.getElementById('update-attendance-form');
-            attendanceForm.addEventListener('submit', function(e) {
+            // Issue certificate form submission
+            const certificateForm = document.getElementById('issue-certificate-form');
+            certificateForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                submitAttendanceUpdate();
+                issueCertificateSubmit();
             });
             
             // Filter form submission
@@ -2400,24 +2473,6 @@ function hexToRgb($hex) {
             });
         }
         
-        function initTooltips() {
-            // Add tooltips to duty type badges
-            document.querySelectorAll('.duty-type-badge').forEach(badge => {
-                const title = badge.querySelector('.duty-type-title')?.textContent || '';
-                const description = badge.querySelector('.duty-description')?.textContent || '';
-                
-                if (description) {
-                    badge.title = `${title}: ${description}`;
-                }
-            });
-            
-            // Add tooltips to action buttons
-            document.querySelectorAll('.action-button').forEach(button => {
-                const text = button.textContent.trim();
-                button.title = text;
-            });
-        }
-        
         function animateStatCards() {
             document.querySelectorAll('.stat-card').forEach((card, index) => {
                 card.style.animationDelay = `${index * 0.1}s`;
@@ -2451,7 +2506,7 @@ function hexToRgb($hex) {
             }
         }
         
-        function viewShiftDetails(shiftId) {
+        function viewReportDetails(reportId) {
             const detailsModal = document.getElementById('details-modal');
             const detailsContent = document.getElementById('details-content');
             
@@ -2459,7 +2514,7 @@ function hexToRgb($hex) {
             detailsContent.innerHTML = `
                 <div style="text-align: center; padding: 40px;">
                     <div style="width: 60px; height: 60px; margin: 0 auto 20px; border: 4px solid rgba(220, 38, 38, 0.1); border-top-color: var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                    <p style="color: var(--text-light);">Loading shift details...</p>
+                    <p style="color: var(--text-light);">Loading report details...</p>
                 </div>
                 <style>
                     @keyframes spin {
@@ -2469,31 +2524,18 @@ function hexToRgb($hex) {
                 </style>
             `;
             
-            // Fetch shift details via AJAX
-            fetch(`get_shift_details.php?id=${shiftId}&admin=true`)
-                .then(response => {
-                    // First check if response is JSON
-                    const contentType = response.headers.get("content-type");
-                    if (contentType && contentType.includes("application/json")) {
-                        return response.json();
-                    } else {
-                        // If not JSON, get text and try to parse
-                        return response.text().then(text => {
-                            console.error("Non-JSON response:", text.substring(0, 200));
-                            throw new Error("Server returned non-JSON response");
-                        });
-                    }
-                })
+            // Fetch report details via AJAX
+            fetch(`get_report_details.php?id=${reportId}`)
+                .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        const shift = data.shift;
-                        renderShiftDetails(shift);
+                        renderReportDetails(data.report);
                     } else {
                         detailsContent.innerHTML = `
                             <div style="text-align: center; padding: 40px; color: var(--danger);">
                                 <i class="bx bx-error" style="font-size: 48px; margin-bottom: 16px;"></i>
                                 <h3 style="margin-bottom: 8px;">Error</h3>
-                                <p>${data.message || 'Failed to load shift details'}</p>
+                                <p>${data.message || 'Failed to load report details'}</p>
                             </div>
                         `;
                     }
@@ -2504,8 +2546,7 @@ function hexToRgb($hex) {
                         <div style="text-align: center; padding: 40px; color: var(--danger);">
                             <i class="bx bx-error" style="font-size: 48px; margin-bottom: 16px;"></i>
                             <h3 style="margin-bottom: 8px;">Network Error</h3>
-                            <p>Failed to load shift details. Please check your connection and try again.</p>
-                            <p style="font-size: 12px; margin-top: 10px;">Error: ${error.message}</p>
+                            <p>Failed to load report details. Please check your connection and try again.</p>
                         </div>
                     `;
                 });
@@ -2514,440 +2555,317 @@ function hexToRgb($hex) {
             detailsModal.classList.add('active');
         }
         
-        function renderShiftDetails(shift) {
+        function renderReportDetails(report) {
             const detailsContent = document.getElementById('details-content');
             
-            // Get shift type icon
-            const shiftTypeIcons = {
-                'morning': 'bx-sun',
-                'afternoon': 'bx-cloud',
-                'evening': 'bx-moon',
-                'night': 'bx-bed',
-                'full_day': 'bx-calendar'
-            };
+            // Determine compliance score class
+            let complianceClass = 'compliance-score-high';
+            let complianceCircleClass = 'compliance-circle-high';
+            if (report.overall_compliance_score < 80) complianceClass = 'compliance-score-medium';
+            if (report.overall_compliance_score < 60) complianceClass = 'compliance-score-low';
+            if (report.overall_compliance_score < 40) complianceClass = 'compliance-score-critical';
             
-            // Format times
-            function formatTime(timeString) {
-                if (!timeString) return 'N/A';
-                const time = new Date('1970-01-01T' + timeString);
-                return time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-            }
-            
-            // Calculate duration
-            function calculateDuration(startTime, endTime) {
-                const start = new Date('1970-01-01T' + startTime);
-                const end = new Date('1970-01-01T' + endTime);
-                const diffMs = end - start;
-                const hours = Math.floor(diffMs / (1000 * 60 * 60));
-                const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                return `${hours}h ${minutes}m`;
-            }
-            
-            // Get confirmation badge HTML
-            function getConfirmationBadgeHTML(status) {
-                const statusColors = {
-                    'pending': { bg: '#fef3c7', color: '#f59e0b' },
-                    'confirmed': { bg: '#d1fae5', color: '#10b981' },
-                    'declined': { bg: '#fee2e2', color: '#dc2626' },
-                    'change_requested': { bg: '#f3e8ff', color: '#8b5cf6' }
-                };
-                
-                const config = statusColors[status?.toLowerCase()] || { bg: '#f3f4f6', color: '#6b7280' };
-                const text = status ? status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ') : 'N/A';
-                
-                return `<span style="padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${config.bg}; color: ${config.color}; border: 1px solid ${config.color}20;">${text}</span>`;
-            }
-            
-            // Get attendance badge HTML
-            function getAttendanceBadgeHTML(status) {
-                const statusColors = {
-                    'pending': { bg: '#fef3c7', color: '#f59e0b' },
-                    'checked_in': { bg: '#dbeafe', color: '#3b82f6' },
-                    'checked_out': { bg: '#d1fae5', color: '#10b981' },
-                    'absent': { bg: '#fee2e2', color: '#dc2626' },
-                    'excused': { bg: '#f3e8ff', color: '#8b5cf6' }
-                };
-                
-                const config = statusColors[status?.toLowerCase()] || { bg: '#f3f4f6', color: '#6b7280' };
-                const text = status ? status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ') : 'N/A';
-                
-                return `<span style="padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${config.bg}; color: ${config.color}; border: 1px solid ${config.color}20;">${text}</span>`;
+            // Generate violation summary HTML
+            let violationsHtml = '';
+            if (report.violations_summary) {
+                violationsHtml = `
+                    <div style="background: linear-gradient(135deg, rgba(220, 38, 38, 0.05), rgba(220, 38, 38, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--danger);">
+                        <h4 style="margin: 0 0 16px 0; color: var(--danger); display: flex; align-items: center; gap: 8px;">
+                            <i class='bx bxs-error-circle'></i>
+                            Violations Summary
+                        </h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
+                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: 800; color: #7c2d12;">${report.violations_summary.critical || 0}</div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Critical</div>
+                            </div>
+                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: 800; color: var(--danger);">${report.violations_summary.major || 0}</div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Major</div>
+                            </div>
+                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: 800; color: var(--warning);">${report.violations_summary.minor || 0}</div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Minor</div>
+                            </div>
+                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: 800; color: var(--info);">${report.violations_summary.pending || 0}</div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Pending</div>
+                            </div>
+                        </div>
+                    </div>`;
             }
             
             let detailsHtml = `
-                <div class="shift-details">
+                <div class="report-details">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
                         <div>
-                            <h3 style="margin: 0; color: var(--primary-color);">Shift #${shift.id}</h3>
-                            <p style="margin: 4px 0 0; color: var(--text-light);">${new Date(shift.shift_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            <h3 style="margin: 0; color: var(--primary-color);">${report.report_number}</h3>
+                            <p style="margin: 4px 0 0; color: var(--text-light);">Inspection Date: ${new Date(report.inspection_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                         </div>
                         <div style="display: flex; gap: 8px;">
-                            <span class="status-badge status-${shift.status?.toLowerCase() || 'scheduled'}">
-                                ${shift.status?.toUpperCase() || 'SCHEDULED'}
-                            </span>
-                            <span class="shift-type-badge shift-type-${shift.shift_type?.toLowerCase() || 'full_day'}">
-                                <i class='bx ${shiftTypeIcons[shift.shift_type?.toLowerCase()] || 'bx-calendar'}'></i>
-                                ${(shift.shift_type || 'FULL_DAY').replace('_', ' ').toUpperCase()}
-                            </span>
+                            ${getStatusBadge(report.status)}
+                            ${getRiskBadge(report.risk_assessment)}
                         </div>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 24px;">
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Start Time</div>
-                            <div style="font-size: 16px; font-weight: 600;">${formatTime(shift.start_time)}</div>
-                        </div>
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">End Time</div>
-                            <div style="font-size: 16px; font-weight: 600;">${formatTime(shift.end_time)}</div>
+                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; text-align: center;">
+                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Compliance Score</div>
+                            <div class="compliance-circle ${complianceCircleClass}" style="margin: 0 auto;">
+                                ${report.overall_compliance_score}%
+                            </div>
                         </div>
                         <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Duration</div>
-                            <div style="font-size: 16px; font-weight: 600;">${calculateDuration(shift.start_time, shift.end_time)}</div>
+                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Fire Hazard Level</div>
+                            <div style="font-size: 16px; font-weight: 600;">${getHazardBadge(report.fire_hazard_level)}</div>
                         </div>
-                    </div>`;
-            
-            // Assigned to information
-            if (shift.assigned_to_name) {
-                detailsHtml += `
-                    <div style="background: rgba(59, 130, 246, 0.05); border-radius: 12px; padding: 16px; margin-bottom: 20px; border-left: 4px solid var(--info);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <div>
-                                <div style="font-size: 12px; color: var(--text-light);">Assigned To</div>
-                                <div style="font-size: 18px; font-weight: 600; color: var(--info);">${shift.assigned_to_name}</div>
-                            </div>
-                            <div style="background: var(--info); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">
-                                ${shift.shift_for === 'volunteer' ? 'Volunteer' : 'Employee'}
-                            </div>
+                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
+                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Inspection Type</div>
+                            <div style="font-size: 16px; font-weight: 600;">${report.inspection_type ? report.inspection_type.replace('_', ' ').toUpperCase() : 'ROUTINE'}</div>
                         </div>
-                        ${shift.assigned_to_email ? `<div style="font-size: 14px; color: var(--text-light);">${shift.assigned_to_email}</div>` : ''}
-                    </div>`;
-            }
-            
-            if (shift.unit_name) {
-                detailsHtml += `
-                    <div style="background: rgba(16, 185, 129, 0.05); border-radius: 12px; padding: 16px; margin-bottom: 20px; border-left: 4px solid var(--success);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <div>
-                                <div style="font-size: 12px; color: var(--text-light);">Assigned Unit</div>
-                                <div style="font-size: 18px; font-weight: 600; color: var(--success);">${shift.unit_name}</div>
-                            </div>
-                            <div style="background: var(--success); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">
-                                ${shift.unit_code || ''}
-                            </div>
-                        </div>
-                        <div style="font-size: 14px; color: var(--text-light);">${shift.unit_type || ''} Unit</div>
-                    </div>`;
-            }
-            
-            detailsHtml += `
-                    <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-                        <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Location</div>
-                        <div style="font-size: 16px; font-weight: 600;">${shift.location || 'Main Station'}</div>
-                    </div>`;
-            
-            if (shift.notes) {
-                detailsHtml += `
-                    <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-                        <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Shift Notes</div>
-                        <div style="font-size: 14px; line-height: 1.6;">${shift.notes}</div>
-                    </div>`;
-            }
-            
-            // Confirmation Status
-            detailsHtml += `
-                    <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-                        <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Confirmation Status</div>
-                        <div style="font-size: 16px; font-weight: 600;">
-                            ${getConfirmationBadgeHTML(shift.confirmation_status)}
-                        </div>
-                    </div>`;
-            
-            // Duty Assignment Section
-            if (shift.duty_type) {
-                detailsHtml += `
-                    <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(139, 92, 246, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--purple);">
-                        <h4 style="margin: 0 0 16px 0; color: var(--purple); display: flex; align-items: center; gap: 8px;">
-                            <i class='bx bxs-briefcase'></i>
-                            Duty Assignment Details
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--info);">
+                        <h4 style="margin: 0 0 16px 0; color: var(--info); display: flex; align-items: center; gap: 8px;">
+                            <i class='bx bxs-building'></i>
+                            Establishment Details
                         </h4>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 16px;">
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Duty Type</div>
-                                <div style="font-size: 14px; font-weight: 600;">${shift.duty_type.replace('_', ' ').toUpperCase()}</div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Name</div>
+                                <div style="font-size: 16px; font-weight: 600;">${report.establishment_name}</div>
                             </div>
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Priority</div>
-                                <div>
-                                    <span style="padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: ${shift.priority === 'primary' ? '#dc2626' : shift.priority === 'secondary' ? '#f59e0b' : '#3b82f6'}; color: white;">
-                                        ${(shift.priority || 'support').toUpperCase()}
-                                    </span>
-                                </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Type</div>
+                                <div style="font-size: 16px; font-weight: 600;">${report.establishment_type}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Owner</div>
+                                <div style="font-size: 16px; font-weight: 600;">${report.owner_name}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Barangay</div>
+                                <div style="font-size: 16px; font-weight: 600;">${report.barangay}</div>
                             </div>
                         </div>
-                        
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                            <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Duty Description</div>
-                            <div style="font-size: 14px; line-height: 1.6;">${shift.duty_description || ''}</div>
-                        </div>`;
-                
-                if (shift.required_equipment) {
-                    detailsHtml += `
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                            <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Required Equipment</div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
+                        ${report.address ? `<div style="margin-top: 12px; font-size: 14px; color: var(--text-light);"><i class='bx bxs-map'></i> ${report.address}</div>` : ''}
+                    </div>
                     
-                    const equipmentList = shift.required_equipment.split(',').map(item => item.trim());
-                    equipmentList.forEach(equipment => {
-                        if (equipment) {
-                            detailsHtml += `<span style="padding: 4px 8px; border-radius: 6px; font-size: 11px; background: rgba(59, 130, 246, 0.1); color: var(--info);">${equipment}</span>`;
-                        }
-                    });
+                    ${violationsHtml}
                     
-                    detailsHtml += `</div></div>`;
-                }
-                
-                if (shift.required_training) {
-                    detailsHtml += `
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                            <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Required Training</div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
-                    
-                    const trainingList = shift.required_training.split(',').map(item => item.trim());
-                    trainingList.forEach(training => {
-                        if (training) {
-                            detailsHtml += `<span style="padding: 4px 8px; border-radius: 6px; font-size: 11px; background: rgba(16, 185, 129, 0.1); color: var(--success);">${training}</span>`;
-                        }
-                    });
-                    
-                    detailsHtml += `</div></div>`;
-                }
-                
-                detailsHtml += `</div>`;
-            }
-            
-            // Attendance Information
-            if (shift.check_in_time || shift.attendance_status !== 'pending') {
-                detailsHtml += `
+                    ${report.recommendations ? `
                     <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(16, 185, 129, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--success);">
                         <h4 style="margin: 0 0 16px 0; color: var(--success); display: flex; align-items: center; gap: 8px;">
-                            <i class='bx bxs-log-in'></i>
-                            Attendance Information
+                            <i class='bx bxs-check-circle'></i>
+                            Recommendations
                         </h4>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Attendance Status</div>
-                                <div style="font-size: 14px; font-weight: 600;">
-                                    ${getAttendanceBadgeHTML(shift.attendance_status)}
-                                </div>
-                            </div>`;
-                
-                if (shift.check_in_time) {
-                    detailsHtml += `
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Check-in Time</div>
-                                <div style="font-size: 14px; font-weight: 600;">${new Date(shift.check_in_time).toLocaleString()}</div>
-                            </div>`;
-                }
-                
-                if (shift.check_out_time) {
-                    detailsHtml += `
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Check-out Time</div>
-                                <div style="font-size: 14px; font-weight: 600;">${new Date(shift.check_out_time).toLocaleString()}</div>
-                            </div>`;
-                }
-                
-                if (shift.attendance_notes) {
-                    detailsHtml += `
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; grid-column: 1 / -1;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Attendance Notes</div>
-                                <div style="font-size: 14px; line-height: 1.6;">${shift.attendance_notes}</div>
-                            </div>`;
-                }
-                
-                detailsHtml += `</div></div>`;
-            }
-            
-            // System Information
-            detailsHtml += `
+                        <div style="white-space: pre-line; font-size: 14px; line-height: 1.6;">${report.recommendations}</div>
+                    </div>` : ''}
+                    
+                    ${report.corrective_actions_required ? `
+                    <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--warning);">
+                        <h4 style="margin: 0 0 16px 0; color: var(--warning); display: flex; align-items: center; gap: 8px;">
+                            <i class='bx bxs-error-alt'></i>
+                            Corrective Actions Required
+                        </h4>
+                        <div style="white-space: pre-line; font-size: 14px; line-height: 1.6;">${report.corrective_actions_required}</div>
+                        ${report.compliance_deadline ? `<div style="margin-top: 12px; font-size: 14px; font-weight: 600;"><i class='bx bxs-calendar'></i> Deadline: ${new Date(report.compliance_deadline).toLocaleDateString()}</div>` : ''}
+                    </div>` : ''}
+                    
+                    ${report.admin_review_notes ? `
+                    <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(139, 92, 246, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--purple);">
+                        <h4 style="margin: 0 0 16px 0; color: var(--purple); display: flex; align-items: center; gap: 8px;">
+                            <i class='bx bxs-edit'></i>
+                            Admin Review Notes
+                        </h4>
+                        <div style="white-space: pre-line; font-size: 14px; line-height: 1.6;">${report.admin_review_notes}</div>
+                        ${report.admin_reviewed_by ? `<div style="margin-top: 12px; font-size: 12px; color: var(--text-light);">Reviewed by: ${report.reviewer_name} on ${new Date(report.admin_reviewed_at).toLocaleString()}</div>` : ''}
+                    </div>` : ''}
+                    
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
                         <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Created By</div>
-                            <div style="font-size: 14px; font-weight: 600;">${shift.created_by_name || 'System'}</div>
+                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Inspected By</div>
+                            <div style="font-size: 14px; font-weight: 600;">${report.inspector_name || 'N/A'}</div>
                         </div>
                         <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Created At</div>
-                            <div style="font-size: 14px; font-weight: 600;">${new Date(shift.created_at).toLocaleString()}</div>
+                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Report Created</div>
+                            <div style="font-size: 14px; font-weight: 600;">${new Date(report.created_at).toLocaleString()}</div>
                         </div>
+                        ${report.certificate_number ? `
                         <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Last Updated</div>
-                            <div style="font-size: 14px; font-weight: 600;">${new Date(shift.updated_at).toLocaleString()}</div>
-                        </div>
+                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Certificate</div>
+                            <div style="font-size: 14px; font-weight: 600;">${report.certificate_number}</div>
+                            <div style="font-size: 12px; color: var(--text-light);">Valid until: ${new Date(report.certificate_valid_until).toLocaleDateString()}</div>
+                        </div>` : ''}
                     </div>
                 </div>`;
             
             detailsContent.innerHTML = detailsHtml;
         }
         
-        function editShift(shiftId) {
-            const editModal = document.getElementById('edit-modal');
-            const editShiftId = document.getElementById('edit-shift-id');
+        function reviewReport(reportId) {
+            const reviewModal = document.getElementById('review-modal');
+            const reviewReportId = document.getElementById('review-report-id');
             
-            editShiftId.value = shiftId;
-            
-            // Fetch current shift data
-            fetch(`get_shift_details.php?id=${shiftId}&admin=true`)
-                .then(response => {
-                    const contentType = response.headers.get("content-type");
-                    if (contentType && contentType.includes("application/json")) {
-                        return response.json();
-                    } else {
-                        return response.text().then(text => {
-                            console.error("Non-JSON response:", text.substring(0, 200));
-                            throw new Error("Server returned non-JSON response");
-                        });
-                    }
-                })
-                .then(data => {
-                    if (data.success) {
-                        const shift = data.shift;
-                        document.getElementById('edit_status').value = shift.status || 'scheduled';
-                        document.getElementById('edit_confirmation_status').value = shift.confirmation_status || 'pending';
-                        document.getElementById('edit_notes').value = shift.notes || '';
-                    }
-                })
-                .catch(error => {
-                    showNotification('error', 'Failed to load shift data: ' + error.message);
-                });
+            reviewReportId.value = reportId;
             
             // Open modal
-            editModal.classList.add('active');
+            reviewModal.classList.add('active');
         }
         
-        function updateAttendance(shiftId) {
-            const attendanceModal = document.getElementById('attendance-modal');
-            const attendanceShiftId = document.getElementById('attendance-shift-id');
+        function issueCertificate(reportId, establishmentId) {
+            const certificateModal = document.getElementById('certificate-modal');
+            const certificateReportId = document.getElementById('certificate-report-id');
+            const certificateEstablishmentId = document.getElementById('certificate-establishment-id');
             
-            attendanceShiftId.value = shiftId;
-            
-            // Fetch current attendance data
-            fetch(`get_shift_details.php?id=${shiftId}&admin=true`)
-                .then(response => {
-                    const contentType = response.headers.get("content-type");
-                    if (contentType && contentType.includes("application/json")) {
-                        return response.json();
-                    } else {
-                        return response.text().then(text => {
-                            console.error("Non-JSON response:", text.substring(0, 200));
-                            throw new Error("Server returned non-JSON response");
-                        });
-                    }
-                })
-                .then(data => {
-                    if (data.success) {
-                        const shift = data.shift;
-                        document.getElementById('attendance_status').value = shift.attendance_status || 'pending';
-                        
-                        if (shift.check_in_time) {
-                            const checkIn = new Date(shift.check_in_time);
-                            document.getElementById('attendance_check_in').value = checkIn.toISOString().slice(0, 16);
-                        } else {
-                            document.getElementById('attendance_check_in').value = '';
-                        }
-                        
-                        if (shift.check_out_time) {
-                            const checkOut = new Date(shift.check_out_time);
-                            document.getElementById('attendance_check_out').value = checkOut.toISOString().slice(0, 16);
-                        } else {
-                            document.getElementById('attendance_check_out').value = '';
-                        }
-                        
-                        document.getElementById('attendance_notes').value = shift.attendance_notes || '';
-                    }
-                })
-                .catch(error => {
-                    showNotification('error', 'Failed to load attendance data: ' + error.message);
-                });
+            certificateReportId.value = reportId;
+            certificateEstablishmentId.value = establishmentId;
             
             // Open modal
-            attendanceModal.classList.add('active');
+            certificateModal.classList.add('active');
         }
         
-        function submitEditShift() {
-            const form = document.getElementById('edit-shift-form');
-            const formData = new FormData(form);
-            
-            fetch('update_shift.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('success', data.message || 'Shift updated successfully!');
-                    closeEditModal();
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1500);
-                } else {
-                    showNotification('error', data.message || 'Failed to update shift');
-                }
-            })
-            .catch(error => {
-                showNotification('error', 'Error: ' + error.message);
-            });
-        }
-        
-        function submitAttendanceUpdate() {
-            const form = document.getElementById('update-attendance-form');
-            const formData = new FormData(form);
-            
-            fetch('update_attendance.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('success', data.message || 'Attendance updated successfully!');
-                    closeAttendanceModal();
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1500);
-                } else {
-                    showNotification('error', data.message || 'Failed to update attendance');
-                }
-            })
-            .catch(error => {
-                showNotification('error', 'Error: ' + error.message);
-            });
-        }
-        
-        function cancelShift(shiftId) {
-            if (confirm('Are you sure you want to cancel this shift? This action cannot be undone.')) {
-                fetch('cancel_shift.php', {
+        function quickApprove(reportId) {
+            if (confirm('Are you sure you want to approve this inspection report? This action cannot be undone.')) {
+                fetch('approve_report.php', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ shift_id: shiftId })
+                    body: JSON.stringify({ 
+                        report_id: reportId,
+                        action: 'approve',
+                        review_notes: 'Approved via quick action.'
+                    })
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showNotification('success', data.message || 'Shift cancelled successfully!');
+                        showNotification('success', data.message || 'Report approved successfully!');
                         setTimeout(() => {
                             location.reload();
                         }, 1500);
                     } else {
-                        showNotification('error', data.message || 'Failed to cancel shift');
+                        showNotification('error', data.message || 'Failed to approve report');
                     }
                 })
                 .catch(error => {
                     showNotification('error', 'Error: ' + error.message);
                 });
             }
+        }
+        
+        function quickReject(reportId) {
+            if (confirm('Are you sure you want to reject this inspection report? This action cannot be undone.')) {
+                fetch('approve_report.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        report_id: reportId,
+                        action: 'reject',
+                        review_notes: 'Rejected via quick action.'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('success', data.message || 'Report rejected successfully!');
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        showNotification('error', data.message || 'Failed to reject report');
+                    }
+                })
+                .catch(error => {
+                    showNotification('error', 'Error: ' + error.message);
+                });
+            }
+        }
+        
+        function submitReview() {
+            const form = document.getElementById('review-report-form');
+            const formData = new FormData(form);
+            
+            fetch('approve_report.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('success', data.message || 'Review submitted successfully!');
+                    closeReviewModal();
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showNotification('error', data.message || 'Failed to submit review');
+                }
+            })
+            .catch(error => {
+                showNotification('error', 'Error: ' + error.message);
+            });
+        }
+        
+        function issueCertificateSubmit() {
+            const form = document.getElementById('issue-certificate-form');
+            const formData = new FormData(form);
+            
+            fetch('issue_certificate.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('success', data.message || 'Certificate issued successfully!');
+                    closeCertificateModal();
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showNotification('error', data.message || 'Failed to issue certificate');
+                }
+            })
+            .catch(error => {
+                showNotification('error', 'Error: ' + error.message);
+            });
+        }
+        
+        function generateInspectionSummary() {
+            // Show loading
+            showNotification('info', 'Generating inspection summary report...');
+            
+            fetch('generate_inspection_summary.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    filter_status: '<?php echo $filter_status; ?>',
+                    filter_date: '<?php echo $filter_date; ?>',
+                    filter_barangay: '<?php echo $filter_barangay; ?>',
+                    filter_establishment_type: '<?php echo $filter_establishment_type; ?>'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('success', 'Report generated successfully! Download started.');
+                    // Trigger download
+                    if (data.download_url) {
+                        window.open(data.download_url, '_blank');
+                    }
+                } else {
+                    showNotification('error', data.message || 'Failed to generate report');
+                }
+            })
+            .catch(error => {
+                showNotification('error', 'Error: ' + error.message);
+            });
         }
         
         function showNotification(type, message) {
@@ -2961,7 +2879,7 @@ function hexToRgb($hex) {
             notification.className = `notification notification-${type}`;
             notification.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <i class='bx ${type === 'success' ? 'bx-check-circle' : 'bx-error-circle'}'></i>
+                    <i class='bx ${type === 'success' ? 'bx-check-circle' : type === 'error' ? 'bx-error-circle' : 'bx-info-circle'}'></i>
                     <span>${message}</span>
                 </div>
                 <button onclick="this.parentElement.remove()" style="background: none; border: none; color: inherit; cursor: pointer;">
@@ -2991,10 +2909,14 @@ function hexToRgb($hex) {
                 notification.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(16, 185, 129, 0.8))';
                 notification.style.color = 'white';
                 notification.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-            } else {
+            } else if (type === 'error') {
                 notification.style.background = 'linear-gradient(135deg, rgba(220, 38, 38, 0.9), rgba(220, 38, 38, 0.8))';
                 notification.style.color = 'white';
                 notification.style.border = '1px solid rgba(220, 38, 38, 0.3)';
+            } else {
+                notification.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(59, 130, 246, 0.8))';
+                notification.style.color = 'white';
+                notification.style.border = '1px solid rgba(59, 130, 246, 0.3)';
             }
             
             document.body.appendChild(notification);
@@ -3033,18 +2955,12 @@ function hexToRgb($hex) {
             document.getElementById('details-modal').classList.remove('active');
         }
         
-        function closeEditModal() {
-            document.getElementById('edit-modal').classList.remove('active');
+        function closeReviewModal() {
+            document.getElementById('review-modal').classList.remove('active');
         }
         
-        function closeAttendanceModal() {
-            document.getElementById('attendance-modal').classList.remove('active');
-        }
-        
-        function formatTime(timeString) {
-            if (!timeString) return 'N/A';
-            const time = new Date('1970-01-01T' + timeString);
-            return time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        function closeCertificateModal() {
+            document.getElementById('certificate-modal').classList.remove('active');
         }
         
         function toggleSubmenu(id) {
@@ -3073,26 +2989,32 @@ function hexToRgb($hex) {
                 case 'total':
                     filterByStatus('all');
                     break;
-                case 'upcoming':
-                    filterByStatus('scheduled');
+                case 'pending_review':
+                    filterByStatus('pending_review');
+                    break;
+                case 'submitted':
+                    filterByStatus('submitted');
+                    break;
+                case 'under_review':
+                    filterByStatus('under_review');
+                    break;
+                case 'approved':
+                    filterByStatus('approved');
+                    break;
+                case 'rejected':
+                    filterByStatus('rejected');
+                    break;
+                case 'critical_risk':
+                    filterByRisk('critical');
+                    break;
+                case 'high_risk':
+                    filterByRisk('high');
+                    break;
+                case 'extreme_hazard':
+                    filterByHazard('extreme');
                     break;
                 case 'completed':
                     filterByStatus('completed');
-                    break;
-                case 'cancelled':
-                    filterByStatus('cancelled');
-                    break;
-                case 'today':
-                    filterByDate('today');
-                    break;
-                case 'with_duty':
-                    filterByDuty();
-                    break;
-                case 'pending_confirmation':
-                    showPendingConfirmations();
-                    break;
-                case 'checked_in':
-                    showCheckedIn();
                     break;
             }
         }
@@ -3103,36 +3025,14 @@ function hexToRgb($hex) {
             window.location.href = url.toString();
         }
         
-        function filterByDate(date) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('date', date);
-            window.location.href = url.toString();
+        function filterByRisk(risk) {
+            // This would need backend implementation
+            showNotification('info', 'Risk filtering coming soon...');
         }
         
-        function filterByDuty() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('duty_type', 'logistics_support');
-            window.location.href = url.toString();
-        }
-        
-        function showPendingConfirmations() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('status', 'scheduled');
-            url.searchParams.delete('date');
-            url.searchParams.delete('search');
-            url.searchParams.delete('duty_type');
-            url.searchParams.delete('unit');
-            window.location.href = url.toString();
-        }
-        
-        function showCheckedIn() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('status', 'scheduled');
-            url.searchParams.delete('date');
-            url.searchParams.delete('search');
-            url.searchParams.delete('duty_type');
-            url.searchParams.delete('unit');
-            window.location.href = url.toString();
+        function filterByHazard(hazard) {
+            // This would need backend implementation
+            showNotification('info', 'Hazard filtering coming soon...');
         }
         
         // Handle window resize for responsive layout

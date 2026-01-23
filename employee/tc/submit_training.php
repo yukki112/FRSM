@@ -1473,8 +1473,7 @@ $stmt = null;
                     <div id="training" class="submenu active">
                         <a href="view_available_training.php" class="submenu-item">View Available Training</a>
                         <a href="submit_training.php" class="submenu-item active">Submit Training</a>
-                        
-                        <a href="view_events.php" class="submenu-item">View Events</a>
+                     
                     </div>
                     
                     <!-- Inspection Logs -->
@@ -1488,10 +1487,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="inspection" class="submenu">
-                        <a href="../inspection/conduct_inspections.php" class="submenu-item">Conduct Inspections</a>
-                        <a href="../inspection/submit_findings.php" class="submenu-item">Submit Findings</a>
-                        <a href="../inspection/upload_photos.php" class="submenu-item">Upload Photos</a>
-                        <a href="../inspection/tag_violations.php" class="submenu-item">Tag Violations</a>
+                        <a href="../il/conduct_inspections.php" class="submenu-item">Conduct Inspections</a>
+                        <a href="../il/submit_findings.php" class="submenu-item">Submit Findings</a>
+                        <a href="../il/upload_photos.php" class="submenu-item">Upload Photos</a>
+                        <a href="../il/tag_violations.php" class="submenu-item">Tag Violations</a>
                     </div>
                     
                     <!-- Post-Incident Reporting -->

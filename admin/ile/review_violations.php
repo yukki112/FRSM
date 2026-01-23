@@ -31,143 +31,126 @@ if (!empty($middle_name)) {
 $full_name .= " " . $last_name;
 
 // Get filter parameters
-$filter_status = isset($_GET['status']) ? $_GET['status'] : 'all';
-$filter_date = isset($_GET['date']) ? $_GET['date'] : '';
+$filter_status = isset($_GET['status']) ? $_GET['status'] : 'pending';
+$filter_severity = isset($_GET['severity']) ? $_GET['severity'] : '';
 $search_query = isset($_GET['search']) ? $_GET['search'] : '';
-$filter_duty_type = isset($_GET['duty_type']) ? $_GET['duty_type'] : '';
-$filter_unit = isset($_GET['unit']) ? $_GET['unit'] : '';
+$filter_barangay = isset($_GET['barangay']) ? $_GET['barangay'] : '';
+$filter_date = isset($_GET['date']) ? $_GET['date'] : '';
 
-// Get all shifts with duty assignments (Admin can see all)
-function getAllShifts($pdo, $filter_status = 'all', $filter_date = '', $search_query = '', $filter_duty_type = '', $filter_unit = '') {
+// Get all violations with filters
+function getViolations($pdo, $filter_status = 'pending', $filter_severity = '', $search_query = '', $filter_barangay = '', $filter_date = '') {
     $sql = "SELECT 
-                s.id,
-                s.user_id,
-                s.volunteer_id,
-                s.shift_for,
-                s.unit_id,
-                s.shift_date,
-                s.shift_type,
-                s.start_time,
-                s.end_time,
-                s.status,
-                s.location,
-                s.notes,
-                s.created_at,
-                s.updated_at,
-                s.duty_assignment_id,
-                s.confirmation_status,
-                s.check_in_time,
-                s.check_out_time,
-                s.attendance_status,
-                s.attendance_notes,
-                u.unit_name,
-                u.unit_code,
-                u.unit_type,
-                CONCAT(creator.first_name, ' ', creator.last_name) as created_by_name,
-                da.duty_type,
-                da.duty_description,
-                da.priority,
-                da.required_equipment,
-                da.required_training,
-                CASE 
-                    WHEN s.shift_for = 'user' THEN CONCAT(usr.first_name, ' ', usr.last_name)
-                    WHEN s.shift_for = 'volunteer' THEN CONCAT(v.first_name, ' ', v.last_name)
-                    ELSE 'Unassigned'
-                END as assigned_to_name,
-                CASE 
-                    WHEN s.shift_for = 'user' THEN usr.email
-                    WHEN s.shift_for = 'volunteer' THEN v.email
-                    ELSE ''
-                END as assigned_to_email
-            FROM shifts s
-            LEFT JOIN units u ON s.unit_id = u.id
-            LEFT JOIN users creator ON s.created_by = creator.id
-            LEFT JOIN users usr ON s.user_id = usr.id
-            LEFT JOIN volunteers v ON s.volunteer_id = v.id
-            LEFT JOIN duty_assignments da ON s.duty_assignment_id = da.id
+                iv.id,
+                iv.violation_code,
+                iv.violation_description,
+                iv.severity,
+                iv.section_violated,
+                iv.fine_amount,
+                iv.compliance_deadline,
+                iv.status,
+                iv.rectified_at,
+                iv.rectified_evidence,
+                iv.admin_notes,
+                iv.created_at,
+                ir.report_number,
+                ir.inspection_date,
+                ie.establishment_name,
+                ie.establishment_type,
+                ie.barangay,
+                ie.address,
+                ie.owner_name,
+                ie.owner_contact,
+                CONCAT(inspector.first_name, ' ', inspector.last_name) as inspector_name,
+                CONCAT(reviewer.first_name, ' ', reviewer.last_name) as admin_reviewer_name
+            FROM inspection_violations iv
+            LEFT JOIN inspection_reports ir ON iv.inspection_id = ir.id
+            LEFT JOIN inspection_establishments ie ON ir.establishment_id = ie.id
+            LEFT JOIN users inspector ON ir.inspected_by = inspector.id
+            LEFT JOIN users reviewer ON ir.admin_reviewed_by = reviewer.id
             WHERE 1=1";
     
     $params = [];
     
     // Apply status filter
     if ($filter_status !== 'all') {
-        $sql .= " AND s.status = ?";
+        $sql .= " AND iv.status = ?";
         $params[] = $filter_status;
+    }
+    
+    // Apply severity filter
+    if (!empty($filter_severity)) {
+        $sql .= " AND iv.severity = ?";
+        $params[] = $filter_severity;
     }
     
     // Apply date filter
     if (!empty($filter_date)) {
-        if ($filter_date === 'today') {
-            $sql .= " AND s.shift_date = CURDATE()";
-        } elseif ($filter_date === 'tomorrow') {
-            $sql .= " AND s.shift_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY)";
+        if ($filter_date === 'overdue') {
+            $sql .= " AND iv.compliance_deadline < CURDATE() AND iv.status != 'rectified'";
+        } elseif ($filter_date === 'today') {
+            $sql .= " AND DATE(iv.created_at) = CURDATE()";
         } elseif ($filter_date === 'week') {
-            $sql .= " AND s.shift_date >= CURDATE() AND s.shift_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)";
+            $sql .= " AND iv.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
         } elseif ($filter_date === 'month') {
-            $sql .= " AND s.shift_date >= CURDATE() AND s.shift_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)";
-        } elseif ($filter_date === 'past') {
-            $sql .= " AND s.shift_date < CURDATE()";
-        } elseif ($filter_date === 'future') {
-            $sql .= " AND s.shift_date > CURDATE()";
+            $sql .= " AND iv.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
         }
     }
     
-    // Apply unit filter
-    if (!empty($filter_unit)) {
-        $sql .= " AND s.unit_id = ?";
-        $params[] = $filter_unit;
+    // Apply barangay filter
+    if (!empty($filter_barangay)) {
+        $sql .= " AND ie.barangay LIKE ?";
+        $params[] = "%$filter_barangay%";
     }
     
     // Apply search query
     if (!empty($search_query)) {
         $sql .= " AND (
-                    u.unit_name LIKE ? OR 
-                    u.unit_code LIKE ? OR 
-                    usr.first_name LIKE ? OR 
-                    usr.last_name LIKE ? OR 
-                    v.first_name LIKE ? OR 
-                    v.last_name LIKE ? OR
-                    s.location LIKE ? OR
-                    da.duty_type LIKE ? OR
-                    da.duty_description LIKE ? OR
-                    usr.email LIKE ? OR
-                    v.email LIKE ?
+                    iv.violation_code LIKE ? OR 
+                    iv.violation_description LIKE ? OR 
+                    ie.establishment_name LIKE ? OR 
+                    ie.owner_name LIKE ? OR 
+                    ie.address LIKE ? OR 
+                    ie.barangay LIKE ? OR
+                    ir.report_number LIKE ?
                 )";
         $search_param = "%$search_query%";
         $params = array_merge($params, [
-            $search_param, $search_param, $search_param, $search_param, 
-            $search_param, $search_param, $search_param,
-            $search_param, $search_param, $search_param, $search_param
+            $search_param, $search_param, $search_param, $search_param,
+            $search_param, $search_param, $search_param
         ]);
     }
     
-    // Apply duty type filter
-    if (!empty($filter_duty_type)) {
-        $sql .= " AND da.duty_type LIKE ?";
-        $params[] = "%$filter_duty_type%";
-    }
-    
-    $sql .= " ORDER BY s.shift_date DESC, s.start_time ASC";
+    $sql .= " ORDER BY 
+                CASE WHEN iv.status = 'overdue' THEN 1
+                     WHEN iv.status = 'pending' THEN 2
+                     WHEN iv.status = 'rectified' THEN 3
+                     ELSE 4 END,
+                CASE WHEN iv.severity = 'critical' THEN 1
+                     WHEN iv.severity = 'major' THEN 2
+                     WHEN iv.severity = 'minor' THEN 3
+                     ELSE 4 END,
+                iv.compliance_deadline ASC,
+                iv.created_at DESC";
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Get shift statistics for admin
-function getAdminShiftStats($pdo) {
+// Get violation statistics
+function getViolationStats($pdo) {
     $sql = "SELECT 
                 COUNT(*) as total,
-                SUM(CASE WHEN shift_date >= CURDATE() AND status != 'cancelled' THEN 1 ELSE 0 END) as upcoming,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled,
-                SUM(CASE WHEN shift_date = CURDATE() AND status != 'cancelled' THEN 1 ELSE 0 END) as today,
-                SUM(CASE WHEN duty_assignment_id IS NOT NULL THEN 1 ELSE 0 END) as with_duty,
-                SUM(CASE WHEN confirmation_status = 'pending' AND shift_for = 'volunteer' THEN 1 ELSE 0 END) as pending_confirmation,
-                SUM(CASE WHEN confirmation_status = 'confirmed' THEN 1 ELSE 0 END) as confirmed,
-                SUM(CASE WHEN attendance_status = 'checked_in' THEN 1 ELSE 0 END) as checked_in,
-                SUM(CASE WHEN attendance_status = 'absent' THEN 1 ELSE 0 END) as absent
-            FROM shifts";
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = 'rectified' THEN 1 ELSE 0 END) as rectified,
+                SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) as overdue,
+                SUM(CASE WHEN status = 'escalated' THEN 1 ELSE 0 END) as escalated,
+                SUM(CASE WHEN status = 'waived' THEN 1 ELSE 0 END) as waived,
+                SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical,
+                SUM(CASE WHEN severity = 'major' THEN 1 ELSE 0 END) as major,
+                SUM(CASE WHEN severity = 'minor' THEN 1 ELSE 0 END) as minor,
+                SUM(CASE WHEN compliance_deadline < CURDATE() AND status != 'rectified' THEN 1 ELSE 0 END) as past_deadline
+            FROM inspection_violations";
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
@@ -175,15 +158,15 @@ function getAdminShiftStats($pdo) {
     
     $stats = [
         'total' => 0,
-        'upcoming' => 0,
-        'completed' => 0,
-        'cancelled' => 0,
-        'today' => 0,
-        'with_duty' => 0,
-        'pending_confirmation' => 0,
-        'confirmed' => 0,
-        'checked_in' => 0,
-        'absent' => 0
+        'pending' => 0,
+        'rectified' => 0,
+        'overdue' => 0,
+        'escalated' => 0,
+        'waived' => 0,
+        'critical' => 0,
+        'major' => 0,
+        'minor' => 0,
+        'past_deadline' => 0
     ];
     
     if ($result) {
@@ -193,97 +176,63 @@ function getAdminShiftStats($pdo) {
     return $stats;
 }
 
-// Get all duty types for filtering
-function getDutyTypes($pdo) {
-    $sql = "SELECT DISTINCT duty_type FROM duty_assignments ORDER BY duty_type";
+// Get all barangays for filtering
+function getBarangays($pdo) {
+    $sql = "SELECT DISTINCT barangay FROM inspection_establishments WHERE barangay IS NOT NULL AND barangay != '' ORDER BY barangay";
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
 }
 
-// Get all units for filtering
-function getAllUnits($pdo) {
-    $sql = "SELECT id, unit_name, unit_code FROM units ORDER BY unit_name";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
 // Get data for filters
-$duty_types = getDutyTypes($pdo);
-$units = getAllUnits($pdo);
+$barangays = getBarangays($pdo);
 
-// Get shifts based on filters
-$shifts = getAllShifts($pdo, $filter_status, $filter_date, $search_query, $filter_duty_type, $filter_unit);
-$stats = getAdminShiftStats($pdo);
+// Get violations based on filters
+$violations = getViolations($pdo, $filter_status, $filter_severity, $search_query, $filter_barangay, $filter_date);
+$stats = getViolationStats($pdo);
 
 // Date filter options
 $date_options = [
     '' => 'All Dates',
     'today' => 'Today',
-    'tomorrow' => 'Tomorrow',
-    'week' => 'Next 7 Days',
-    'month' => 'Next 30 Days',
-    'future' => 'Future Shifts',
-    'past' => 'Past Shifts'
+    'week' => 'Last 7 Days',
+    'month' => 'Last 30 Days',
+    'overdue' => 'Overdue'
 ];
 
 // Status options
 $status_options = [
-    'all' => 'All Status',
-    'scheduled' => 'Scheduled',
-    'confirmed' => 'Confirmed',
-    'completed' => 'Completed',
-    'cancelled' => 'Cancelled',
-    'absent' => 'Absent'
+    'all' => 'All Violations',
+    'pending' => 'Pending',
+    'rectified' => 'Rectified',
+    'overdue' => 'Overdue',
+    'escalated' => 'Escalated',
+    'waived' => 'Waived'
 ];
 
-// Shift type icons and colors
-$shift_type_icons = [
-    'morning' => 'bx-sun',
-    'afternoon' => 'bx-cloud',
-    'evening' => 'bx-moon',
-    'night' => 'bx-bed',
-    'full_day' => 'bx-calendar'
-];
-
-$shift_type_colors = [
-    'morning' => '#f59e0b',
-    'afternoon' => '#3b82f6',
-    'evening' => '#8b5cf6',
-    'night' => '#1e293b',
-    'full_day' => '#10b981'
+// Severity options
+$severity_options = [
+    '' => 'All Severities',
+    'critical' => 'Critical',
+    'major' => 'Major',
+    'minor' => 'Minor'
 ];
 
 // Status colors
 $status_colors = [
-    'scheduled' => '#f59e0b',
-    'confirmed' => '#3b82f6',
-    'completed' => '#10b981',
-    'cancelled' => '#dc2626',
-    'absent' => '#6b7280'
-];
-
-// Priority colors
-$priority_colors = [
-    'primary' => '#dc2626',
-    'secondary' => '#f59e0b',
-    'support' => '#3b82f6'
-];
-
-// Confirmation status colors
-$confirmation_colors = [
     'pending' => '#f59e0b',
-    'confirmed' => '#10b981',
-    'declined' => '#dc2626',
-    'change_requested' => '#8b5cf6'
+    'rectified' => '#10b981',
+    'overdue' => '#dc2626',
+    'escalated' => '#8b5cf6',
+    'waived' => '#6b7280'
 ];
 
-// Format time helper
-function formatTime($time) {
-    if (!$time) return 'N/A';
-    return date('g:i A', strtotime($time));
-}
+// Severity colors
+$severity_colors = [
+    'critical' => '#7c2d12',
+    'major' => '#dc2626',
+    'minor' => '#f59e0b'
+];
 
 // Format date helper
 function formatDate($date) {
@@ -291,15 +240,35 @@ function formatDate($date) {
     return date('M j, Y', strtotime($date));
 }
 
-// Get confirmation status badge HTML
-function getConfirmationBadge($status) {
-    global $confirmation_colors;
+// Format currency
+function formatCurrency($amount) {
+    if (!$amount) return 'N/A';
+    return '₱' . number_format($amount, 2);
+}
+
+// Get status badge HTML
+function getStatusBadge($status) {
+    global $status_colors;
     $status = strtolower($status);
-    $color = $confirmation_colors[$status] ?? '#6b7280';
-    $text = ucfirst(str_replace('_', ' ', $status));
+    $color = $status_colors[$status] ?? '#6b7280';
+    $text = ucfirst($status);
     
     return <<<HTML
-        <span class="confirmation-badge" style="background: rgba(220, 38, 38, 0.1); color: {$color};">
+        <span class="status-badge" style="background: rgba(${hexToRgb($color)}, 0.1); color: {$color}; border-color: rgba(${hexToRgb($color)}, 0.3);">
+            {$text}
+        </span>
+    HTML;
+}
+
+// Get severity badge HTML
+function getSeverityBadge($severity) {
+    global $severity_colors;
+    $severity = strtolower($severity);
+    $color = $severity_colors[$severity] ?? '#6b7280';
+    $text = ucfirst($severity);
+    
+    return <<<HTML
+        <span class="severity-badge" style="background: rgba(${hexToRgb($color)}, 0.1); color: {$color}; border-color: rgba(${hexToRgb($color)}, 0.3);">
             {$text}
         </span>
     HTML;
@@ -319,13 +288,19 @@ function hexToRgb($hex) {
     }
     return "$r, $g, $b";
 }
+
+// Check if date is overdue
+function isOverdue($deadline, $status) {
+    if (!$deadline || $status === 'rectified') return false;
+    return strtotime($deadline) < time();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Shifts - Admin - FRSM</title>
+    <title>Review Violations - Admin - FRSM</title>
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="icon" type="image/png" sizes="32x32" href="../../img/frsm-logo.png">
     <link rel="stylesheet" href="../../css/dashboard.css">
@@ -350,6 +325,16 @@ function hexToRgb($hex) {
             --indigo: #6366f1;
             --pink: #ec4899;
             --teal: #14b8a6;
+            --orange: #f97316;
+            --amber: #f59e0b;
+            --lime: #84cc16;
+            --emerald: #10b981;
+            --cyan: #06b6d4;
+            --light-blue: #0ea5e9;
+            --violet: #8b5cf6;
+            --fuchsia: #d946ef;
+            --rose: #f43f5e;
+            --warm-gray: #78716c;
             
             --gray-100: #f3f4f6;
             --gray-200: #e5e7eb;
@@ -475,49 +460,39 @@ function hexToRgb($hex) {
             color: var(--info);
         }
         
-        .stat-card[data-type="upcoming"] .stat-icon-container {
-            background: rgba(220, 38, 38, 0.1);
-            color: var(--primary-color);
-        }
-        
-        .stat-card[data-type="completed"] .stat-icon-container {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success);
-        }
-        
-        .stat-card[data-type="cancelled"] .stat-icon-container {
-            background: rgba(107, 114, 128, 0.1);
-            color: var(--gray-500);
-        }
-        
-        .stat-card[data-type="today"] .stat-icon-container {
+        .stat-card[data-type="pending"] .stat-icon-container {
             background: rgba(245, 158, 11, 0.1);
             color: var(--warning);
         }
         
-        .stat-card[data-type="with_duty"] .stat-icon-container {
-            background: rgba(139, 92, 246, 0.1);
-            color: var(--purple);
-        }
-        
-        .stat-card[data-type="pending_confirmation"] .stat-icon-container {
-            background: rgba(245, 158, 11, 0.1);
-            color: var(--warning);
-        }
-        
-        .stat-card[data-type="confirmed"] .stat-icon-container {
+        .stat-card[data-type="rectified"] .stat-icon-container {
             background: rgba(16, 185, 129, 0.1);
             color: var(--success);
         }
         
-        .stat-card[data-type="checked_in"] .stat-icon-container {
-            background: rgba(59, 130, 246, 0.1);
-            color: var(--info);
-        }
-        
-        .stat-card[data-type="absent"] .stat-icon-container {
+        .stat-card[data-type="overdue"] .stat-icon-container {
             background: rgba(220, 38, 38, 0.1);
             color: var(--danger);
+        }
+        
+        .stat-card[data-type="critical"] .stat-icon-container {
+            background: rgba(124, 45, 18, 0.1);
+            color: #7c2d12;
+        }
+        
+        .stat-card[data-type="major"] .stat-icon-container {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--danger);
+        }
+        
+        .stat-card[data-type="minor"] .stat-icon-container {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+        
+        .stat-card[data-type="past_deadline"] .stat-icon-container {
+            background: rgba(124, 45, 18, 0.1);
+            color: #7c2d12;
         }
         
         .stat-info {
@@ -549,7 +524,7 @@ function hexToRgb($hex) {
             color: var(--danger);
         }
 
-        /* Enhanced Filter Tabs */
+        /* Filter Tabs Container */
         .filter-tabs-container {
             background: var(--card-bg);
             border-radius: 16px;
@@ -751,7 +726,7 @@ function hexToRgb($hex) {
         }
 
         /* Enhanced Table Styles */
-        .shifts-table-container {
+        .violations-table-container {
             background: var(--card-bg);
             border-radius: 16px;
             overflow: hidden;
@@ -760,7 +735,7 @@ function hexToRgb($hex) {
 
         .table-header {
             display: grid;
-            grid-template-columns: 80px 150px 140px 120px 200px 120px 120px 120px;
+            grid-template-columns: 80px 150px 150px 100px 120px 120px 120px 100px 150px;
             gap: 15px;
             padding: 20px;
             background: rgba(220, 38, 38, 0.03);
@@ -774,7 +749,7 @@ function hexToRgb($hex) {
         
         .table-row {
             display: grid;
-            grid-template-columns: 80px 150px 140px 120px 200px 120px 120px 120px;
+            grid-template-columns: 80px 150px 150px 100px 120px 120px 120px 100px 150px;
             gap: 15px;
             padding: 20px;
             border-bottom: 1px solid var(--border-color);
@@ -785,6 +760,31 @@ function hexToRgb($hex) {
         
         .table-row:hover {
             background: rgba(220, 38, 38, 0.03);
+        }
+        
+        .table-row.overdue {
+            background: rgba(124, 45, 18, 0.05);
+            border-left: 4px solid #7c2d12;
+        }
+        
+        .table-row.critical {
+            background: rgba(124, 45, 18, 0.03);
+        }
+        
+        .table-row.major {
+            background: rgba(220, 38, 38, 0.03);
+        }
+        
+        .dark-mode .table-row.overdue {
+            background: rgba(124, 45, 18, 0.1);
+        }
+        
+        .dark-mode .table-row.critical {
+            background: rgba(124, 45, 18, 0.07);
+        }
+        
+        .dark-mode .table-row.major {
+            background: rgba(220, 38, 38, 0.07);
         }
         
         .table-row:last-child {
@@ -800,114 +800,37 @@ function hexToRgb($hex) {
             justify-content: center;
         }
         
-        .shift-id {
+        .violation-code {
             font-weight: 700;
             color: var(--primary-color);
-            font-size: 15px;
+            font-size: 14px;
         }
         
-        .shift-date {
+        .establishment-name {
             font-weight: 600;
             color: var(--text-color);
+            font-size: 14px;
         }
         
-        .shift-time {
-            font-size: 12px;
-            color: var(--text-light);
-        }
-        
-        /* Enhanced Shift Type Badge */
-        .shift-type-badge {
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-size: 12px;
+        .report-number {
             font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            width: fit-content;
-            white-space: nowrap;
-            border: 2px solid transparent;
-        }
-        
-        .shift-type-morning {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.2));
-            color: #f59e0b;
-            border-color: rgba(245, 158, 11, 0.3);
-        }
-        
-        .shift-type-afternoon {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2));
-            color: #3b82f6;
-            border-color: rgba(59, 130, 246, 0.3);
-        }
-        
-        .shift-type-evening {
-            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.2));
-            color: #8b5cf6;
-            border-color: rgba(139, 92, 246, 0.3);
-        }
-        
-        .shift-type-night {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.1), rgba(30, 41, 59, 0.2));
-            color: #1e293b;
-            border-color: rgba(30, 41, 59, 0.3);
-        }
-        
-        .shift-type-full_day {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.2));
-            color: #10b981;
-            border-color: rgba(16, 185, 129, 0.3);
-        }
-        
-        /* Enhanced Status Badge */
-        .status-badge {
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            width: fit-content;
-            white-space: nowrap;
-            border: 2px solid transparent;
-        }
-        
-        .status-scheduled {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.2));
-            color: var(--warning);
-            border-color: rgba(245, 158, 11, 0.3);
-        }
-        
-        .status-confirmed {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2));
             color: var(--info);
-            border-color: rgba(59, 130, 246, 0.3);
+            font-size: 13px;
         }
         
-        .status-completed {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.2));
-            color: var(--success);
-            border-color: rgba(16, 185, 129, 0.3);
+        .violation-description {
+            font-size: 13px;
+            color: var(--text-light);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.4;
         }
         
-        .status-cancelled {
-            background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(220, 38, 38, 0.2));
-            color: var(--danger);
-            border-color: rgba(220, 38, 38, 0.3);
-        }
-        
-        .status-absent {
-            background: linear-gradient(135deg, rgba(107, 114, 128, 0.1), rgba(107, 114, 128, 0.2));
-            color: var(--gray-500);
-            border-color: rgba(107, 114, 128, 0.3);
-        }
-        
-        /* Confirmation Status Badge */
-        .confirmation-badge {
-            padding: 6px 10px;
+        /* Status Badge */
+        .status-badge, .severity-badge {
+            padding: 6px 12px;
             border-radius: 20px;
             font-size: 11px;
             font-weight: 600;
@@ -915,29 +838,15 @@ function hexToRgb($hex) {
             letter-spacing: 0.5px;
             border: 1px solid;
             border-color: inherit;
-        }
-        
-        .unit-info {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-        
-        .unit-name {
-            font-weight: 600;
-            color: var(--text-color);
-            font-size: 13px;
-        }
-        
-        .unit-code {
-            font-size: 11px;
-            color: var(--text-light);
+            width: fit-content;
+            white-space: nowrap;
         }
 
         /* Enhanced Action Buttons */
         .action-buttons {
             display: flex;
-            gap: 8px;
+            gap: 6px;
+            flex-wrap: wrap;
         }
         
         .action-button {
@@ -951,8 +860,8 @@ function hexToRgb($hex) {
             justify-content: center;
             gap: 6px;
             transition: all 0.3s ease;
-            font-size: 13px;
-            min-width: 80px;
+            font-size: 12px;
+            min-width: 70px;
             position: relative;
             overflow: hidden;
         }
@@ -985,53 +894,66 @@ function hexToRgb($hex) {
             box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
         }
         
-        .edit-button {
+        .rectify-button {
             background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.2));
             color: var(--success);
             border: 1px solid rgba(16, 185, 129, 0.3);
         }
         
-        .edit-button:hover {
+        .rectify-button:hover {
             background: var(--success);
             color: white;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
         
-        .delete-button {
-            background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(220, 38, 38, 0.2));
-            color: var(--danger);
-            border: 1px solid rgba(220, 38, 38, 0.3);
-        }
-        
-        .delete-button:hover {
-            background: var(--danger);
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-        }
-
-        .attendance-button {
+        .escalate-button {
             background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.2));
             color: var(--purple);
             border: 1px solid rgba(139, 92, 246, 0.3);
         }
         
-        .attendance-button:hover {
+        .escalate-button:hover {
             background: var(--purple);
             color: white;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
         }
+        
+        .waive-button {
+            background: linear-gradient(135deg, rgba(107, 114, 128, 0.1), rgba(107, 114, 128, 0.2));
+            color: var(--gray-500);
+            border: 1px solid rgba(107, 114, 128, 0.3);
+        }
+        
+        .waive-button:hover {
+            background: var(--gray-500);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+        }
+        
+        .edit-button {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.2));
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        
+        .edit-button:hover {
+            background: var(--warning);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
 
-        .no-shifts {
+        .no-violations {
             text-align: center;
             padding: 60px 20px;
             color: var(--text-light);
             grid-column: 1 / -1;
         }
         
-        .no-shifts-icon {
+        .no-violations-icon {
             font-size: 64px;
             margin-bottom: 16px;
             color: var(--text-light);
@@ -1083,23 +1005,23 @@ function hexToRgb($hex) {
         }
         
         .quick-action-card:nth-child(1) .action-icon {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.2));
+            color: var(--warning);
+        }
+        
+        .quick-action-card:nth-child(2) .action-icon {
+            background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(220, 38, 38, 0.2));
+            color: var(--danger);
+        }
+        
+        .quick-action-card:nth-child(3) .action-icon {
             background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2));
             color: var(--info);
         }
         
-        .quick-action-card:nth-child(2) .action-icon {
+        .quick-action-card:nth-child(4) .action-icon {
             background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.2));
             color: var(--success);
-        }
-        
-        .quick-action-card:nth-child(3) .action-icon {
-            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.2));
-            color: var(--purple);
-        }
-        
-        .quick-action-card:nth-child(4) .action-icon {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.2));
-            color: var(--warning);
         }
         
         .action-content {
@@ -1215,7 +1137,7 @@ function hexToRgb($hex) {
             color: var(--text-color);
         }
         
-        .form-select, .form-textarea, .form-input {
+        .form-select, .form-textarea, .form-input, .form-file {
             width: 100%;
             padding: 12px 16px;
             border-radius: 10px;
@@ -1226,7 +1148,7 @@ function hexToRgb($hex) {
             transition: all 0.3s ease;
         }
         
-        .form-select:focus, .form-textarea:focus, .form-input:focus {
+        .form-select:focus, .form-textarea:focus, .form-input:focus, .form-file:focus {
             outline: none;
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
@@ -1235,6 +1157,10 @@ function hexToRgb($hex) {
         .form-textarea {
             min-height: 100px;
             resize: vertical;
+        }
+        
+        .form-file {
+            padding: 10px;
         }
         
         .modal-actions {
@@ -1282,11 +1208,27 @@ function hexToRgb($hex) {
         .dark-mode .btn-secondary:hover {
             background: var(--gray-800);
         }
+        
+        /* Evidence Preview */
+        .evidence-preview {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(59, 130, 246, 0.05);
+            border-radius: 12px;
+            border: 1px dashed rgba(59, 130, 246, 0.3);
+        }
+        
+        .evidence-preview img {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
 
         /* Responsive Design */
         @media (max-width: 1400px) {
             .table-header, .table-row {
-                grid-template-columns: 70px 140px 120px 100px 180px 110px 100px 100px;
+                grid-template-columns: 70px 140px 140px 90px 110px 110px 110px 90px 130px;
                 gap: 12px;
                 padding: 16px;
             }
@@ -1294,7 +1236,7 @@ function hexToRgb($hex) {
 
         @media (max-width: 1200px) {
             .table-header, .table-row {
-                grid-template-columns: 60px 130px 110px 90px 160px 100px 90px 90px;
+                grid-template-columns: 60px 120px 120px 80px 100px 100px 100px 80px 120px;
                 gap: 10px;
                 padding: 14px;
             }
@@ -1316,7 +1258,7 @@ function hexToRgb($hex) {
             
             .table-cell {
                 display: grid;
-                grid-template-columns: 140px 1fr;
+                grid-template-columns: 120px 1fr;
                 gap: 16px;
                 align-items: start;
                 border-bottom: 1px solid var(--border-color);
@@ -1428,38 +1370,38 @@ function hexToRgb($hex) {
             }
         }
 
-        .shifts-table-container {
+        .violations-table-container {
             max-height: 600px;
             overflow-y: auto;
         }
 
-        .shifts-table-container::-webkit-scrollbar {
+        .violations-table-container::-webkit-scrollbar {
             width: 6px;
         }
         
-        .shifts-table-container::-webkit-scrollbar-track {
+        .violations-table-container::-webkit-scrollbar-track {
             background: var(--gray-100);
             border-radius: 3px;
         }
         
-        .shifts-table-container::-webkit-scrollbar-thumb {
+        .violations-table-container::-webkit-scrollbar-thumb {
             background: var(--gray-400);
             border-radius: 3px;
         }
         
-        .shifts-table-container::-webkit-scrollbar-thumb:hover {
+        .violations-table-container::-webkit-scrollbar-thumb:hover {
             background: var(--gray-500);
         }
         
-        .dark-mode .shifts-table-container::-webkit-scrollbar-track {
+        .dark-mode .violations-table-container::-webkit-scrollbar-track {
             background: var(--gray-800);
         }
         
-        .dark-mode .shifts-table-container::-webkit-scrollbar-thumb {
+        .dark-mode .violations-table-container::-webkit-scrollbar-thumb {
             background: var(--gray-600);
         }
         
-        .dark-mode .shifts-table-container::-webkit-scrollbar-thumb:hover {
+        .dark-mode .violations-table-container::-webkit-scrollbar-thumb:hover {
             background: var(--gray-500);
         }
 
@@ -1497,21 +1439,55 @@ function hexToRgb($hex) {
             animation: fadeIn 0.3s ease forwards;
         }
 
-        .table-row:nth-child(even) {
-            background: rgba(220, 38, 38, 0.01);
+        /* Overdue warning */
+        .overdue-warning {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: rgba(124, 45, 18, 0.1);
+            color: #7c2d12;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 4px;
         }
         
-        .dark-mode .table-row:nth-child(even) {
-            background: rgba(255, 255, 255, 0.01);
+        .deadline-text {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+        
+        .deadline-overdue {
+            color: #7c2d12;
+            font-weight: 600;
+        }
+        
+        .deadline-urgent {
+            color: var(--danger);
+            font-weight: 600;
+        }
+        
+        .deadline-normal {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        /* Fine amount styling */
+        .fine-amount {
+            font-weight: 700;
+            color: var(--danger);
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
-    <!-- Shift Details Modal -->
+    <!-- Violation Details Modal -->
     <div class="modal-overlay" id="details-modal">
         <div class="modal">
             <div class="modal-header">
-                <h2 class="modal-title">Shift Details</h2>
+                <h2 class="modal-title">Violation Details</h2>
                 <button class="modal-close" id="details-modal-close">&times;</button>
             </div>
             <div class="modal-body">
@@ -1525,92 +1501,184 @@ function hexToRgb($hex) {
         </div>
     </div>
     
-    <!-- Edit Shift Modal -->
-    <div class="modal-overlay" id="edit-modal">
+    <!-- Mark as Rectified Modal -->
+    <div class="modal-overlay" id="rectify-modal">
         <div class="modal">
             <div class="modal-header">
-                <h2 class="modal-title">Edit Shift</h2>
-                <button class="modal-close" id="edit-modal-close">&times;</button>
+                <h2 class="modal-title">Mark Violation as Rectified</h2>
+                <button class="modal-close" id="rectify-modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="edit-shift-form">
-                    <input type="hidden" id="edit-shift-id" name="shift_id">
+                <form id="rectify-form" enctype="multipart/form-data">
+                    <input type="hidden" id="rectify-violation-id" name="violation_id">
                     
                     <div class="form-group">
-                        <label class="form-label" for="edit_status">Status</label>
-                        <select class="form-select" id="edit_status" name="status" required>
-                            <option value="scheduled">Scheduled</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
-                            <option value="absent">Absent</option>
-                        </select>
+                        <label class="form-label" for="rectify_date">Rectification Date</label>
+                        <input type="date" class="form-input" id="rectify_date" name="rectify_date" required value="<?php echo date('Y-m-d'); ?>">
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="edit_confirmation_status">Confirmation Status</label>
-                        <select class="form-select" id="edit_confirmation_status" name="confirmation_status">
-                            <option value="pending">Pending</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="declined">Declined</option>
-                            <option value="change_requested">Change Requested</option>
-                        </select>
+                        <label class="form-label" for="rectify_notes">Rectification Details</label>
+                        <textarea class="form-textarea" id="rectify_notes" name="rectify_notes" placeholder="Describe how the violation was rectified..." required></textarea>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="edit_notes">Admin Notes</label>
-                        <textarea class="form-textarea" id="edit_notes" name="notes" placeholder="Enter any administrative notes..."></textarea>
+                        <label class="form-label" for="rectify_evidence">Evidence of Rectification</label>
+                        <input type="file" class="form-file" id="rectify_evidence" name="rectify_evidence" accept="image/*,.pdf,.doc,.docx">
+                        <small style="color: var(--text-light); font-size: 12px;">Upload photos, documents, or other evidence showing the violation has been fixed</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="admin_notes">Admin Notes (Optional)</label>
+                        <textarea class="form-textarea" id="admin_notes" name="admin_notes" placeholder="Any additional admin notes..."></textarea>
                     </div>
                     
                     <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" id="cancel-edit">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Update Shift</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-rectify">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Mark as Rectified</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
     
-    <!-- Attendance Modal -->
-    <div class="modal-overlay" id="attendance-modal">
+    <!-- Escalate Violation Modal -->
+    <div class="modal-overlay" id="escalate-modal">
         <div class="modal">
             <div class="modal-header">
-                <h2 class="modal-title">Update Attendance</h2>
-                <button class="modal-close" id="attendance-modal-close">&times;</button>
+                <h2 class="modal-title">Escalate Violation</h2>
+                <button class="modal-close" id="escalate-modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="update-attendance-form">
-                    <input type="hidden" id="attendance-shift-id" name="shift_id">
+                <form id="escalate-form">
+                    <input type="hidden" id="escalate-violation-id" name="violation_id">
                     
                     <div class="form-group">
-                        <label class="form-label" for="attendance_status">Attendance Status</label>
-                        <select class="form-select" id="attendance_status" name="attendance_status" required>
-                            <option value="pending">Pending</option>
-                            <option value="checked_in">Checked In</option>
-                            <option value="checked_out">Checked Out</option>
-                            <option value="absent">Absent</option>
-                            <option value="excused">Excused</option>
+                        <label class="form-label" for="escalate_reason">Escalation Reason</label>
+                        <select class="form-select" id="escalate_reason" name="escalate_reason" required>
+                            <option value="">Select a reason</option>
+                            <option value="non_compliance">Non-compliance with previous notices</option>
+                            <option value="repeat_offender">Repeat offender</option>
+                            <option value="serious_risk">Presents serious risk to public safety</option>
+                            <option value="legal_action">Legal action required</option>
+                            <option value="other">Other</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="attendance_check_in">Check-in Time</label>
-                        <input type="datetime-local" class="form-input" id="attendance_check_in" name="check_in">
+                        <label class="form-label" for="escalate_notes">Escalation Details</label>
+                        <textarea class="form-textarea" id="escalate_notes" name="escalate_notes" placeholder="Provide details about why this violation needs to be escalated..." required></textarea>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="attendance_check_out">Check-out Time</label>
-                        <input type="datetime-local" class="form-input" id="attendance_check_out" name="check_out">
+                        <label class="form-label" for="escalate_action">Recommended Action</label>
+                        <select class="form-select" id="escalate_action" name="escalate_action" required>
+                            <option value="">Select recommended action</option>
+                            <option value="legal_notice">Issue legal notice</option>
+                            <option value="fine_increase">Increase fine amount</option>
+                            <option value="temporary_closure">Recommend temporary closure</option>
+                            <option value="legal_proceedings">Initiate legal proceedings</option>
+                            <option value="other_action">Other action</option>
+                        </select>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="attendance_notes">Attendance Notes</label>
-                        <textarea class="form-textarea" id="attendance_notes" name="attendance_notes" placeholder="Enter attendance notes..."></textarea>
+                        <label class="form-label" for="new_deadline">New Compliance Deadline (Optional)</label>
+                        <input type="date" class="form-input" id="new_deadline" name="new_deadline">
                     </div>
                     
                     <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" id="cancel-attendance">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Update Attendance</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-escalate">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Escalate Violation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Waive Violation Modal -->
+    <div class="modal-overlay" id="waive-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Waive Violation</h2>
+                <button class="modal-close" id="waive-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="waive-form">
+                    <input type="hidden" id="waive-violation-id" name="violation_id">
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="waive_reason">Waiver Reason</label>
+                        <select class="form-select" id="waive_reason" name="waive_reason" required>
+                            <option value="">Select a reason</option>
+                            <option value="false_report">False or erroneous report</option>
+                            <option value="minor_issue">Minor issue not requiring action</option>
+                            <option value="already_resolved">Issue already resolved</option>
+                            <option value="special_circumstances">Special circumstances warrant waiver</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="waive_notes">Waiver Details</label>
+                        <textarea class="form-textarea" id="waive_notes" name="waive_notes" placeholder="Provide justification for waiving this violation..." required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="waive_fine">Waive Fine Amount?</label>
+                        <select class="form-select" id="waive_fine" name="waive_fine" required>
+                            <option value="1">Yes, waive the fine</option>
+                            <option value="0">No, maintain the fine</option>
+                        </select>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-waive">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Waive Violation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Violation Modal -->
+    <div class="modal-overlay" id="edit-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit Violation Details</h2>
+                <button class="modal-close" id="edit-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-form">
+                    <input type="hidden" id="edit-violation-id" name="violation_id">
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="edit_severity">Severity Level</label>
+                        <select class="form-select" id="edit_severity" name="severity" required>
+                            <option value="minor">Minor</option>
+                            <option value="major">Major</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="edit_fine_amount">Fine Amount (₱)</label>
+                        <input type="number" class="form-input" id="edit_fine_amount" name="fine_amount" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="edit_compliance_deadline">Compliance Deadline</label>
+                        <input type="date" class="form-input" id="edit_compliance_deadline" name="compliance_deadline">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="edit_admin_notes">Admin Notes</label>
+                        <textarea class="form-textarea" id="edit_admin_notes" name="admin_notes" placeholder="Update admin notes for this violation..."></textarea>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-edit">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Update Violation</button>
                     </div>
                 </form>
             </div>
@@ -1711,17 +1779,17 @@ function hexToRgb($hex) {
                     </div>
                     
                     <!-- Shift & Duty Scheduling -->
-                    <div class="menu-item active" onclick="toggleSubmenu('schedule-management')">
+                    <div class="menu-item" onclick="toggleSubmenu('schedule-management')">
                         <div class="icon-box icon-bg-purple">
                             <i class='bx bxs-calendar icon-purple'></i>
                         </div>
                         <span class="font-medium">Schedule Management</span>
-                        <svg class="dropdown-arrow menu-icon rotated" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </div>
-                    <div id="schedule-management" class="submenu active">
-                       <a href="view_shifts.php" class="submenu-item active">View Shifts</a>
+                    <div id="schedule-management" class="submenu">
+                       <a href="view_shifts.php" class="submenu-item">View Shifts</a>
                         <a href="create_schedule.php" class="submenu-item">Create Schedule</a>
                           <a href="confirm_availability.php" class="submenu-item">Confirm Availability</a>
                         <a href="request_change.php" class="submenu-item">Request Change</a>
@@ -1734,7 +1802,7 @@ function hexToRgb($hex) {
                             <i class='bx bxs-graduation icon-teal'></i>
                         </div>
                         <span class="font-medium">Training Management</span>
-                        <svg class="dropdown-arrow menu-icon rotated" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </div>
@@ -1746,18 +1814,18 @@ function hexToRgb($hex) {
                     </div>
                     
                     <!-- Inspection Logs for Establishments -->
-                    <div class="menu-item" onclick="toggleSubmenu('inspection-management')">
+                    <div class="menu-item active" onclick="toggleSubmenu('inspection-management')">
                         <div class="icon-box icon-bg-cyan">
                             <i class='bx bxs-check-shield icon-cyan'></i>
                         </div>
                         <span class="font-medium">Inspection Management</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="dropdown-arrow menu-icon rotated" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </div>
-                    <div id="inspection-management" class="submenu">
+                    <div id="inspection-management" class="submenu active">
                         <a href="../ile/approve_reports.php" class="submenu-item">Approve Reports</a>
-                        <a href="../ile/review_violations.php" class="submenu-item">Review Violations</a>
+                        <a href="../ile/review_violations.php" class="submenu-item active">Review Violations</a>
                         <a href="../ile/issue_certificates.php" class="submenu-item">Issue Certificates</a>
                         <a href="../ile/track_follow_up.php" class="submenu-item">Track Follow-Up</a>
                     </div>
@@ -1816,7 +1884,7 @@ function hexToRgb($hex) {
                             <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                             </svg>
-                            <input type="text" placeholder="Search shifts..." class="search-input" id="search-input">
+                            <input type="text" placeholder="Search violations..." class="search-input" id="search-input">
                         </div>
                     </div>
                     
@@ -1850,8 +1918,8 @@ function hexToRgb($hex) {
             <div class="dashboard-content">
                 <div class="dashboard-header">
                     <div>
-                        <h1 class="dashboard-title">Shift Management</h1>
-                        <p class="dashboard-subtitle">Admin Panel - View and manage all shifts across the organization</p>
+                        <h1 class="dashboard-title">Review Violations</h1>
+                        <p class="dashboard-subtitle">Admin Panel - Review and process establishment inspection violations</p>
                     </div>
                 </div>
                 
@@ -1859,40 +1927,40 @@ function hexToRgb($hex) {
                 <div class="content-container">
                     <!-- Quick Actions -->
                     <div class="quick-actions">
-                        <a href="../sm/create_schedule.php" class="quick-action-card">
+                        <a href="#" class="quick-action-card" onclick="viewOverdueViolations()">
                             <div class="action-icon">
-                                <i class='bx bxs-calendar-plus'></i>
+                                <i class='bx bxs-error-circle'></i>
                             </div>
                             <div class="action-content">
-                                <div class="action-title">Create New Schedule</div>
-                                <div class="action-description">Create bulk schedules for volunteers or employees</div>
+                                <div class="action-title">Overdue Violations</div>
+                                <div class="action-description">View violations past their compliance deadline</div>
                             </div>
                         </a>
-                        <a href="../sm/approve_shifts.php" class="quick-action-card">
+                        <a href="#" class="quick-action-card" onclick="viewCriticalViolations()">
                             <div class="action-icon">
-                                <i class='bx bxs-check-shield'></i>
+                                <i class='bx bxs-alarm-exclamation'></i>
                             </div>
                             <div class="action-content">
-                                <div class="action-title">Approve Shifts</div>
-                                <div class="action-description">Review and approve pending shift confirmations</div>
+                                <div class="action-title">Critical Violations</div>
+                                <div class="action-description">Review critical severity violations</div>
                             </div>
                         </a>
-                        <a href="../sm/override_assignments.php" class="quick-action-card">
+                        <a href="#" class="quick-action-card" onclick="generateViolationReport()">
                             <div class="action-icon">
-                                <i class='bx bxs-calendar-exclamation'></i>
+                                <i class='bx bxs-report'></i>
                             </div>
                             <div class="action-content">
-                                <div class="action-title">Override Assignments</div>
-                                <div class="action-description">Make manual adjustments to shift assignments</div>
+                                <div class="action-title">Generate Report</div>
+                                <div class="action-description">Create violation summary report</div>
                             </div>
                         </a>
-                        <a href="../sm/monitor_attendance.php" class="quick-action-card">
+                        <a href="#" class="quick-action-card" onclick="showBulkActions()">
                             <div class="action-icon">
-                                <i class='bx bxs-user-check'></i>
+                                <i class='bx bxs-bolt-circle'></i>
                             </div>
                             <div class="action-content">
-                                <div class="action-title">Monitor Attendance</div>
-                                <div class="action-description">Track attendance and generate reports</div>
+                                <div class="action-title">Bulk Actions</div>
+                                <div class="action-description">Process multiple violations at once</div>
                             </div>
                         </a>
                     </div>
@@ -1902,7 +1970,7 @@ function hexToRgb($hex) {
                         <div class="stat-card" data-type="total" onclick="filterByStatus('all')">
                             <div class="stat-header">
                                 <div class="stat-icon-container">
-                                    <i class='bx bxs-calendar'></i>
+                                    <i class='bx bxs-error'></i>
                                 </div>
                                 <div class="stat-trend">
                                     <i class='bx bx-up-arrow-alt'></i>
@@ -1910,98 +1978,98 @@ function hexToRgb($hex) {
                                 </div>
                             </div>
                             <div class="stat-value"><?php echo $stats['total']; ?></div>
-                            <div class="stat-label">Total Shifts</div>
+                            <div class="stat-label">Total Violations</div>
                         </div>
-                        <div class="stat-card" data-type="upcoming" onclick="filterByStatus('scheduled')">
-                            <div class="stat-header">
-                                <div class="stat-icon-container">
-                                    <i class='bx bxs-up-arrow'></i>
-                                </div>
-                                <div class="stat-trend">
-                                    <i class='bx bx-up-arrow-alt'></i>
-                                    +5%
-                                </div>
-                            </div>
-                            <div class="stat-value"><?php echo $stats['upcoming']; ?></div>
-                            <div class="stat-label">Upcoming Shifts</div>
-                        </div>
-                        <div class="stat-card" data-type="completed" onclick="filterByStatus('completed')">
-                            <div class="stat-header">
-                                <div class="stat-icon-container">
-                                    <i class='bx bxs-check-circle'></i>
-                                </div>
-                                <div class="stat-trend">
-                                    <i class='bx bx-up-arrow-alt'></i>
-                                    +8%
-                                </div>
-                            </div>
-                            <div class="stat-value"><?php echo $stats['completed']; ?></div>
-                            <div class="stat-label">Completed</div>
-                        </div>
-                        <div class="stat-card" data-type="cancelled" onclick="filterByStatus('cancelled')">
-                            <div class="stat-header">
-                                <div class="stat-icon-container">
-                                    <i class='bx bxs-x-circle'></i>
-                                </div>
-                                <div class="stat-trend">
-                                    <i class='bx bx-down-arrow-alt'></i>
-                                    -2%
-                                </div>
-                            </div>
-                            <div class="stat-value"><?php echo $stats['cancelled']; ?></div>
-                            <div class="stat-label">Cancelled</div>
-                        </div>
-                        <div class="stat-card" data-type="today" onclick="filterByDate('today')">
-                            <div class="stat-header">
-                                <div class="stat-icon-container">
-                                    <i class='bx bxs-sun'></i>
-                                </div>
-                                <div class="stat-trend">
-                                    <i class='bx bx-up-arrow-alt'></i>
-                                    +3%
-                                </div>
-                            </div>
-                            <div class="stat-value"><?php echo $stats['today']; ?></div>
-                            <div class="stat-label">Today's Shifts</div>
-                        </div>
-                        <div class="stat-card" data-type="with_duty" onclick="filterByDuty()">
-                            <div class="stat-header">
-                                <div class="stat-icon-container">
-                                    <i class='bx bxs-briefcase'></i>
-                                </div>
-                                <div class="stat-trend">
-                                    <i class='bx bx-up-arrow-alt'></i>
-                                    +15%
-                                </div>
-                            </div>
-                            <div class="stat-value"><?php echo $stats['with_duty']; ?></div>
-                            <div class="stat-label">With Duty Assignment</div>
-                        </div>
-                        <div class="stat-card" data-type="pending_confirmation" onclick="showPendingConfirmations()">
+                        <div class="stat-card" data-type="pending" onclick="filterByStatus('pending')">
                             <div class="stat-header">
                                 <div class="stat-icon-container">
                                     <i class='bx bxs-time-five'></i>
                                 </div>
                                 <div class="stat-trend">
                                     <i class='bx bx-up-arrow-alt'></i>
-                                    +2%
+                                    +8%
                                 </div>
                             </div>
-                            <div class="stat-value"><?php echo $stats['pending_confirmation']; ?></div>
-                            <div class="stat-label">Pending Confirmation</div>
+                            <div class="stat-value"><?php echo $stats['pending']; ?></div>
+                            <div class="stat-label">Pending</div>
                         </div>
-                        <div class="stat-card" data-type="checked_in" onclick="showCheckedIn()">
+                        <div class="stat-card" data-type="rectified" onclick="filterByStatus('rectified')">
                             <div class="stat-header">
                                 <div class="stat-icon-container">
-                                    <i class='bx bxs-log-in'></i>
+                                    <i class='bx bxs-check-circle'></i>
+                                </div>
+                                <div class="stat-trend">
+                                    <i class='bx bx-up-arrow-alt'></i>
+                                    +15%
+                                </div>
+                            </div>
+                            <div class="stat-value"><?php echo $stats['rectified']; ?></div>
+                            <div class="stat-label">Rectified</div>
+                        </div>
+                        <div class="stat-card" data-type="overdue" onclick="filterByStatus('overdue')">
+                            <div class="stat-header">
+                                <div class="stat-icon-container">
+                                    <i class='bx bxs-alarm-exclamation'></i>
+                                </div>
+                                <div class="stat-trend">
+                                    <i class='bx bx-up-arrow-alt'></i>
+                                    +5%
+                                </div>
+                            </div>
+                            <div class="stat-value"><?php echo $stats['overdue']; ?></div>
+                            <div class="stat-label">Overdue</div>
+                        </div>
+                        <div class="stat-card" data-type="critical" onclick="filterBySeverity('critical')">
+                            <div class="stat-header">
+                                <div class="stat-icon-container">
+                                    <i class='bx bxs-error-circle'></i>
+                                </div>
+                                <div class="stat-trend">
+                                    <i class='bx bx-up-arrow-alt'></i>
+                                    +3%
+                                </div>
+                            </div>
+                            <div class="stat-value"><?php echo $stats['critical']; ?></div>
+                            <div class="stat-label">Critical</div>
+                        </div>
+                        <div class="stat-card" data-type="major" onclick="filterBySeverity('major')">
+                            <div class="stat-header">
+                                <div class="stat-icon-container">
+                                    <i class='bx bxs-error-alt'></i>
                                 </div>
                                 <div class="stat-trend">
                                     <i class='bx bx-up-arrow-alt'></i>
                                     +7%
                                 </div>
                             </div>
-                            <div class="stat-value"><?php echo $stats['checked_in']; ?></div>
-                            <div class="stat-label">Checked In</div>
+                            <div class="stat-value"><?php echo $stats['major']; ?></div>
+                            <div class="stat-label">Major</div>
+                        </div>
+                        <div class="stat-card" data-type="minor" onclick="filterBySeverity('minor')">
+                            <div class="stat-header">
+                                <div class="stat-icon-container">
+                                    <i class='bx bxs-info-circle'></i>
+                                </div>
+                                <div class="stat-trend">
+                                    <i class='bx bx-up-arrow-alt'></i>
+                                    +10%
+                                </div>
+                            </div>
+                            <div class="stat-value"><?php echo $stats['minor']; ?></div>
+                            <div class="stat-label">Minor</div>
+                        </div>
+                        <div class="stat-card" data-type="past_deadline" onclick="filterByDate('overdue')">
+                            <div class="stat-header">
+                                <div class="stat-icon-container">
+                                    <i class='bx bxs-calendar-x'></i>
+                                </div>
+                                <div class="stat-trend">
+                                    <i class='bx bx-up-arrow-alt'></i>
+                                    +6%
+                                </div>
+                            </div>
+                            <div class="stat-value"><?php echo $stats['past_deadline']; ?></div>
+                            <div class="stat-label">Past Deadline</div>
                         </div>
                     </div>
                     
@@ -2009,36 +2077,41 @@ function hexToRgb($hex) {
                     <div class="filter-tabs-container">
                         <div class="filter-header">
                             <h3 class="filter-title">
-                                <i class='bx bxs-calendar'></i>
-                                Shift Overview - Admin View
+                                <i class='bx bxs-error-circle'></i>
+                                Inspection Violations - Review Queue
                             </h3>
                         </div>
                         
                         <div class="filter-tabs">
-                            <a href="?status=all&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'all' ? 'active' : ''; ?>">
+                            <a href="?status=all&severity=<?php echo $filter_severity; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&date=<?php echo $filter_date; ?>" class="filter-tab <?php echo $filter_status === 'all' ? 'active' : ''; ?>">
                                 <i class='bx bxs-dashboard'></i>
-                                All Shifts
+                                All Violations
                                 <span class="filter-tab-count"><?php echo $stats['total']; ?></span>
                             </a>
-                            <a href="?status=scheduled&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'scheduled' ? 'active' : ''; ?>">
-                                <i class='bx bxs-time'></i>
-                                Scheduled
+                            <a href="?status=pending&severity=<?php echo $filter_severity; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&date=<?php echo $filter_date; ?>" class="filter-tab <?php echo $filter_status === 'pending' ? 'active' : ''; ?>">
+                                <i class='bx bxs-time-five'></i>
+                                Pending
+                                <span class="filter-tab-count"><?php echo $stats['pending']; ?></span>
                             </a>
-                            <a href="?status=confirmed&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'confirmed' ? 'active' : ''; ?>">
+                            <a href="?status=overdue&severity=<?php echo $filter_severity; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&date=<?php echo $filter_date; ?>" class="filter-tab <?php echo $filter_status === 'overdue' ? 'active' : ''; ?>">
+                                <i class='bx bxs-alarm-exclamation'></i>
+                                Overdue
+                                <span class="filter-tab-count"><?php echo $stats['overdue']; ?></span>
+                            </a>
+                            <a href="?status=rectified&severity=<?php echo $filter_severity; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&date=<?php echo $filter_date; ?>" class="filter-tab <?php echo $filter_status === 'rectified' ? 'active' : ''; ?>">
                                 <i class='bx bxs-check-circle'></i>
-                                Confirmed
+                                Rectified
+                                <span class="filter-tab-count"><?php echo $stats['rectified']; ?></span>
                             </a>
-                            <a href="?status=completed&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'completed' ? 'active' : ''; ?>">
-                                <i class='bx bxs-check-double'></i>
-                                Completed
+                            <a href="?status=escalated&severity=<?php echo $filter_severity; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&date=<?php echo $filter_date; ?>" class="filter-tab <?php echo $filter_status === 'escalated' ? 'active' : ''; ?>">
+                                <i class='bx bxs-up-arrow-circle'></i>
+                                Escalated
+                                <span class="filter-tab-count"><?php echo $stats['escalated']; ?></span>
                             </a>
-                            <a href="?status=cancelled&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'cancelled' ? 'active' : ''; ?>">
-                                <i class='bx bxs-x-circle'></i>
-                                Cancelled
-                            </a>
-                            <a href="?status=absent&date=<?php echo $filter_date; ?>&search=<?php echo urlencode($search_query); ?>&duty_type=<?php echo $filter_duty_type; ?>&unit=<?php echo $filter_unit; ?>" class="filter-tab <?php echo $filter_status === 'absent' ? 'active' : ''; ?>">
-                                <i class='bx bxs-user-x'></i>
-                                Absent
+                            <a href="?status=waived&severity=<?php echo $filter_severity; ?>&search=<?php echo urlencode($search_query); ?>&barangay=<?php echo $filter_barangay; ?>&date=<?php echo $filter_date; ?>" class="filter-tab <?php echo $filter_status === 'waived' ? 'active' : ''; ?>">
+                                <i class='bx bxs-check-shield'></i>
+                                Waived
+                                <span class="filter-tab-count"><?php echo $stats['waived']; ?></span>
                             </a>
                         </div>
                     </div>
@@ -2055,8 +2128,22 @@ function hexToRgb($hex) {
                                 <div class="filter-row">
                                     <div class="filter-group">
                                         <label class="filter-label">
+                                            <i class='bx bxs-error-circle'></i>
+                                            Severity Level
+                                        </label>
+                                        <select class="filter-select" name="severity">
+                                            <?php foreach ($severity_options as $value => $label): ?>
+                                                <option value="<?php echo $value; ?>" <?php echo $filter_severity === $value ? 'selected' : ''; ?>>
+                                                    <?php echo $label; ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="filter-group">
+                                        <label class="filter-label">
                                             <i class='bx bx-calendar'></i>
-                                            Date Range
+                                            Date Filter
                                         </label>
                                         <select class="filter-select" name="date">
                                             <?php foreach ($date_options as $value => $label): ?>
@@ -2069,29 +2156,14 @@ function hexToRgb($hex) {
                                     
                                     <div class="filter-group">
                                         <label class="filter-label">
-                                            <i class='bx bxs-briefcase'></i>
-                                            Duty Type
-                                        </label>
-                                        <select class="filter-select" name="duty_type">
-                                            <option value="">All Duty Types</option>
-                                            <?php foreach ($duty_types as $duty_type): ?>
-                                                <option value="<?php echo htmlspecialchars($duty_type); ?>" <?php echo $filter_duty_type === $duty_type ? 'selected' : ''; ?>>
-                                                    <?php echo ucfirst(str_replace('_', ' ', $duty_type)); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    
-                                    <div class="filter-group">
-                                        <label class="filter-label">
                                             <i class='bx bxs-building'></i>
-                                            Unit
+                                            Barangay
                                         </label>
-                                        <select class="filter-select" name="unit">
-                                            <option value="">All Units</option>
-                                            <?php foreach ($units as $unit): ?>
-                                                <option value="<?php echo $unit['id']; ?>" <?php echo $filter_unit == $unit['id'] ? 'selected' : ''; ?>>
-                                                    <?php echo htmlspecialchars($unit['unit_name'] . ' (' . $unit['unit_code'] . ')'); ?>
+                                        <select class="filter-select" name="barangay">
+                                            <option value="">All Barangays</option>
+                                            <?php foreach ($barangays as $barangay): ?>
+                                                <option value="<?php echo htmlspecialchars($barangay); ?>" <?php echo $filter_barangay === $barangay ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($barangay); ?>
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
@@ -2104,12 +2176,12 @@ function hexToRgb($hex) {
                                             <i class='bx bx-search'></i>
                                             Search
                                         </label>
-                                        <input type="text" class="filter-input" name="search" placeholder="Search by name, email, unit, location..." value="<?php echo htmlspecialchars($search_query); ?>">
+                                        <input type="text" class="filter-input" name="search" placeholder="Search by violation code, establishment name, description..." value="<?php echo htmlspecialchars($search_query); ?>">
                                     </div>
                                 </div>
                                 
                                 <div class="filter-actions">
-                                    <a href="view_shifts.php" class="filter-button clear-filters">
+                                    <a href="review_violations.php" class="filter-button clear-filters">
                                         <i class='bx bx-x'></i>
                                         Clear All Filters
                                     </a>
@@ -2125,98 +2197,129 @@ function hexToRgb($hex) {
                         </div>
                     </div>
                     
-                    <!-- Shifts Table -->
-                    <div class="shifts-table-container">
+                    <!-- Violations Table -->
+                    <div class="violations-table-container">
                         <div class="table-header">
-                            <div>ID</div>
-                            <div>Date & Time</div>
-                            <div>Assigned To</div>
-                            <div>Unit</div>
-                            <div>Shift Type</div>
+                            <div>Code</div>
+                            <div>Establishment</div>
+                            <div>Violation</div>
+                            <div>Severity</div>
+                            <div>Fine</div>
+                            <div>Deadline</div>
                             <div>Status</div>
-                            <div>Confirmation</div>
+                            <div>Report</div>
                             <div>Actions</div>
                         </div>
-                        <div class="shifts-table-container" style="max-height: 500px;">
-                            <?php if (count($shifts) > 0): ?>
-                                <?php foreach ($shifts as $index => $shift): ?>
+                        <div class="violations-table-container" style="max-height: 500px;">
+                            <?php if (count($violations) > 0): ?>
+                                <?php foreach ($violations as $index => $violation): ?>
                                     <?php 
-                                    $shiftDate = new DateTime($shift['shift_date']);
-                                    $shiftTypeClass = 'shift-type-' . strtolower($shift['shift_type']);
-                                    $statusClass = 'status-' . strtolower($shift['status']);
+                                    // Determine row class based on severity and overdue status
+                                    $rowClass = '';
+                                    if (isOverdue($violation['compliance_deadline'], $violation['status'])) {
+                                        $rowClass = 'overdue';
+                                    } elseif ($violation['severity'] === 'critical') {
+                                        $rowClass = 'critical';
+                                    } elseif ($violation['severity'] === 'major') {
+                                        $rowClass = 'major';
+                                    }
+                                    
+                                    // Determine deadline display
+                                    $deadlineClass = 'deadline-normal';
+                                    $deadlineText = formatDate($violation['compliance_deadline']);
+                                    
+                                    if (isOverdue($violation['compliance_deadline'], $violation['status'])) {
+                                        $deadlineClass = 'deadline-overdue';
+                                        $deadlineText = 'OVERDUE: ' . formatDate($violation['compliance_deadline']);
+                                    } elseif ($violation['compliance_deadline']) {
+                                        $daysRemaining = ceil((strtotime($violation['compliance_deadline']) - time()) / (60 * 60 * 24));
+                                        if ($daysRemaining <= 3) {
+                                            $deadlineClass = 'deadline-urgent';
+                                            $deadlineText .= " ({$daysRemaining}d left)";
+                                        }
+                                    }
                                     ?>
-                                    <div class="table-row" style="animation-delay: <?php echo $index * 0.05; ?>s;">
-                                        <div class="table-cell" data-label="ID">
-                                            <div class="shift-id">#<?php echo $shift['id']; ?></div>
-                                        </div>
-                                        <div class="table-cell" data-label="Date & Time">
-                                            <div class="shift-date"><?php echo $shiftDate->format('M j, Y'); ?></div>
-                                            <div class="shift-time">
-                                                <?php echo formatTime($shift['start_time']); ?> - <?php echo formatTime($shift['end_time']); ?>
-                                            </div>
-                                        </div>
-                                        <div class="table-cell" data-label="Assigned To">
-                                            <div class="unit-info">
-                                                <div class="unit-name"><?php echo htmlspecialchars($shift['assigned_to_name']); ?></div>
-                                                <?php if ($shift['assigned_to_email']): ?>
-                                                    <div class="unit-code"><?php echo htmlspecialchars($shift['assigned_to_email']); ?></div>
-                                                <?php endif; ?>
-                                                <div class="unit-code" style="font-size: 10px; color: var(--text-light);">
-                                                    <?php echo ucfirst($shift['shift_for']); ?>
-                                                    <?php if ($shift['user_id']): ?> (User ID: <?php echo $shift['user_id']; ?>)<?php endif; ?>
-                                                    <?php if ($shift['volunteer_id']): ?> (Volunteer ID: <?php echo $shift['volunteer_id']; ?>)<?php endif; ?>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="table-cell" data-label="Unit">
-                                            <?php if ($shift['unit_name']): ?>
-                                                <div class="unit-info">
-                                                    <div class="unit-name"><?php echo htmlspecialchars($shift['unit_name']); ?></div>
-                                                    <div class="unit-code"><?php echo htmlspecialchars($shift['unit_code']); ?></div>
-                                                </div>
-                                            <?php else: ?>
-                                                <div>Not assigned</div>
+                                    <div class="table-row <?php echo $rowClass; ?>" style="animation-delay: <?php echo $index * 0.05; ?>s;">
+                                        <div class="table-cell" data-label="Code">
+                                            <div class="violation-code"><?php echo $violation['violation_code']; ?></div>
+                                            <?php if ($violation['section_violated']): ?>
+                                                <div style="font-size: 11px; color: var(--text-light);">Sec: <?php echo $violation['section_violated']; ?></div>
                                             <?php endif; ?>
                                         </div>
-                                        <div class="table-cell" data-label="Shift Type">
-                                            <div class="shift-type-badge <?php echo $shiftTypeClass; ?>">
-                                                <i class='bx <?php echo $shift_type_icons[strtolower($shift['shift_type'])]; ?>'></i>
-                                                <?php echo ucfirst(str_replace('_', ' ', $shift['shift_type'])); ?>
+                                        <div class="table-cell" data-label="Establishment">
+                                            <div class="establishment-name"><?php echo htmlspecialchars($violation['establishment_name']); ?></div>
+                                            <div style="font-size: 12px; color: var(--text-light);">
+                                                <?php echo htmlspecialchars($violation['establishment_type']); ?> • <?php echo htmlspecialchars($violation['barangay']); ?>
                                             </div>
+                                        </div>
+                                        <div class="table-cell" data-label="Violation">
+                                            <div class="violation-description"><?php echo htmlspecialchars($violation['violation_description']); ?></div>
+                                        </div>
+                                        <div class="table-cell" data-label="Severity">
+                                            <?php echo getSeverityBadge($violation['severity']); ?>
+                                        </div>
+                                        <div class="table-cell" data-label="Fine">
+                                            <?php if ($violation['fine_amount']): ?>
+                                                <div class="fine-amount"><?php echo formatCurrency($violation['fine_amount']); ?></div>
+                                            <?php else: ?>
+                                                <div style="color: var(--text-light); font-size: 12px;">N/A</div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="table-cell" data-label="Deadline">
+                                            <?php if ($violation['compliance_deadline']): ?>
+                                                <div class="<?php echo $deadlineClass; ?>"><?php echo $deadlineText; ?></div>
+                                                <?php if (isOverdue($violation['compliance_deadline'], $violation['status'])): ?>
+                                                    <div class="overdue-warning">
+                                                        <i class='bx bxs-error'></i>
+                                                        Past Deadline
+                                                    </div>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <div style="color: var(--text-light); font-size: 12px;">N/A</div>
+                                            <?php endif; ?>
                                         </div>
                                         <div class="table-cell" data-label="Status">
-                                            <div class="status-badge <?php echo $statusClass; ?>">
-                                                <?php echo ucfirst($shift['status']); ?>
-                                            </div>
-                                        </div>
-                                        <div class="table-cell" data-label="Confirmation">
-                                            <?php if ($shift['confirmation_status']): ?>
-                                                <?php echo getConfirmationBadge($shift['confirmation_status']); ?>
-                                            <?php else: ?>
-                                                <span style="color: var(--text-light); font-size: 12px;">N/A</span>
+                                            <?php echo getStatusBadge($violation['status']); ?>
+                                            <?php if ($violation['rectified_at']): ?>
+                                                <div style="font-size: 11px; color: var(--text-light); margin-top: 4px;">
+                                                    Rectified: <?php echo formatDate($violation['rectified_at']); ?>
+                                                </div>
                                             <?php endif; ?>
+                                        </div>
+                                        <div class="table-cell" data-label="Report">
+                                            <div class="report-number"><?php echo $violation['report_number']; ?></div>
+                                            <div style="font-size: 11px; color: var(--text-light);">
+                                                <?php echo formatDate($violation['inspection_date']); ?>
+                                            </div>
                                         </div>
                                         <div class="table-cell" data-label="Actions">
                                             <div class="action-buttons">
-                                                <button class="action-button view-button" onclick="viewShiftDetails(<?php echo $shift['id']; ?>)">
+                                                <button class="action-button view-button" onclick="viewViolationDetails(<?php echo $violation['id']; ?>)">
                                                     <i class='bx bxs-info-circle'></i>
                                                     View
                                                 </button>
                                                 
-                                                <button class="action-button edit-button" onclick="editShift(<?php echo $shift['id']; ?>)">
-                                                    <i class='bx bxs-edit'></i>
-                                                    Edit
-                                                </button>
+                                                <?php if (in_array($violation['status'], ['pending', 'overdue'])): ?>
+                                                    <button class="action-button rectify-button" onclick="markAsRectified(<?php echo $violation['id']; ?>)">
+                                                        <i class='bx bxs-check-circle'></i>
+                                                        Rectify
+                                                    </button>
+                                                    
+                                                    <button class="action-button escalate-button" onclick="escalateViolation(<?php echo $violation['id']; ?>)">
+                                                        <i class='bx bxs-up-arrow-circle'></i>
+                                                        Escalate
+                                                    </button>
+                                                    
+                                                    <button class="action-button waive-button" onclick="waiveViolation(<?php echo $violation['id']; ?>)">
+                                                        <i class='bx bxs-check-shield'></i>
+                                                        Waive
+                                                    </button>
+                                                <?php endif; ?>
                                                 
-                                                <button class="action-button attendance-button" onclick="updateAttendance(<?php echo $shift['id']; ?>)">
-                                                    <i class='bx bxs-log-in'></i>
-                                                    Attendance
-                                                </button>
-                                                
-                                                <?php if ($shift['status'] !== 'cancelled'): ?>
-                                                    <button class="action-button delete-button" onclick="cancelShift(<?php echo $shift['id']; ?>)">
-                                                        <i class='bx bxs-trash'></i>
-                                                        Cancel
+                                                <?php if ($violation['status'] !== 'rectified'): ?>
+                                                    <button class="action-button edit-button" onclick="editViolation(<?php echo $violation['id']; ?>)">
+                                                        <i class='bx bxs-edit'></i>
+                                                        Edit
                                                     </button>
                                                 <?php endif; ?>
                                             </div>
@@ -2224,14 +2327,14 @@ function hexToRgb($hex) {
                                     </div>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <div class="no-shifts">
-                                    <div class="no-shifts-icon">
-                                        <i class='bx bxs-calendar-x'></i>
+                                <div class="no-violations">
+                                    <div class="no-violations-icon">
+                                        <i class='bx bxs-check-shield'></i>
                                     </div>
-                                    <h3>No Shifts Found</h3>
-                                    <p>No shifts match your current filters.</p>
-                                    <?php if ($filter_status !== 'all' || $filter_date !== '' || $search_query !== '' || $filter_duty_type !== '' || $filter_unit !== ''): ?>
-                                        <a href="view_shifts.php" class="filter-button" style="margin-top: 16px;">
+                                    <h3>No Violations Found</h3>
+                                    <p>No violations match your current filters.</p>
+                                    <?php if ($filter_status !== 'all' || $filter_severity !== '' || $search_query !== '' || $filter_barangay !== '' || $filter_date !== ''): ?>
+                                        <a href="review_violations.php" class="filter-button" style="margin-top: 16px;">
                                             <i class='bx bx-x'></i>
                                             Clear Filters
                                         </a>
@@ -2259,9 +2362,6 @@ function hexToRgb($hex) {
             
             // Add data labels for mobile view
             addDataLabels();
-            
-            // Initialize tooltips
-            initTooltips();
             
             // Add animation to stat cards
             animateStatCards();
@@ -2310,6 +2410,48 @@ function hexToRgb($hex) {
                 }
             });
             
+            // Rectify modal functionality
+            const rectifyModal = document.getElementById('rectify-modal');
+            const rectifyModalClose = document.getElementById('rectify-modal-close');
+            const cancelRectify = document.getElementById('cancel-rectify');
+            
+            rectifyModalClose.addEventListener('click', closeRectifyModal);
+            cancelRectify.addEventListener('click', closeRectifyModal);
+            
+            rectifyModal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeRectifyModal();
+                }
+            });
+            
+            // Escalate modal functionality
+            const escalateModal = document.getElementById('escalate-modal');
+            const escalateModalClose = document.getElementById('escalate-modal-close');
+            const cancelEscalate = document.getElementById('cancel-escalate');
+            
+            escalateModalClose.addEventListener('click', closeEscalateModal);
+            cancelEscalate.addEventListener('click', closeEscalateModal);
+            
+            escalateModal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeEscalateModal();
+                }
+            });
+            
+            // Waive modal functionality
+            const waiveModal = document.getElementById('waive-modal');
+            const waiveModalClose = document.getElementById('waive-modal-close');
+            const cancelWaive = document.getElementById('cancel-waive');
+            
+            waiveModalClose.addEventListener('click', closeWaiveModal);
+            cancelWaive.addEventListener('click', closeWaiveModal);
+            
+            waiveModal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeWaiveModal();
+                }
+            });
+            
             // Edit modal functionality
             const editModal = document.getElementById('edit-modal');
             const editModalClose = document.getElementById('edit-modal-close');
@@ -2324,32 +2466,30 @@ function hexToRgb($hex) {
                 }
             });
             
-            // Attendance modal functionality
-            const attendanceModal = document.getElementById('attendance-modal');
-            const attendanceModalClose = document.getElementById('attendance-modal-close');
-            const cancelAttendance = document.getElementById('cancel-attendance');
+            // Form submissions
+            const rectifyForm = document.getElementById('rectify-form');
+            const escalateForm = document.getElementById('escalate-form');
+            const waiveForm = document.getElementById('waive-form');
+            const editForm = document.getElementById('edit-form');
             
-            attendanceModalClose.addEventListener('click', closeAttendanceModal);
-            cancelAttendance.addEventListener('click', closeAttendanceModal);
-            
-            attendanceModal.addEventListener('click', function(e) {
-                if (e.target === this) {
-                    closeAttendanceModal();
-                }
+            rectifyForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                submitRectify();
             });
             
-            // Edit shift form submission
-            const editForm = document.getElementById('edit-shift-form');
+            escalateForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                submitEscalate();
+            });
+            
+            waiveForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                submitWaive();
+            });
+            
             editForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                submitEditShift();
-            });
-            
-            // Update attendance form submission
-            const attendanceForm = document.getElementById('update-attendance-form');
-            attendanceForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                submitAttendanceUpdate();
+                submitEdit();
             });
             
             // Filter form submission
@@ -2400,24 +2540,6 @@ function hexToRgb($hex) {
             });
         }
         
-        function initTooltips() {
-            // Add tooltips to duty type badges
-            document.querySelectorAll('.duty-type-badge').forEach(badge => {
-                const title = badge.querySelector('.duty-type-title')?.textContent || '';
-                const description = badge.querySelector('.duty-description')?.textContent || '';
-                
-                if (description) {
-                    badge.title = `${title}: ${description}`;
-                }
-            });
-            
-            // Add tooltips to action buttons
-            document.querySelectorAll('.action-button').forEach(button => {
-                const text = button.textContent.trim();
-                button.title = text;
-            });
-        }
-        
         function animateStatCards() {
             document.querySelectorAll('.stat-card').forEach((card, index) => {
                 card.style.animationDelay = `${index * 0.1}s`;
@@ -2441,8 +2563,8 @@ function hexToRgb($hex) {
                 const headerLabels = Array.from(headers).map(header => header.textContent);
                 
                 tableCells.forEach((cell, index) => {
-                    const rowIndex = Math.floor(index / 8); // 8 columns
-                    const colIndex = index % 8;
+                    const rowIndex = Math.floor(index / 9); // 9 columns
+                    const colIndex = index % 9;
                     
                     if (colIndex < headerLabels.length) {
                         cell.setAttribute('data-label', headerLabels[colIndex]);
@@ -2451,7 +2573,7 @@ function hexToRgb($hex) {
             }
         }
         
-        function viewShiftDetails(shiftId) {
+        function viewViolationDetails(violationId) {
             const detailsModal = document.getElementById('details-modal');
             const detailsContent = document.getElementById('details-content');
             
@@ -2459,7 +2581,7 @@ function hexToRgb($hex) {
             detailsContent.innerHTML = `
                 <div style="text-align: center; padding: 40px;">
                     <div style="width: 60px; height: 60px; margin: 0 auto 20px; border: 4px solid rgba(220, 38, 38, 0.1); border-top-color: var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                    <p style="color: var(--text-light);">Loading shift details...</p>
+                    <p style="color: var(--text-light);">Loading violation details...</p>
                 </div>
                 <style>
                     @keyframes spin {
@@ -2469,31 +2591,18 @@ function hexToRgb($hex) {
                 </style>
             `;
             
-            // Fetch shift details via AJAX
-            fetch(`get_shift_details.php?id=${shiftId}&admin=true`)
-                .then(response => {
-                    // First check if response is JSON
-                    const contentType = response.headers.get("content-type");
-                    if (contentType && contentType.includes("application/json")) {
-                        return response.json();
-                    } else {
-                        // If not JSON, get text and try to parse
-                        return response.text().then(text => {
-                            console.error("Non-JSON response:", text.substring(0, 200));
-                            throw new Error("Server returned non-JSON response");
-                        });
-                    }
-                })
+            // Fetch violation details via AJAX
+            fetch(`get_violation_details.php?id=${violationId}`)
+                .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        const shift = data.shift;
-                        renderShiftDetails(shift);
+                        renderViolationDetails(data.violation);
                     } else {
                         detailsContent.innerHTML = `
                             <div style="text-align: center; padding: 40px; color: var(--danger);">
                                 <i class="bx bx-error" style="font-size: 48px; margin-bottom: 16px;"></i>
                                 <h3 style="margin-bottom: 8px;">Error</h3>
-                                <p>${data.message || 'Failed to load shift details'}</p>
+                                <p>${data.message || 'Failed to load violation details'}</p>
                             </div>
                         `;
                     }
@@ -2504,8 +2613,7 @@ function hexToRgb($hex) {
                         <div style="text-align: center; padding: 40px; color: var(--danger);">
                             <i class="bx bx-error" style="font-size: 48px; margin-bottom: 16px;"></i>
                             <h3 style="margin-bottom: 8px;">Network Error</h3>
-                            <p>Failed to load shift details. Please check your connection and try again.</p>
-                            <p style="font-size: 12px; margin-top: 10px;">Error: ${error.message}</p>
+                            <p>Failed to load violation details. Please check your connection and try again.</p>
                         </div>
                     `;
                 });
@@ -2514,439 +2622,401 @@ function hexToRgb($hex) {
             detailsModal.classList.add('active');
         }
         
-        function renderShiftDetails(shift) {
+        function renderViolationDetails(violation) {
             const detailsContent = document.getElementById('details-content');
             
-            // Get shift type icon
-            const shiftTypeIcons = {
-                'morning': 'bx-sun',
-                'afternoon': 'bx-cloud',
-                'evening': 'bx-moon',
-                'night': 'bx-bed',
-                'full_day': 'bx-calendar'
-            };
-            
-            // Format times
-            function formatTime(timeString) {
-                if (!timeString) return 'N/A';
-                const time = new Date('1970-01-01T' + timeString);
-                return time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            // Determine deadline status
+            let deadlineStatus = '';
+            let deadlineClass = '';
+            if (violation.compliance_deadline) {
+                const today = new Date();
+                const deadline = new Date(violation.compliance_deadline);
+                const daysRemaining = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+                
+                if (daysRemaining < 0 && violation.status !== 'rectified') {
+                    deadlineStatus = `Overdue by ${Math.abs(daysRemaining)} days`;
+                    deadlineClass = 'deadline-overdue';
+                } else if (daysRemaining <= 3) {
+                    deadlineStatus = `${daysRemaining} days remaining`;
+                    deadlineClass = 'deadline-urgent';
+                } else {
+                    deadlineStatus = `${daysRemaining} days remaining`;
+                    deadlineClass = 'deadline-normal';
+                }
             }
             
-            // Calculate duration
-            function calculateDuration(startTime, endTime) {
-                const start = new Date('1970-01-01T' + startTime);
-                const end = new Date('1970-01-01T' + endTime);
-                const diffMs = end - start;
-                const hours = Math.floor(diffMs / (1000 * 60 * 60));
-                const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                return `${hours}h ${minutes}m`;
-            }
-            
-            // Get confirmation badge HTML
-            function getConfirmationBadgeHTML(status) {
-                const statusColors = {
-                    'pending': { bg: '#fef3c7', color: '#f59e0b' },
-                    'confirmed': { bg: '#d1fae5', color: '#10b981' },
-                    'declined': { bg: '#fee2e2', color: '#dc2626' },
-                    'change_requested': { bg: '#f3e8ff', color: '#8b5cf6' }
-                };
-                
-                const config = statusColors[status?.toLowerCase()] || { bg: '#f3f4f6', color: '#6b7280' };
-                const text = status ? status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ') : 'N/A';
-                
-                return `<span style="padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${config.bg}; color: ${config.color}; border: 1px solid ${config.color}20;">${text}</span>`;
-            }
-            
-            // Get attendance badge HTML
-            function getAttendanceBadgeHTML(status) {
-                const statusColors = {
-                    'pending': { bg: '#fef3c7', color: '#f59e0b' },
-                    'checked_in': { bg: '#dbeafe', color: '#3b82f6' },
-                    'checked_out': { bg: '#d1fae5', color: '#10b981' },
-                    'absent': { bg: '#fee2e2', color: '#dc2626' },
-                    'excused': { bg: '#f3e8ff', color: '#8b5cf6' }
-                };
-                
-                const config = statusColors[status?.toLowerCase()] || { bg: '#f3f4f6', color: '#6b7280' };
-                const text = status ? status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ') : 'N/A';
-                
-                return `<span style="padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${config.bg}; color: ${config.color}; border: 1px solid ${config.color}20;">${text}</span>`;
+            // Format date
+            function formatDateString(dateString) {
+                if (!dateString) return 'N/A';
+                const date = new Date(dateString);
+                return date.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
             }
             
             let detailsHtml = `
-                <div class="shift-details">
+                <div class="violation-details">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
                         <div>
-                            <h3 style="margin: 0; color: var(--primary-color);">Shift #${shift.id}</h3>
-                            <p style="margin: 4px 0 0; color: var(--text-light);">${new Date(shift.shift_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            <h3 style="margin: 0; color: var(--primary-color);">${violation.violation_code}</h3>
+                            <p style="margin: 4px 0 0; color: var(--text-light);">${violation.section_violated ? 'Section: ' + violation.section_violated : ''}</p>
                         </div>
                         <div style="display: flex; gap: 8px;">
-                            <span class="status-badge status-${shift.status?.toLowerCase() || 'scheduled'}">
-                                ${shift.status?.toUpperCase() || 'SCHEDULED'}
-                            </span>
-                            <span class="shift-type-badge shift-type-${shift.shift_type?.toLowerCase() || 'full_day'}">
-                                <i class='bx ${shiftTypeIcons[shift.shift_type?.toLowerCase()] || 'bx-calendar'}'></i>
-                                ${(shift.shift_type || 'FULL_DAY').replace('_', ' ').toUpperCase()}
-                            </span>
+                            ${getSeverityBadge(violation.severity)}
+                            ${getStatusBadge(violation.status)}
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 24px;">
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Start Time</div>
-                            <div style="font-size: 16px; font-weight: 600;">${formatTime(shift.start_time)}</div>
-                        </div>
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">End Time</div>
-                            <div style="font-size: 16px; font-weight: 600;">${formatTime(shift.end_time)}</div>
-                        </div>
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Duration</div>
-                            <div style="font-size: 16px; font-weight: 600;">${calculateDuration(shift.start_time, shift.end_time)}</div>
-                        </div>
-                    </div>`;
-            
-            // Assigned to information
-            if (shift.assigned_to_name) {
-                detailsHtml += `
-                    <div style="background: rgba(59, 130, 246, 0.05); border-radius: 12px; padding: 16px; margin-bottom: 20px; border-left: 4px solid var(--info);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <div>
-                                <div style="font-size: 12px; color: var(--text-light);">Assigned To</div>
-                                <div style="font-size: 18px; font-weight: 600; color: var(--info);">${shift.assigned_to_name}</div>
-                            </div>
-                            <div style="background: var(--info); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">
-                                ${shift.shift_for === 'volunteer' ? 'Volunteer' : 'Employee'}
-                            </div>
-                        </div>
-                        ${shift.assigned_to_email ? `<div style="font-size: 14px; color: var(--text-light);">${shift.assigned_to_email}</div>` : ''}
-                    </div>`;
-            }
-            
-            if (shift.unit_name) {
-                detailsHtml += `
-                    <div style="background: rgba(16, 185, 129, 0.05); border-radius: 12px; padding: 16px; margin-bottom: 20px; border-left: 4px solid var(--success);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <div>
-                                <div style="font-size: 12px; color: var(--text-light);">Assigned Unit</div>
-                                <div style="font-size: 18px; font-weight: 600; color: var(--success);">${shift.unit_name}</div>
-                            </div>
-                            <div style="background: var(--success); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">
-                                ${shift.unit_code || ''}
-                            </div>
-                        </div>
-                        <div style="font-size: 14px; color: var(--text-light);">${shift.unit_type || ''} Unit</div>
-                    </div>`;
-            }
-            
-            detailsHtml += `
-                    <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-                        <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Location</div>
-                        <div style="font-size: 16px; font-weight: 600;">${shift.location || 'Main Station'}</div>
-                    </div>`;
-            
-            if (shift.notes) {
-                detailsHtml += `
-                    <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-                        <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Shift Notes</div>
-                        <div style="font-size: 14px; line-height: 1.6;">${shift.notes}</div>
-                    </div>`;
-            }
-            
-            // Confirmation Status
-            detailsHtml += `
-                    <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-                        <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Confirmation Status</div>
-                        <div style="font-size: 16px; font-weight: 600;">
-                            ${getConfirmationBadgeHTML(shift.confirmation_status)}
-                        </div>
-                    </div>`;
-            
-            // Duty Assignment Section
-            if (shift.duty_type) {
-                detailsHtml += `
-                    <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(139, 92, 246, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--purple);">
-                        <h4 style="margin: 0 0 16px 0; color: var(--purple); display: flex; align-items: center; gap: 8px;">
-                            <i class='bx bxs-briefcase'></i>
-                            Duty Assignment Details
-                        </h4>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 16px;">
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Duty Type</div>
-                                <div style="font-size: 14px; font-weight: 600;">${shift.duty_type.replace('_', ' ').toUpperCase()}</div>
-                            </div>
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Priority</div>
-                                <div>
-                                    <span style="padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: ${shift.priority === 'primary' ? '#dc2626' : shift.priority === 'secondary' ? '#f59e0b' : '#3b82f6'}; color: white;">
-                                        ${(shift.priority || 'support').toUpperCase()}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                            <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Duty Description</div>
-                            <div style="font-size: 14px; line-height: 1.6;">${shift.duty_description || ''}</div>
-                        </div>`;
-                
-                if (shift.required_equipment) {
-                    detailsHtml += `
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                            <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Required Equipment</div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
-                    
-                    const equipmentList = shift.required_equipment.split(',').map(item => item.trim());
-                    equipmentList.forEach(equipment => {
-                        if (equipment) {
-                            detailsHtml += `<span style="padding: 4px 8px; border-radius: 6px; font-size: 11px; background: rgba(59, 130, 246, 0.1); color: var(--info);">${equipment}</span>`;
-                        }
-                    });
-                    
-                    detailsHtml += `</div></div>`;
-                }
-                
-                if (shift.required_training) {
-                    detailsHtml += `
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                            <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Required Training</div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
-                    
-                    const trainingList = shift.required_training.split(',').map(item => item.trim());
-                    trainingList.forEach(training => {
-                        if (training) {
-                            detailsHtml += `<span style="padding: 4px 8px; border-radius: 6px; font-size: 11px; background: rgba(16, 185, 129, 0.1); color: var(--success);">${training}</span>`;
-                        }
-                    });
-                    
-                    detailsHtml += `</div></div>`;
-                }
-                
-                detailsHtml += `</div>`;
-            }
-            
-            // Attendance Information
-            if (shift.check_in_time || shift.attendance_status !== 'pending') {
-                detailsHtml += `
-                    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(16, 185, 129, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--success);">
-                        <h4 style="margin: 0 0 16px 0; color: var(--success); display: flex; align-items: center; gap: 8px;">
-                            <i class='bx bxs-log-in'></i>
-                            Attendance Information
+                    <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--info);">
+                        <h4 style="margin: 0 0 16px 0; color: var(--info); display: flex; align-items: center; gap: 8px;">
+                            <i class='bx bxs-building'></i>
+                            Establishment Details
                         </h4>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Attendance Status</div>
-                                <div style="font-size: 14px; font-weight: 600;">
-                                    ${getAttendanceBadgeHTML(shift.attendance_status)}
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Name</div>
+                                <div style="font-size: 16px; font-weight: 600;">${violation.establishment_name}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Type</div>
+                                <div style="font-size: 16px; font-weight: 600;">${violation.establishment_type}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Owner</div>
+                                <div style="font-size: 16px; font-weight: 600;">${violation.owner_name}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Barangay</div>
+                                <div style="font-size: 16px; font-weight: 600;">${violation.barangay}</div>
+                            </div>
+                        </div>
+                        ${violation.address ? `<div style="margin-top: 12px; font-size: 14px; color: var(--text-light);"><i class='bx bxs-map'></i> ${violation.address}</div>` : ''}
+                        ${violation.owner_contact ? `<div style="margin-top: 8px; font-size: 14px; color: var(--text-light);"><i class='bx bxs-phone'></i> ${violation.owner_contact}</div>` : ''}
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, rgba(220, 38, 38, 0.05), rgba(220, 38, 38, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--danger);">
+                        <h4 style="margin: 0 0 16px 0; color: var(--danger); display: flex; align-items: center; gap: 8px;">
+                            <i class='bx bxs-error-circle'></i>
+                            Violation Details
+                        </h4>
+                        <div style="white-space: pre-line; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">${violation.violation_description}</div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Fine Amount</div>
+                                <div style="font-size: 20px; font-weight: 700; color: var(--danger);">${violation.fine_amount ? '₱' + parseFloat(violation.fine_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Compliance Deadline</div>
+                                <div style="font-size: 16px; font-weight: 600; ${deadlineClass === 'deadline-overdue' ? 'color: #7c2d12;' : deadlineClass === 'deadline-urgent' ? 'color: var(--danger);' : 'color: var(--success);'}">
+                                    ${formatDateString(violation.compliance_deadline)}
                                 </div>
-                            </div>`;
-                
-                if (shift.check_in_time) {
-                    detailsHtml += `
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Check-in Time</div>
-                                <div style="font-size: 14px; font-weight: 600;">${new Date(shift.check_in_time).toLocaleString()}</div>
-                            </div>`;
-                }
-                
-                if (shift.check_out_time) {
-                    detailsHtml += `
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Check-out Time</div>
-                                <div style="font-size: 14px; font-weight: 600;">${new Date(shift.check_out_time).toLocaleString()}</div>
-                            </div>`;
-                }
-                
-                if (shift.attendance_notes) {
-                    detailsHtml += `
-                            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; grid-column: 1 / -1;">
-                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Attendance Notes</div>
-                                <div style="font-size: 14px; line-height: 1.6;">${shift.attendance_notes}</div>
-                            </div>`;
-                }
-                
-                detailsHtml += `</div></div>`;
-            }
-            
-            // System Information
-            detailsHtml += `
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Created By</div>
-                            <div style="font-size: 14px; font-weight: 600;">${shift.created_by_name || 'System'}</div>
-                        </div>
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Created At</div>
-                            <div style="font-size: 14px; font-weight: 600;">${new Date(shift.created_at).toLocaleString()}</div>
-                        </div>
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Last Updated</div>
-                            <div style="font-size: 14px; font-weight: 600;">${new Date(shift.updated_at).toLocaleString()}</div>
+                                ${deadlineStatus ? `<div style="font-size: 12px; ${deadlineClass === 'deadline-overdue' ? 'color: #7c2d12;' : deadlineClass === 'deadline-urgent' ? 'color: var(--danger);' : 'color: var(--success);'}">${deadlineStatus}</div>` : ''}
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Report Number</div>
+                                <div style="font-size: 16px; font-weight: 600; color: var(--info);">${violation.report_number}</div>
+                            </div>
                         </div>
                     </div>
+                    
+                    ${violation.admin_notes ? `
+                    <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(139, 92, 246, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--purple);">
+                        <h4 style="margin: 0 0 16px 0; color: var(--purple); display: flex; align-items: center; gap: 8px;">
+                            <i class='bx bxs-edit'></i>
+                            Admin Notes
+                        </h4>
+                        <div style="white-space: pre-line; font-size: 14px; line-height: 1.6;">${violation.admin_notes}</div>
+                    </div>` : ''}
+                    
+                    ${violation.rectified_at ? `
+                    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(16, 185, 129, 0.1)); border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--success);">
+                        <h4 style="margin: 0 0 16px 0; color: var(--success); display: flex; align-items: center; gap: 8px;">
+                            <i class='bx bxs-check-circle'></i>
+                            Rectification Details
+                        </h4>
+                        <div style="white-space: pre-line; font-size: 14px; line-height: 1.6; margin-bottom: 12px;">${violation.rectify_notes || 'No rectification notes provided.'}</div>
+                        <div style="font-size: 14px; font-weight: 600;"><i class='bx bxs-calendar'></i> Rectified on: ${formatDateString(violation.rectified_at)}</div>
+                        ${violation.rectified_evidence ? `
+                        <div style="margin-top: 12px;">
+                            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 4px;">Evidence:</div>
+                            <a href="uploads/evidence/${violation.rectified_evidence}" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; color: var(--info); text-decoration: none; font-size: 14px;">
+                                <i class='bx bxs-file'></i>
+                                View Evidence
+                            </a>
+                        </div>` : ''}
+                    </div>` : ''}
+                    
+                    ${violation.inspector_name ? `
+                    <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Inspected By</div>
+                                <div style="font-size: 14px; font-weight: 600;">${violation.inspector_name}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Inspection Date</div>
+                                <div style="font-size: 14px; font-weight: 600;">${formatDateString(violation.inspection_date)}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Violation Created</div>
+                                <div style="font-size: 14px; font-weight: 600;">${formatDateString(violation.created_at)}</div>
+                            </div>
+                        </div>
+                    </div>` : ''}
                 </div>`;
             
             detailsContent.innerHTML = detailsHtml;
         }
         
-        function editShift(shiftId) {
+        function markAsRectified(violationId) {
+            const rectifyModal = document.getElementById('rectify-modal');
+            const rectifyViolationId = document.getElementById('rectify-violation-id');
+            
+            rectifyViolationId.value = violationId;
+            
+            // Open modal
+            rectifyModal.classList.add('active');
+        }
+        
+        function escalateViolation(violationId) {
+            const escalateModal = document.getElementById('escalate-modal');
+            const escalateViolationId = document.getElementById('escalate-violation-id');
+            
+            escalateViolationId.value = violationId;
+            
+            // Open modal
+            escalateModal.classList.add('active');
+        }
+        
+        function waiveViolation(violationId) {
+            const waiveModal = document.getElementById('waive-modal');
+            const waiveViolationId = document.getElementById('waive-violation-id');
+            
+            waiveViolationId.value = violationId;
+            
+            // Open modal
+            waiveModal.classList.add('active');
+        }
+        
+        function editViolation(violationId) {
             const editModal = document.getElementById('edit-modal');
-            const editShiftId = document.getElementById('edit-shift-id');
+            const editViolationId = document.getElementById('edit-violation-id');
             
-            editShiftId.value = shiftId;
+            editViolationId.value = violationId;
             
-            // Fetch current shift data
-            fetch(`get_shift_details.php?id=${shiftId}&admin=true`)
-                .then(response => {
-                    const contentType = response.headers.get("content-type");
-                    if (contentType && contentType.includes("application/json")) {
-                        return response.json();
-                    } else {
-                        return response.text().then(text => {
-                            console.error("Non-JSON response:", text.substring(0, 200));
-                            throw new Error("Server returned non-JSON response");
-                        });
-                    }
-                })
-                .then(data => {
-                    if (data.success) {
-                        const shift = data.shift;
-                        document.getElementById('edit_status').value = shift.status || 'scheduled';
-                        document.getElementById('edit_confirmation_status').value = shift.confirmation_status || 'pending';
-                        document.getElementById('edit_notes').value = shift.notes || '';
-                    }
-                })
-                .catch(error => {
-                    showNotification('error', 'Failed to load shift data: ' + error.message);
-                });
-            
-            // Open modal
-            editModal.classList.add('active');
-        }
-        
-        function updateAttendance(shiftId) {
-            const attendanceModal = document.getElementById('attendance-modal');
-            const attendanceShiftId = document.getElementById('attendance-shift-id');
-            
-            attendanceShiftId.value = shiftId;
-            
-            // Fetch current attendance data
-            fetch(`get_shift_details.php?id=${shiftId}&admin=true`)
-                .then(response => {
-                    const contentType = response.headers.get("content-type");
-                    if (contentType && contentType.includes("application/json")) {
-                        return response.json();
-                    } else {
-                        return response.text().then(text => {
-                            console.error("Non-JSON response:", text.substring(0, 200));
-                            throw new Error("Server returned non-JSON response");
-                        });
-                    }
-                })
-                .then(data => {
-                    if (data.success) {
-                        const shift = data.shift;
-                        document.getElementById('attendance_status').value = shift.attendance_status || 'pending';
-                        
-                        if (shift.check_in_time) {
-                            const checkIn = new Date(shift.check_in_time);
-                            document.getElementById('attendance_check_in').value = checkIn.toISOString().slice(0, 16);
-                        } else {
-                            document.getElementById('attendance_check_in').value = '';
-                        }
-                        
-                        if (shift.check_out_time) {
-                            const checkOut = new Date(shift.check_out_time);
-                            document.getElementById('attendance_check_out').value = checkOut.toISOString().slice(0, 16);
-                        } else {
-                            document.getElementById('attendance_check_out').value = '';
-                        }
-                        
-                        document.getElementById('attendance_notes').value = shift.attendance_notes || '';
-                    }
-                })
-                .catch(error => {
-                    showNotification('error', 'Failed to load attendance data: ' + error.message);
-                });
-            
-            // Open modal
-            attendanceModal.classList.add('active');
-        }
-        
-        function submitEditShift() {
-            const form = document.getElementById('edit-shift-form');
-            const formData = new FormData(form);
-            
-            fetch('update_shift.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('success', data.message || 'Shift updated successfully!');
-                    closeEditModal();
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1500);
-                } else {
-                    showNotification('error', data.message || 'Failed to update shift');
-                }
-            })
-            .catch(error => {
-                showNotification('error', 'Error: ' + error.message);
-            });
-        }
-        
-        function submitAttendanceUpdate() {
-            const form = document.getElementById('update-attendance-form');
-            const formData = new FormData(form);
-            
-            fetch('update_attendance.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('success', data.message || 'Attendance updated successfully!');
-                    closeAttendanceModal();
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1500);
-                } else {
-                    showNotification('error', data.message || 'Failed to update attendance');
-                }
-            })
-            .catch(error => {
-                showNotification('error', 'Error: ' + error.message);
-            });
-        }
-        
-        function cancelShift(shiftId) {
-            if (confirm('Are you sure you want to cancel this shift? This action cannot be undone.')) {
-                fetch('cancel_shift.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ shift_id: shiftId })
-                })
+            // Fetch current violation data
+            fetch(`get_violation_details.php?id=${violationId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showNotification('success', data.message || 'Shift cancelled successfully!');
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1500);
+                        const violation = data.violation;
+                        
+                        // Populate form fields
+                        document.getElementById('edit_severity').value = violation.severity;
+                        document.getElementById('edit_fine_amount').value = violation.fine_amount || '';
+                        document.getElementById('edit_compliance_deadline').value = violation.compliance_deadline || '';
+                        document.getElementById('edit_admin_notes').value = violation.admin_notes || '';
+                        
+                        // Open modal
+                        editModal.classList.add('active');
                     } else {
-                        showNotification('error', data.message || 'Failed to cancel shift');
+                        showNotification('error', 'Failed to load violation details');
                     }
                 })
                 .catch(error => {
                     showNotification('error', 'Error: ' + error.message);
                 });
+        }
+        
+        function submitRectify() {
+            const form = document.getElementById('rectify-form');
+            const formData = new FormData(form);
+            
+            fetch('mark_rectified.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('success', data.message || 'Violation marked as rectified successfully!');
+                    closeRectifyModal();
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showNotification('error', data.message || 'Failed to mark violation as rectified');
+                }
+            })
+            .catch(error => {
+                showNotification('error', 'Error: ' + error.message);
+            });
+        }
+        
+        function submitEscalate() {
+            const form = document.getElementById('escalate-form');
+            const formData = new FormData(form);
+            
+            fetch('escalate_violation.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('success', data.message || 'Violation escalated successfully!');
+                    closeEscalateModal();
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showNotification('error', data.message || 'Failed to escalate violation');
+                }
+            })
+            .catch(error => {
+                showNotification('error', 'Error: ' + error.message);
+            });
+        }
+        
+        function submitWaive() {
+            const form = document.getElementById('waive-form');
+            const formData = new FormData(form);
+            
+            fetch('waive_violation.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('success', data.message || 'Violation waived successfully!');
+                    closeWaiveModal();
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showNotification('error', data.message || 'Failed to waive violation');
+                }
+            })
+            .catch(error => {
+                showNotification('error', 'Error: ' + error.message);
+            });
+        }
+        
+        function submitEdit() {
+            const form = document.getElementById('edit-form');
+            const formData = new FormData(form);
+            
+            fetch('edit_violation.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('success', data.message || 'Violation updated successfully!');
+                    closeEditModal();
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showNotification('error', data.message || 'Failed to update violation');
+                }
+            })
+            .catch(error => {
+                showNotification('error', 'Error: ' + error.message);
+            });
+        }
+        
+        function viewOverdueViolations() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('status', 'overdue');
+            window.location.href = url.toString();
+        }
+        
+        function viewCriticalViolations() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('severity', 'critical');
+            url.searchParams.set('status', 'all');
+            window.location.href = url.toString();
+        }
+        
+        function generateViolationReport() {
+            // Show loading
+            showNotification('info', 'Generating violation report...');
+            
+            fetch('generate_violation_report.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    filter_status: '<?php echo $filter_status; ?>',
+                    filter_severity: '<?php echo $filter_severity; ?>',
+                    filter_date: '<?php echo $filter_date; ?>',
+                    filter_barangay: '<?php echo $filter_barangay; ?>'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('success', 'Report generated successfully! Download started.');
+                    // Trigger download
+                    if (data.download_url) {
+                        window.open(data.download_url, '_blank');
+                    }
+                } else {
+                    showNotification('error', data.message || 'Failed to generate report');
+                }
+            })
+            .catch(error => {
+                showNotification('error', 'Error: ' + error.message);
+            });
+        }
+        
+        function showBulkActions() {
+            // Get selected violations
+            const selectedIds = [];
+            // This would need checkboxes in the table rows for selection
+            
+            if (selectedIds.length === 0) {
+                showNotification('warning', 'Please select at least one violation to perform bulk actions');
+                return;
+            }
+            
+            // Show bulk action modal or perform action directly
+            const action = prompt('Enter bulk action (rectify, escalate, waive):');
+            if (action && ['rectify', 'escalate', 'waive'].includes(action.toLowerCase())) {
+                if (confirm(`Are you sure you want to ${action} ${selectedIds.length} violation(s)?`)) {
+                    fetch('bulk_action_violations.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            violation_ids: selectedIds,
+                            action: action.toLowerCase()
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showNotification('success', data.message || 'Bulk action completed successfully!');
+                            setTimeout(() => {
+                                location.reload();
+                            }, 1500);
+                        } else {
+                            showNotification('error', data.message || 'Failed to perform bulk action');
+                        }
+                    })
+                    .catch(error => {
+                        showNotification('error', 'Error: ' + error.message);
+                    });
+                }
             }
         }
         
@@ -2961,7 +3031,7 @@ function hexToRgb($hex) {
             notification.className = `notification notification-${type}`;
             notification.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <i class='bx ${type === 'success' ? 'bx-check-circle' : 'bx-error-circle'}'></i>
+                    <i class='bx ${type === 'success' ? 'bx-check-circle' : type === 'error' ? 'bx-error-circle' : 'bx-info-circle'}'></i>
                     <span>${message}</span>
                 </div>
                 <button onclick="this.parentElement.remove()" style="background: none; border: none; color: inherit; cursor: pointer;">
@@ -2991,10 +3061,18 @@ function hexToRgb($hex) {
                 notification.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(16, 185, 129, 0.8))';
                 notification.style.color = 'white';
                 notification.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-            } else {
+            } else if (type === 'error') {
                 notification.style.background = 'linear-gradient(135deg, rgba(220, 38, 38, 0.9), rgba(220, 38, 38, 0.8))';
                 notification.style.color = 'white';
                 notification.style.border = '1px solid rgba(220, 38, 38, 0.3)';
+            } else if (type === 'warning') {
+                notification.style.background = 'linear-gradient(135deg, rgba(245, 158, 11, 0.9), rgba(245, 158, 11, 0.8))';
+                notification.style.color = 'white';
+                notification.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+            } else {
+                notification.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(59, 130, 246, 0.8))';
+                notification.style.color = 'white';
+                notification.style.border = '1px solid rgba(59, 130, 246, 0.3)';
             }
             
             document.body.appendChild(notification);
@@ -3033,18 +3111,20 @@ function hexToRgb($hex) {
             document.getElementById('details-modal').classList.remove('active');
         }
         
+        function closeRectifyModal() {
+            document.getElementById('rectify-modal').classList.remove('active');
+        }
+        
+        function closeEscalateModal() {
+            document.getElementById('escalate-modal').classList.remove('active');
+        }
+        
+        function closeWaiveModal() {
+            document.getElementById('waive-modal').classList.remove('active');
+        }
+        
         function closeEditModal() {
             document.getElementById('edit-modal').classList.remove('active');
-        }
-        
-        function closeAttendanceModal() {
-            document.getElementById('attendance-modal').classList.remove('active');
-        }
-        
-        function formatTime(timeString) {
-            if (!timeString) return 'N/A';
-            const time = new Date('1970-01-01T' + timeString);
-            return time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         }
         
         function toggleSubmenu(id) {
@@ -3073,26 +3153,26 @@ function hexToRgb($hex) {
                 case 'total':
                     filterByStatus('all');
                     break;
-                case 'upcoming':
-                    filterByStatus('scheduled');
+                case 'pending':
+                    filterByStatus('pending');
                     break;
-                case 'completed':
-                    filterByStatus('completed');
+                case 'rectified':
+                    filterByStatus('rectified');
                     break;
-                case 'cancelled':
-                    filterByStatus('cancelled');
+                case 'overdue':
+                    filterByStatus('overdue');
                     break;
-                case 'today':
-                    filterByDate('today');
+                case 'critical':
+                    filterBySeverity('critical');
                     break;
-                case 'with_duty':
-                    filterByDuty();
+                case 'major':
+                    filterBySeverity('major');
                     break;
-                case 'pending_confirmation':
-                    showPendingConfirmations();
+                case 'minor':
+                    filterBySeverity('minor');
                     break;
-                case 'checked_in':
-                    showCheckedIn();
+                case 'past_deadline':
+                    filterByDate('overdue');
                     break;
             }
         }
@@ -3103,35 +3183,15 @@ function hexToRgb($hex) {
             window.location.href = url.toString();
         }
         
+        function filterBySeverity(severity) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('severity', severity);
+            window.location.href = url.toString();
+        }
+        
         function filterByDate(date) {
             const url = new URL(window.location.href);
             url.searchParams.set('date', date);
-            window.location.href = url.toString();
-        }
-        
-        function filterByDuty() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('duty_type', 'logistics_support');
-            window.location.href = url.toString();
-        }
-        
-        function showPendingConfirmations() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('status', 'scheduled');
-            url.searchParams.delete('date');
-            url.searchParams.delete('search');
-            url.searchParams.delete('duty_type');
-            url.searchParams.delete('unit');
-            window.location.href = url.toString();
-        }
-        
-        function showCheckedIn() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('status', 'scheduled');
-            url.searchParams.delete('date');
-            url.searchParams.delete('search');
-            url.searchParams.delete('duty_type');
-            url.searchParams.delete('unit');
             window.location.href = url.toString();
         }
         

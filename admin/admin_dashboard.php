@@ -95,8 +95,8 @@ $stmt = null;
                     <div id="user-management" class="submenu">
                         <a href="users/manage_users.php" class="submenu-item">Manage Users</a>
                         <a href="users/role_control.php" class="submenu-item">Role Control</a>
-                        <a href="users/monitor_activity.php" class="submenu-item">Monitor Activity</a>
-                        <a href="users/reset_passwords.php" class="submenu-item">Reset Passwords</a>
+                        <a href="users/monitor_activity.php" class="submenu-item">Audit & Activity Logs</a>
+                       
                     </div>
                     
                     <!-- Fire & Incident Reporting Management -->
@@ -110,11 +110,11 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="incident-management" class="submenu">
-                        <a href="#" class="submenu-item">View Reports</a>
-                        <a href="#" class="submenu-item">Validate Data</a>
-                        <a href="#" class="submenu-item">Assign Severity</a>
-                        <a href="#" class="submenu-item">Track Progress</a>
-                        <a href="#" class="submenu-item">Mark Resolved</a>
+                     
+                        <a href="fir/receive_data.php" class="submenu-item">Recieve Data</a>
+                        <a href="fir/update_status.php" class="submenu-item">Update Status</a>
+                        <a href="fir/incidents_analytics.php" class="submenu-item">Incidents Analytics</a>
+                        
                     </div>
                     
                     <!-- Barangay Volunteer Roster Management -->

@@ -203,22 +203,7 @@ $stmt = null;
                         <a href="#" class="submenu-item">Tag Violations</a>
                     </div>
                     
-                    <!-- Post-Incident Reporting -->
-                    <div class="menu-item" onclick="toggleSubmenu('postincident')">
-                        <div class="icon-box icon-bg-pink">
-                            <i class='bx bxs-file-doc icon-pink'></i>
-                        </div>
-                        <span class="font-medium">Post-Incident Reporting</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="postincident" class="submenu">
-                        <a href="#" class="submenu-item">Upload Reports</a>
-                        <a href="#" class="submenu-item">Add Notes</a>
-                        <a href="#" class="submenu-item">Attach Equipment</a>
-                        <a href="#" class="submenu-item">Mark Completed</a>
-                    </div>
+                  
                 </div>
                 
 
