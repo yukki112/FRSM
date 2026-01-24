@@ -1178,7 +1178,7 @@ unset($_SESSION['error_message']);
                 <span class="logo-text">Fire & Rescue</span>
             </div>
             
-             <!-- Menu Section -->
+         <!-- Menu Section -->
             <div class="menu-section">
                 <p class="menu-title">FIRE & RESCUE MANAGEMENT</p>
                 
@@ -1201,13 +1201,12 @@ unset($_SESSION['error_message']);
                         </svg>
                     </div>
                     <div id="user-management" class="submenu">
-                        <a href="../users/manage_users.php" class="submenu-item">Manage Users</a>
-                        <a href="../users/role_control.php" class="submenu-item">Role Control</a>
-                        <a href="../users/monitor_activity.php" class="submenu-item">Audit & Activity Logs</a>
-                       
+                        <a href="manage_users.php" class="submenu-item">Manage Users</a>
+                        <a href="role_control.php" class="submenu-item">Role Control</a>
+                        <a href="audit_logs.php" class="submenu-item">Audit & Activity Logs</a>
                     </div>
                     
-                    <!-- Fire & Incident Reporting Management -->
+                     <!-- Fire & Incident Reporting Management -->
                     <div class="menu-item" onclick="toggleSubmenu('incident-management')">
                         <div class="icon-box icon-bg-yellow">
                             <i class='bx bxs-alarm-exclamation icon-yellow'></i>
@@ -1226,7 +1225,7 @@ unset($_SESSION['error_message']);
                         
                     </div>
                     
-                    <!-- Barangay Volunteer Roster Management -->
+                     <!-- Barangay Volunteer Roster Management -->
                     <div class="menu-item" onclick="toggleSubmenu('volunteer-management')">
                         <div class="icon-box icon-bg-blue">
                             <i class='bx bxs-user-detail icon-blue'></i>
@@ -1237,12 +1236,10 @@ unset($_SESSION['error_message']);
                         </svg>
                     </div>
                     <div id="volunteer-management" class="submenu">
-                        <a href="../vm/review_data.php" class="submenu-item">Review Data</a>
-                        <a href="../vm/approve_applications.php" class="submenu-item">Approve Applications</a>
-                        <a href="../vm/assign_volunteers.php" class="submenu-item">Assign Volunteers</a>
+                        <a href="../vm/review_data.php" class="submenu-item ">Review Data</a>
+                        <a href="../vm/approve_applications.php" class="submenu-item">Assign Volunteers</a>
                         <a href="../vm/view_availability.php" class="submenu-item">View Availability</a>
-                        <a href="../vm/remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
-                        <a href="../vm/toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
+                        <a href="../vm/toggle_volunteer_registration.php" class="submenu-item">Toggle Registration</a>
                     </div>
                     
                     <!-- Resource Inventory Management -->
@@ -1308,10 +1305,10 @@ unset($_SESSION['error_message']);
                         </svg>
                     </div>
                     <div id="inspection-management" class="submenu">
-                        <a href="#" class="submenu-item">Approve Reports</a>
-                        <a href="#" class="submenu-item">Review Violations</a>
-                        <a href="#" class="submenu-item">Issue Certificates</a>
-                        <a href="#" class="submenu-item">Track Follow-Up</a>
+                        <a href="../ile/approve_reports.php" class="submenu-item">Approve Reports</a>
+                        <a href="../ile/review_violations.php" class="submenu-item">Review Violations</a>
+                        <a href="../ile/issue_certificates.php" class="submenu-item">Issue Certificates</a>
+                        <a href="../ile/track_followup.php" class="submenu-item">Track Follow-Up</a>
                     </div>
                     
                     <!-- Post-Incident Reporting & Analytics -->
@@ -1325,13 +1322,8 @@ unset($_SESSION['error_message']);
                         </svg>
                     </div>
                     <div id="analytics-management" class="submenu">
-                        <a href="#" class="submenu-item">Review Summaries</a>
-                        <a href="#" class="submenu-item">Analyze Data</a>
-                        <a href="#" class="submenu-item">Export Reports</a>
-                        <a href="#" class="submenu-item">Generate Statistics</a>
+                        <a href="../pir/review_summaries.php" class="submenu-item">Review Summaries</a>
                     </div>
-                    
-                   
                 </div>
                 
                 <p class="menu-title" style="margin-top: 32px;">GENERAL</p>

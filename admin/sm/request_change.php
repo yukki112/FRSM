@@ -1599,12 +1599,12 @@ $stmt = null;
             </div>
             
            
-            <!-- Menu Section -->
+           <!-- Menu Section -->
             <div class="menu-section">
                 <p class="menu-title">FIRE & RESCUE MANAGEMENT</p>
                 
                 <div class="menu-items">
-                    <a href="../admin/dashboard.php" class="menu-item">
+                    <a href="#" class="menu-item" id="dashboard-menu">
                         <div class="icon-box icon-bg-red">
                             <i class='bx bxs-dashboard icon-red'></i>
                         </div>
@@ -1622,12 +1622,12 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="user-management" class="submenu">
-                        <a href="manage_users.php" class="submenu-item">Manage Users</a>
-                        <a href="role_control.php" class="submenu-item">Role Control</a>
-                        <a href="audit_logs.php" class="submenu-item">Audit & Activity Logs</a>
+                        <a href="../users/manage_users.php" class="submenu-item">Manage Users</a>
+                        <a href="../users/role_control.php" class="submenu-item">Role Control</a>
+                        <a href="../users/audit_logs.php" class="submenu-item">Audit & Activity Logs</a>
                     </div>
                     
-                    <!-- Fire & Incident Reporting Management -->
+                     <!-- Fire & Incident Reporting Management -->
                     <div class="menu-item" onclick="toggleSubmenu('incident-management')">
                         <div class="icon-box icon-bg-yellow">
                             <i class='bx bxs-alarm-exclamation icon-yellow'></i>
@@ -1638,14 +1638,15 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="incident-management" class="submenu">
-                        <a href="#" class="submenu-item">View Reports</a>
-                        <a href="#" class="submenu-item">Validate Data</a>
-                        <a href="#" class="submenu-item">Assign Severity</a>
-                        <a href="#" class="submenu-item">Track Progress</a>
-                        <a href="#" class="submenu-item">Mark Resolved</a>
+                     
+                        <a href="../fir/receive_data.php" class="submenu-item">Recieve Data</a>
+                         <a href="../fir/track_status.php" class="submenu-item">Track Status</a>
+                        <a href="../fir/update_status.php" class="submenu-item">Update Status</a>
+                        <a href="../fir/incidents_analytics.php" class="submenu-item">Incidents Analytics</a>
+
                     </div>
                     
-                    <!-- Volunteer Management -->
+                   <!-- Barangay Volunteer Roster Management -->
                     <div class="menu-item" onclick="toggleSubmenu('volunteer-management')">
                         <div class="icon-box icon-bg-blue">
                             <i class='bx bxs-user-detail icon-blue'></i>
@@ -1656,12 +1657,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="volunteer-management" class="submenu">
-                        <a href="../volunteer/review_data.php" class="submenu-item">Review Data</a>
-                        <a href="../volunteer/approve_applications.php" class="submenu-item">Approve Applications</a>
-                        <a href="../volunteer/assign_volunteers.php" class="submenu-item">Assign Volunteers</a>
-                        <a href="../volunteer/view_availability.php" class="submenu-item">View Availability</a>
-                        <a href="../volunteer/remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
-                        <a href="../volunteer/toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
+                        <a href="../vm/review_data.php" class="submenu-item">Review Data</a>
+                        <a href="../vm/approve_applications.php" class="submenu-item">Assign Volunteers</a>
+                        <a href="../vm/view_availability.php" class="submenu-item">View Availability</a>
+                        <a href="../vm/toggle_volunteer_registration.php" class="submenu-item">Toggle Registration</a>
                     </div>
                     
                     <!-- Resource Inventory Management -->
@@ -1674,14 +1673,14 @@ $stmt = null;
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </div>
-                    <div id="resource-management" class="submenu">
-                        <a href="#" class="submenu-item">View Equipment</a>
-                        <a href="#" class="submenu-item">Approve Maintenance</a>
-                        <a href="#" class="submenu-item">Approve Resources</a>
-                        <a href="#" class="submenu-item">Review Deployment</a>
+                    <div id="resource-management" class="submenu ">
+                        <a href="../rm/view_equipment.php" class="submenu-item ">View Equipment</a>
+                        <a href="../rm/approve_maintenance.php" class="submenu-item">Approve Maintenance</a>
+                        <a href="../rm/reports_analytics.php" class="submenu-item">Reports & Analytics</a>
+                        <a href="../rm/review_deployment.php" class="submenu-item ">Review Deployment</a>
                     </div>
                     
-                    <!-- Shift & Duty Scheduling -->
+                   <!-- Shift & Duty Scheduling -->
                     <div class="menu-item active" onclick="toggleSubmenu('schedule-management')">
                         <div class="icon-box icon-bg-purple">
                             <i class='bx bxs-calendar icon-purple'></i>
@@ -1694,18 +1693,19 @@ $stmt = null;
                     <div id="schedule-management" class="submenu active">
                        <a href="view_shifts.php" class="submenu-item">View Shifts</a>
                         <a href="create_schedule.php" class="submenu-item">Create Schedule</a>
-                          <a href="confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="request_change.php" class="submenu-item active">Request Change</a>
+                        <a href="confirm_availability.php" class="submenu-item">Confirm Availability</a>
+                      <a href="request_change.php" class="submenu-item active">Request Change</a>
                         <a href="monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
                     </div>
                     
-                   <!-- Training & Certification Monitoring -->
+                    
+                    <!-- Training & Certification Monitoring -->
                     <div class="menu-item" onclick="toggleSubmenu('training-management')">
                         <div class="icon-box icon-bg-teal">
                             <i class='bx bxs-graduation icon-teal'></i>
                         </div>
                         <span class="font-medium">Training Management</span>
-                        <svg class="dropdown-arrow menu-icon rotated" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </div>
@@ -1727,10 +1727,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="inspection-management" class="submenu">
-                        <a href="#" class="submenu-item">Approve Reports</a>
-                        <a href="#" class="submenu-item">Review Violations</a>
-                        <a href="#" class="submenu-item">Issue Certificates</a>
-                        <a href="#" class="submenu-item">Track Follow-Up</a>
+                        <a href="../ile/approve_reports.php" class="submenu-item">Approve Reports</a>
+                        <a href="../ile/review_violations.php" class="submenu-item">Review Violations</a>
+                        <a href="../ile/issue_certificates.php" class="submenu-item">Issue Certificates</a>
+                        <a href="../ile/track_followup.php" class="submenu-item">Track Follow-Up</a>
                     </div>
                     
                     <!-- Post-Incident Reporting & Analytics -->
@@ -1744,10 +1744,7 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="analytics-management" class="submenu">
-                        <a href="#" class="submenu-item">Review Summaries</a>
-                        <a href="#" class="submenu-item">Analyze Data</a>
-                        <a href="#" class="submenu-item">Export Reports</a>
-                        <a href="#" class="submenu-item">Generate Statistics</a>
+                        <a href="../pir/review_summaries.php" class="submenu-item">Review Summaries</a>
                     </div>
                 </div>
                 
@@ -1768,7 +1765,7 @@ $stmt = null;
                         <span class="font-medium">Profile</span>
                     </a>
                     
-                    <a href="../../includes/logout.php" class="menu-item">
+                    <a href="../includes/logout.php" class="menu-item">
                         <div class="icon-box icon-bg-red">
                             <i class='bx bx-log-out icon-red'></i>
                         </div>

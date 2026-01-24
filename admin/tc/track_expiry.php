@@ -1769,10 +1769,10 @@ $recently_expired_stmt = null;
                         </svg>
                     </div>
                     <div id="inspection-management" class="submenu">
-                        <a href="#" class="submenu-item">Approve Reports</a>
-                        <a href="#" class="submenu-item">Review Violations</a>
-                        <a href="#" class="submenu-item">Issue Certificates</a>
-                        <a href="#" class="submenu-item">Track Follow-Up</a>
+                        <a href="../ile/approve_reports.php" class="submenu-item">Approve Reports</a>
+                        <a href="../ile/review_violations.php" class="submenu-item">Review Violations</a>
+                        <a href="../ile/issue_certificates.php" class="submenu-item">Issue Certificates</a>
+                        <a href="../ile/track_follow_up.php" class="submenu-item">Track Follow-Up</a>
                     </div>
                     
                     <!-- Post-Incident Reporting & Analytics -->

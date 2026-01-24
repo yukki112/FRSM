@@ -112,9 +112,8 @@ $stmt = null;
                     </div>
                     <div id="dispatch" class="submenu">
                         <a href="dc/select_unit.php" class="submenu-item">Select Unit</a>
-                        <a href="#" class="submenu-item">Send Dispatch Info</a>
-                        <a href="#" class="submenu-item">Notify Unit</a>
-                        <a href="#" class="submenu-item">Track Status</a>
+                        <a href="dc/send_dispatch.php" class="submenu-item">Dispatch Info</a>
+                        <a href="dc/track_status.php" class="submenu-item">Track Status</a>
                     </div>
                     
                        <!-- Barangay Volunteer Roster Access -->
@@ -146,10 +145,10 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="inventory" class="submenu">
-                        <a href="#" class="submenu-item">Log Usage</a>
-                        <a href="#" class="submenu-item">Report Damages</a>
-                        <a href="#" class="submenu-item">Request Supplies</a>
-                        <a href="#" class="submenu-item">Tag Resources</a>
+                        <a href="ri/log_usage.php" class="submenu-item">Log Usage</a>
+                        <a href="ri/report_damages.php" class="submenu-item">Report Damages</a>
+                        <a href="ri/request_supplies.php" class="submenu-item">Request Supplies</a>
+                        <a href="ri/tag_resources.php" class="submenu-item">Tag Resources</a>
                     </div>
                     
                     <!-- Shift & Duty Scheduling -->
@@ -163,6 +162,7 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="schedule" class="submenu">
+                        <a href="sds/create_shifts.php" class="submenu-item">Create Shifts</a>
                         <a href="sds/view_shifts.php" class="submenu-item">View Shifts</a>
                         <a href="sds/confirm_availability.php" class="submenu-item">Confirm Availability</a>
                         <a href="sds/request_change.php" class="submenu-item">Request Change</a>
@@ -180,10 +180,8 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="training" class="submenu">
-                        <a href="#" class="submenu-item">Submit Training</a>
-                        <a href="#" class="submenu-item">Upload Certificates</a>
-                        <a href="#" class="submenu-item">Request Training</a>
-                        <a href="#" class="submenu-item">View Events</a>
+                       <a href="tc/view_available_training.php" class="submenu-item">View Available Training</a>
+                        <a href="tc/submit_training.php" class="submenu-item">Submit Training</a>
                     </div>
                     
                     <!-- Inspection Logs -->
@@ -197,10 +195,24 @@ $stmt = null;
                         </svg>
                     </div>
                     <div id="inspection" class="submenu">
-                        <a href="#" class="submenu-item">Conduct Inspections</a>
-                        <a href="#" class="submenu-item">Submit Findings</a>
-                        <a href="#" class="submenu-item">Upload Photos</a>
-                        <a href="#" class="submenu-item">Tag Violations</a>
+                        <a href="il/conduct_inspections.php" class="submenu-item">Conduct Inspections</a>
+                        <a href="il/submit_findings.php" class="submenu-item">Submit Findings</a>
+                        <a href="il/tag_violations.php" class="submenu-item">Tag Violations</a>
+                    </div>
+
+                     <!-- Post-Incident Reporting -->
+                    <div class="menu-item" onclick="toggleSubmenu('postincident')">
+                        <div class="icon-box icon-bg-pink">
+                            <i class='bx bxs-file-doc icon-pink'></i>
+                        </div>
+                        <span class="font-medium">Post-Incident Reporting</span>
+                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="postincident" class="submenu">
+                        <a href="pi/post_incident_reporting.php" class="submenu-item">Incident Reports</a>
+                        
                     </div>
                     
                   
@@ -219,7 +231,7 @@ $stmt = null;
                 </div>
                 <div id="feedback" class="submenu">
                     <a href="fb/approve_feedback.php" class="submenu-item">Approve Feedback</a>
-                    <a href="#" class="submenu-item">All Feedback</a>
+                    <a href="fb/get_feedback_details.php" class="submenu-item">All Feedback</a>
                 </div>
 
 
