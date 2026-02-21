@@ -1456,19 +1456,6 @@ $stats_stmt = null;
 </head>
 <body>
 
-    <!-- Loading Animation -->
-    <div class="dashboard-animation" id="dashboard-animation">
-        <div class="animation-logo">
-            <div class="animation-logo-icon">
-                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo">
-            </div>
-            <span class="animation-logo-text">Fire & Rescue</span>
-        </div>
-        <div class="animation-progress">
-            <div class="animation-progress-fill" id="animation-progress"></div>
-        </div>
-        <div class="animation-text" id="animation-text">Loading Training Records...</div>
-    </div>
     
     <!-- Record Details Modal -->
     <div class="modal-overlay" id="record-modal">
@@ -1548,7 +1535,7 @@ $stats_stmt = null;
                         <a href="#" class="submenu-item">Mark Resolved</a>
                     </div>
                     
-                    <!-- Volunteer Management -->
+                  <!-- Volunteer Management -->
                     <div class="menu-item" onclick="toggleSubmenu('volunteer-management')">
                         <div class="icon-box icon-bg-blue">
                             <i class='bx bxs-user-detail icon-blue'></i>
@@ -1560,10 +1547,10 @@ $stats_stmt = null;
                     </div>
                     <div id="volunteer-management" class="submenu">
                         <a href="../vm/review_data.php" class="submenu-item">Review Data</a>
-                        <a href="../vm/approve_applications.php" class="submenu-item">Approve Applications</a>
-                        <a href="../vm/assign_volunteers.php" class="submenu-item">Assign Volunteers</a>
-                        <a href="../vm/view_availability.php" class="submenu-item">View Availability</a>
-                        <a href="../vm/remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
+                        
+                        <a href="../vm/approve-applications.php" class="submenu-item">Assign Volunteers</a>
+                        <a href="../vm/view-availability.php" class="submenu-item">View Availability</a>
+                        
                         <a href="../vm/toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
                     </div>
                     
@@ -1584,23 +1571,7 @@ $stats_stmt = null;
                         <a href="../rm/review_deployment.php" class="submenu-item">Review Deployment</a>
                     </div>
                     
-                       <!-- Shift & Duty Scheduling -->
-                    <div class="menu-item" onclick="toggleSubmenu('schedule-management')">
-                        <div class="icon-box icon-bg-purple">
-                            <i class='bx bxs-calendar icon-purple'></i>
-                        </div>
-                        <span class="font-medium">Schedule Management</span>
-                        <svg class="dropdown-arrow menu-icon rotated" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="schedule-management" class="submenu">
-                       <a href="../sm/view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="../sm/create_schedule.php" class="submenu-item">Create Schedule</a>
-                        <a href="../sm/confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="../sm/request_change.php" class="submenu-item">Request Change</a>
-                        <a href="../sm/monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
-                    </div>
+                       
                     
                    <!-- Training & Certification Monitoring -->
                     <div class="menu-item active" onclick="toggleSubmenu('training-management')">
@@ -1619,7 +1590,7 @@ $stats_stmt = null;
                         <a href="track_expiry.php" class="submenu-item">Track Expiry</a>
                     </div>
                     
-                    <!-- Inspection Logs for Establishments -->
+                  <!-- Inspection Logs for Establishments -->
                     <div class="menu-item" onclick="toggleSubmenu('inspection-management')">
                         <div class="icon-box icon-bg-cyan">
                             <i class='bx bxs-check-shield icon-cyan'></i>
@@ -1630,10 +1601,10 @@ $stats_stmt = null;
                         </svg>
                     </div>
                     <div id="inspection-management" class="submenu">
-                        <a href="#" class="submenu-item">Approve Reports</a>
-                        <a href="#" class="submenu-item">Review Violations</a>
-                        <a href="#" class="submenu-item">Issue Certificates</a>
-                        <a href="#" class="submenu-item">Track Follow-Up</a>
+                        <a href="../ile/approve_reports.php" class="submenu-item">Approve Reports</a>
+                        <a href="../ile/review_violations.php" class="submenu-item">Review Violations</a>
+                        <a href="../ile/issue_certificates.php" class="submenu-item">Issue Certificates</a>
+                        <a href="../ile/track_follow_up.php" class="submenu-item">Track Follow-Up</a>
                     </div>
                     
                     <!-- Post-Incident Reporting & Analytics -->

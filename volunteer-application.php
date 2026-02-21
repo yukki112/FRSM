@@ -51,6 +51,41 @@ function generateNewFormToken() {
     return $_SESSION['form_token'];
 }
 
+// Function to preserve form data on failed submission
+function preserveFormData($field, $default = '') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        return htmlspecialchars($_POST[$field] ?? $default, ENT_QUOTES, 'UTF-8');
+    }
+    return $default;
+}
+
+function preserveCheckbox($field) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        return isset($_POST[$field]) ? 'checked' : '';
+    }
+    return '';
+}
+
+function preserveArrayCheckbox($field, $value) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (isset($_POST[$field]) && is_array($_POST[$field])) {
+            return in_array($value, $_POST[$field]) ? 'checked' : '';
+        }
+    }
+    return '';
+}
+
+function preserveSelect($field, $value, $default = false) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (isset($_POST[$field]) && $_POST[$field] === $value) {
+            return 'selected';
+        }
+    } elseif ($default) {
+        return 'selected';
+    }
+    return '';
+}
+
 // Check if volunteer registration is open
 $status_query = "SELECT status FROM volunteer_registration_status ORDER BY updated_at DESC LIMIT 1";
 $status_result = $pdo->query($status_query);
@@ -66,6 +101,9 @@ $success_message = '';
 $error_message = '';
 $show_redirect = false;
 $current_form_token = isset($_SESSION['form_token']) ? $_SESSION['form_token'] : ''; // Initialize current_form_token
+
+// Array to track which fields failed validation
+$failed_fields = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Initialize photo variables
@@ -95,6 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = filter_var(trim($_POST['email'] ?? ''), FILTER_SANITIZE_EMAIL);
         
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $failed_fields[] = 'email';
             throw new Exception("Please enter a valid email address.");
         }
 
@@ -106,11 +145,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'trashmail.com', 'disposablemail.com', 'getairmail.com', 'maildrop.cc'
         ];
         if (in_array($email_domain, $blocked_domains)) {
+            $failed_fields[] = 'email';
             throw new Exception("Please use a permanent email address from a trusted provider.");
         }
 
         // Rate limiting per email
         if (!checkRateLimit($email . '_email', 2, 3600)) {
+            $failed_fields[] = 'email';
             throw new Exception("This email has been used too many times. Please use a different email or try again later.");
         }
 
@@ -119,6 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email_check_stmt->execute([$email]);
         
         if ($email_check_stmt->rowCount() > 0) {
+            $failed_fields[] = 'email';
             throw new Exception("This email address is already registered. Please use a different email or contact us if this is an error.");
         }
 
@@ -126,6 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // FIRST NAME
         $first_name = preg_replace('/[^a-zA-Z\s\'-]/', '', trim($_POST['first_name'] ?? ''));
         if (strlen($first_name) < 2 || strlen($first_name) > 50) {
+            $failed_fields[] = 'first_name';
             throw new Exception("Please enter a valid first name (2-50 characters).");
         }
 
@@ -135,12 +178,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // LAST NAME
         $last_name = preg_replace('/[^a-zA-Z\s\'-]/', '', trim($_POST['last_name'] ?? ''));
         if (strlen($last_name) < 2 || strlen($last_name) > 50) {
+            $failed_fields[] = 'last_name';
             throw new Exception("Please enter a valid last name (2-50 characters).");
         }
 
         $date_of_birth = trim($_POST['date_of_birth'] ?? '');
         $min_age_date = date('Y-m-d', strtotime('-18 years'));
         if ($date_of_birth > $min_age_date) {
+            $failed_fields[] = 'date_of_birth';
             throw new Exception("You must be at least 18 years old to volunteer.");
         }
 
@@ -149,11 +194,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $address = htmlspecialchars(trim($_POST['address'] ?? ''), ENT_QUOTES, 'UTF-8');
         if (strlen($address) < 10) {
+            $failed_fields[] = 'address';
             throw new Exception("Please provide a complete address.");
         }
 
         $contact_number = preg_replace('/[^0-9+\-\s]/', '', trim($_POST['contact_number'] ?? ''));
         if (strlen($contact_number) < 10) {
+            $failed_fields[] = 'contact_number';
             throw new Exception("Please provide a valid contact number.");
         }
 
@@ -168,12 +215,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             file_put_contents($upload_dir . '.htaccess', 'deny from all');
         }
 
-        function secureFileUpload($file_input, $upload_dir, $prefix) {
+        function secureFileUpload($file_input, $upload_dir, $prefix, &$failed_fields) {
             if (!isset($_FILES[$file_input]) || $_FILES[$file_input]['error'] === UPLOAD_ERR_NO_FILE) {
+                $failed_fields[] = $file_input;
                 throw new Exception(ucfirst(str_replace('_', ' ', $file_input)) . " is required.");
             }
 
             if ($_FILES[$file_input]['error'] !== UPLOAD_ERR_OK) {
+                $failed_fields[] = $file_input;
                 throw new Exception("Upload error for " . str_replace('_', ' ', $file_input) . ". Error code: " . $_FILES[$file_input]['error']);
             }
 
@@ -184,22 +233,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
             if (!in_array($mime, $allowed_mimes)) {
+                $failed_fields[] = $file_input;
                 throw new Exception(ucfirst(str_replace('_', ' ', $file_input)) . " must be a valid image file (JPG, PNG, GIF, or WebP).");
             }
 
             // Validate actual image
             $file_info = getimagesize($_FILES[$file_input]['tmp_name']);
             if ($file_info === false) {
+                $failed_fields[] = $file_input;
                 throw new Exception(ucfirst(str_replace('_', ' ', $file_input)) . " must be a valid image file.");
             }
 
             // File size check (5MB max)
             if ($_FILES[$file_input]['size'] > 5242880) {
+                $failed_fields[] = $file_input;
                 throw new Exception(ucfirst(str_replace('_', ' ', $file_input)) . " must be less than 5MB.");
             }
 
             // Minimum dimensions check (prevent small/invalid images)
             if ($file_info[0] < 200 || $file_info[1] < 200) {
+                $failed_fields[] = $file_input;
                 throw new Exception(ucfirst(str_replace('_', ' ', $file_input)) . " dimensions are too small. Please upload a larger image.");
             }
 
@@ -207,6 +260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $allowed_ext = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
             
             if (!in_array($file_ext, $allowed_ext)) {
+                $failed_fields[] = $file_input;
                 throw new Exception(ucfirst(str_replace('_', ' ', $file_input)) . " must be JPG, PNG, GIF, or WebP format.");
             }
 
@@ -216,6 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Move uploaded file
             if (!move_uploaded_file($_FILES[$file_input]['tmp_name'], $filepath)) {
+                $failed_fields[] = $file_input;
                 throw new Exception("Failed to upload " . str_replace('_', ' ', $file_input) . ". Please try again.");
             }
 
@@ -226,8 +281,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Process ID photos with enhanced security
-        $id_front_photo = secureFileUpload('id_front_photo', $upload_dir, 'id_front');
-        $id_back_photo = secureFileUpload('id_back_photo', $upload_dir, 'id_back');
+        $id_front_photo = secureFileUpload('id_front_photo', $upload_dir, 'id_front', $failed_fields);
+        $id_back_photo = secureFileUpload('id_back_photo', $upload_dir, 'id_back', $failed_fields);
         
         // Emergency Contact - Enhanced sanitization
         $emergency_contact_name = preg_replace('/[^a-zA-Z\s\'-]/', '', trim($_POST['emergency_contact_name'] ?? ''));
@@ -240,6 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $previous_volunteer_experience = htmlspecialchars(trim($_POST['previous_volunteer_experience'] ?? ''), ENT_QUOTES, 'UTF-8');
         $volunteer_motivation = htmlspecialchars(trim($_POST['volunteer_motivation'] ?? ''), ENT_QUOTES, 'UTF-8');
         if (strlen($volunteer_motivation) < 20) {
+            $failed_fields[] = 'volunteer_motivation';
             throw new Exception("Please provide a more detailed motivation statement (minimum 20 characters).");
         }
 
@@ -299,26 +355,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Comprehensive validation
         if (empty($first_name) || empty($last_name) || empty($email) || empty($contact_number)) {
+            if (empty($first_name)) $failed_fields[] = 'first_name';
+            if (empty($last_name)) $failed_fields[] = 'last_name';
+            if (empty($email)) $failed_fields[] = 'email';
+            if (empty($contact_number)) $failed_fields[] = 'contact_number';
             throw new Exception("Please fill in all required personal information fields.");
         }
 
         if (empty($date_of_birth)) {
+            $failed_fields[] = 'date_of_birth';
             throw new Exception("Please enter your date of birth.");
         }
 
         if (empty($available_days) || empty($available_hours)) {
+            if (empty($available_days)) $failed_fields[] = 'available_days';
+            if (empty($available_hours)) $failed_fields[] = 'available_hours';
             throw new Exception("Please select at least one available day and time.");
         }
         
         if (!$declaration_agreed) {
+            $failed_fields[] = 'declaration_agreed';
             throw new Exception("You must agree to the declaration and consent terms.");
         }
         
         if (empty($signature)) {
+            $failed_fields[] = 'signature';
             throw new Exception("Please provide your signature by typing your full name.");
         }
 
         if ($full_name_for_signature !== $signature) {
+            $failed_fields[] = 'signature';
             throw new Exception("Signature must match your full name exactly.");
         }
 
@@ -412,11 +478,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($id_back_photo) && $id_back_photo && file_exists($id_back_photo)) {
             unlink($id_back_photo);
         }
+        
+        // Store POST data in session for repopulation (excluding files)
+        $_SESSION['form_data'] = $_POST;
     }
 }
 
 // Generate new form token for the form
 $current_form_token = $_SESSION['form_token'];
+
+// Get stored form data from session if exists
+$form_data = $_SESSION['form_data'] ?? [];
+unset($_SESSION['form_data']);
 ?>
 
 <!DOCTYPE html>
@@ -444,6 +517,7 @@ $current_form_token = $_SESSION['form_token'];
             --gradient-primary: linear-gradient(135deg, var(--primary-red), #b91c1c);
             --gradient-dark: linear-gradient(135deg, var(--primary-black) 0%, var(--accent-black) 100%);
             --success-green: #10b981;
+            --error-red: #ef4444;
         }
 
         * {
@@ -583,10 +657,23 @@ $current_form_token = $_SESSION['form_token'];
             margin-bottom: 60px;
             padding-bottom: 50px;
             border-bottom: 1px solid var(--border-color);
+            position: relative;
         }
 
         .form-section:last-of-type {
             border-bottom: none;
+        }
+
+        /* Highlight failed section */
+        .form-section.failed {
+            animation: pulse 2s infinite;
+            border-left: 5px solid var(--error-red);
+            padding-left: 15px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { background-color: transparent; }
+            50% { background-color: rgba(239, 68, 68, 0.05); }
         }
 
         .section-header {
@@ -663,6 +750,13 @@ $current_form_token = $_SESSION['form_token'];
             transition: all 0.25s ease;
             background: #ffffff;
             color: var(--text-color);
+        }
+
+        /* Highlight failed fields */
+        input.error, select.error, textarea.error {
+            border-color: var(--error-red);
+            background: #fef2f2;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
         }
 
         input:focus, select:focus, textarea:focus {
@@ -840,6 +934,11 @@ $current_form_token = $_SESSION['form_token'];
             transition: all 0.25s ease;
             position: relative;
             overflow: hidden;
+        }
+
+        .photo-upload-box.error {
+            border-color: var(--error-red);
+            background: #fef2f2;
         }
 
         .photo-upload-box:hover {
@@ -1052,6 +1151,11 @@ $current_form_token = $_SESSION['form_token'];
             min-width: 180px;
         }
 
+        .checkbox-item.error {
+            border-color: var(--error-red);
+            background: #fef2f2;
+        }
+
         .checkbox-item:hover {
             border-color: var(--primary-red);
             box-shadow: 0 4px 14px rgba(220, 38, 38, 0.1);
@@ -1166,6 +1270,11 @@ $current_form_token = $_SESSION['form_token'];
             border-radius: 10px;
             padding: 14px 18px;
             transition: all 0.25s ease;
+        }
+
+        .signature-input-wrapper.error {
+            border-color: var(--error-red);
+            background: #fef2f2;
         }
 
         .signature-input-wrapper:focus-within {
@@ -1395,6 +1504,32 @@ $current_form_token = $_SESSION['form_token'];
             box-shadow: var(--shadow-sm);
         }
 
+        /* Jump to failed section button */
+        .jump-to-failed {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--error-red);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 50px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+            transition: all 0.3s ease;
+            animation: bounce 2s infinite;
+        }
+
+        .jump-to-failed:hover {
+            background: #dc2626;
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(239, 68, 68, 0.3);
+        }
+
         @media (max-width: 1024px) {
             .application-form {
                 padding: 40px 30px;
@@ -1450,6 +1585,13 @@ $current_form_token = $_SESSION['form_token'];
 
             .form-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .jump-to-failed {
+                bottom: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                font-size: 0.9rem;
             }
         }
 
@@ -1515,6 +1657,13 @@ $current_form_token = $_SESSION['form_token'];
                 width: 100%;
                 justify-content: center;
             }
+            
+            .jump-to-failed {
+                bottom: 15px;
+                right: 15px;
+                padding: 10px 15px;
+                font-size: 0.8rem;
+            }
         }
 
         @media (max-width: 480px) {
@@ -1560,6 +1709,13 @@ $current_form_token = $_SESSION['form_token'];
                 padding: 15px 40px;
                 font-size: 1rem;
             }
+            
+            .jump-to-failed {
+                bottom: 10px;
+                right: 10px;
+                padding: 8px 12px;
+                font-size: 0.7rem;
+            }
         }
     </style>
 </head>
@@ -1594,6 +1750,14 @@ $current_form_token = $_SESSION['form_token'];
         <?php endif; ?>
 
         <?php if (!$success_message): ?>
+        <!-- Jump to failed section button -->
+        <?php if (!empty($failed_fields)): ?>
+            <div class="jump-to-failed" onclick="scrollToFirstFailedField()">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Go to Error</span>
+            </div>
+        <?php endif; ?>
+
         <!-- Application Form -->
         <form method="POST" class="application-form" id="volunteerForm" enctype="multipart/form-data" novalidate>
             <!-- CSRF Token for security -->
@@ -1606,7 +1770,7 @@ $current_form_token = $_SESSION['form_token'];
             <input type="text" name="website" class="hp-field" autocomplete="off">
 
             <!-- Section 1: Personal Information -->
-            <div class="form-section">
+            <div class="form-section <?php echo (in_array('first_name', $failed_fields) || in_array('last_name', $failed_fields) || in_array('email', $failed_fields) || in_array('contact_number', $failed_fields) || in_array('date_of_birth', $failed_fields) || in_array('address', $failed_fields)) ? 'failed' : ''; ?>">
                 <div class="section-header">
                     <div class="section-icon">
                         <i class="fas fa-user"></i>
@@ -1618,91 +1782,110 @@ $current_form_token = $_SESSION['form_token'];
                     <!-- UPDATED: Changed from single full_name to three separate fields -->
                     <div class="form-group">
                         <label for="first_name" class="required">First Name</label>
-                        <input type="text" id="first_name" name="first_name" required maxlength="50">
+                        <input type="text" id="first_name" name="first_name" required maxlength="50" 
+                               value="<?php echo isset($form_data['first_name']) ? htmlspecialchars($form_data['first_name'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                               class="<?php echo in_array('first_name', $failed_fields) ? 'error' : ''; ?>">
                     </div>
                     
                     <div class="form-group">
                         <label for="middle_name">Middle Name</label>
-                        <input type="text" id="middle_name" name="middle_name" maxlength="50">
+                        <input type="text" id="middle_name" name="middle_name" maxlength="50"
+                               value="<?php echo isset($form_data['middle_name']) ? htmlspecialchars($form_data['middle_name'], ENT_QUOTES, 'UTF-8') : ''; ?>">
                     </div>
                     
                     <div class="form-group">
                         <label for="last_name" class="required">Last Name</label>
-                        <input type="text" id="last_name" name="last_name" required maxlength="50">
+                        <input type="text" id="last_name" name="last_name" required maxlength="50"
+                               value="<?php echo isset($form_data['last_name']) ? htmlspecialchars($form_data['last_name'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                               class="<?php echo in_array('last_name', $failed_fields) ? 'error' : ''; ?>">
                     </div>
                     
                     <div class="form-group">
                         <label for="date_of_birth" class="required">Date of Birth</label>
-                        <input type="date" id="date_of_birth" name="date_of_birth" required max="<?php echo date('Y-m-d', strtotime('-18 years')); ?>">
+                        <input type="date" id="date_of_birth" name="date_of_birth" required 
+                               max="<?php echo date('Y-m-d', strtotime('-18 years')); ?>"
+                               value="<?php echo isset($form_data['date_of_birth']) ? htmlspecialchars($form_data['date_of_birth'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                               class="<?php echo in_array('date_of_birth', $failed_fields) ? 'error' : ''; ?>">
                     </div>
                     
                     <div class="form-group">
                         <label for="gender" class="required">Gender</label>
-                        <select id="gender" name="gender" required>
+                        <select id="gender" name="gender" required
+                                class="<?php echo in_array('gender', $failed_fields) ? 'error' : ''; ?>">
                             <option value="">Select Gender</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                            <option value="Other">Other</option>
+                            <option value="Male" <?php echo preserveSelect('gender', 'Male', isset($form_data['gender']) && $form_data['gender'] === 'Male'); ?>>Male</option>
+                            <option value="Female" <?php echo preserveSelect('gender', 'Female', isset($form_data['gender']) && $form_data['gender'] === 'Female'); ?>>Female</option>
+                            <option value="Other" <?php echo preserveSelect('gender', 'Other', isset($form_data['gender']) && $form_data['gender'] === 'Other'); ?>>Other</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
                         <label for="civil_status" class="required">Civil Status</label>
-                        <select id="civil_status" name="civil_status" required>
+                        <select id="civil_status" name="civil_status" required
+                                class="<?php echo in_array('civil_status', $failed_fields) ? 'error' : ''; ?>">
                             <option value="">Select Civil Status</option>
-                            <option value="Single">Single</option>
-                            <option value="Married">Married</option>
-                            <option value="Divorced">Divorced</option>
-                            <option value="Widowed">Widowed</option>
+                            <option value="Single" <?php echo preserveSelect('civil_status', 'Single', isset($form_data['civil_status']) && $form_data['civil_status'] === 'Single'); ?>>Single</option>
+                            <option value="Married" <?php echo preserveSelect('civil_status', 'Married', isset($form_data['civil_status']) && $form_data['civil_status'] === 'Married'); ?>>Married</option>
+                            <option value="Divorced" <?php echo preserveSelect('civil_status', 'Divorced', isset($form_data['civil_status']) && $form_data['civil_status'] === 'Divorced'); ?>>Divorced</option>
+                            <option value="Widowed" <?php echo preserveSelect('civil_status', 'Widowed', isset($form_data['civil_status']) && $form_data['civil_status'] === 'Widowed'); ?>>Widowed</option>
                         </select>
                     </div>
                     
                     <div class="form-group full-width">
                         <label for="address" class="required">Complete Address</label>
-                        <textarea id="address" name="address" rows="3" required maxlength="500"></textarea>
+                        <textarea id="address" name="address" rows="3" required maxlength="500"
+                                  class="<?php echo in_array('address', $failed_fields) ? 'error' : ''; ?>"><?php echo isset($form_data['address']) ? htmlspecialchars($form_data['address'], ENT_QUOTES, 'UTF-8') : ''; ?></textarea>
                     </div>
                     
                     <div class="form-group">
                         <label for="contact_number" class="required">Contact Number</label>
-                        <input type="tel" id="contact_number" name="contact_number" required maxlength="20">
+                        <input type="tel" id="contact_number" name="contact_number" required maxlength="20"
+                               value="<?php echo isset($form_data['contact_number']) ? htmlspecialchars($form_data['contact_number'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                               class="<?php echo in_array('contact_number', $failed_fields) ? 'error' : ''; ?>">
                     </div>
                     
                     <div class="form-group">
                         <label for="email" class="required">Email Address</label>
-                        <input type="email" id="email" name="email" required maxlength="100">
+                        <input type="email" id="email" name="email" required maxlength="100"
+                               value="<?php echo isset($form_data['email']) ? htmlspecialchars($form_data['email'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                               class="<?php echo in_array('email', $failed_fields) ? 'error' : ''; ?>">
                     </div>
                     
                     <div class="form-group">
                         <label for="social_media">Facebook / Social Media</label>
-                        <input type="text" id="social_media" name="social_media" maxlength="100">
+                        <input type="text" id="social_media" name="social_media" maxlength="100"
+                               value="<?php echo isset($form_data['social_media']) ? htmlspecialchars($form_data['social_media'], ENT_QUOTES, 'UTF-8') : ''; ?>">
                     </div>
                     
                     <div class="form-group">
                         <label for="valid_id_type" class="required">Valid ID Type</label>
-                        <select id="valid_id_type" name="valid_id_type" required>
+                        <select id="valid_id_type" name="valid_id_type" required
+                                class="<?php echo in_array('valid_id_type', $failed_fields) ? 'error' : ''; ?>">
                             <option value="">Select ID Type</option>
-                            <option value="Driver's License">Driver's License</option>
-                            <option value="Passport">Passport</option>
-                            <option value="SSS ID">SSS ID</option>
-                            <option value="GSIS ID">GSIS ID</option>
-                            <option value="UMID">UMID</option>
-                            <option value="Postal ID">Postal ID</option>
-                            <option value="Voter's ID">Voter's ID</option>
-                            <option value="PhilHealth ID">PhilHealth ID</option>
-                            <option value="Barangay ID">Barangay ID</option>
-                            <option value="Other">Other</option>
+                            <option value="Driver's License" <?php echo preserveSelect('valid_id_type', 'Driver\'s License', isset($form_data['valid_id_type']) && $form_data['valid_id_type'] === 'Driver\'s License'); ?>>Driver's License</option>
+                            <option value="Passport" <?php echo preserveSelect('valid_id_type', 'Passport', isset($form_data['valid_id_type']) && $form_data['valid_id_type'] === 'Passport'); ?>>Passport</option>
+                            <option value="SSS ID" <?php echo preserveSelect('valid_id_type', 'SSS ID', isset($form_data['valid_id_type']) && $form_data['valid_id_type'] === 'SSS ID'); ?>>SSS ID</option>
+                            <option value="GSIS ID" <?php echo preserveSelect('valid_id_type', 'GSIS ID', isset($form_data['valid_id_type']) && $form_data['valid_id_type'] === 'GSIS ID'); ?>>GSIS ID</option>
+                            <option value="UMID" <?php echo preserveSelect('valid_id_type', 'UMID', isset($form_data['valid_id_type']) && $form_data['valid_id_type'] === 'UMID'); ?>>UMID</option>
+                            <option value="Postal ID" <?php echo preserveSelect('valid_id_type', 'Postal ID', isset($form_data['valid_id_type']) && $form_data['valid_id_type'] === 'Postal ID'); ?>>Postal ID</option>
+                            <option value="Voter's ID" <?php echo preserveSelect('valid_id_type', 'Voter\'s ID', isset($form_data['valid_id_type']) && $form_data['valid_id_type'] === 'Voter\'s ID'); ?>>Voter's ID</option>
+                            <option value="PhilHealth ID" <?php echo preserveSelect('valid_id_type', 'PhilHealth ID', isset($form_data['valid_id_type']) && $form_data['valid_id_type'] === 'PhilHealth ID'); ?>>PhilHealth ID</option>
+                            <option value="Barangay ID" <?php echo preserveSelect('valid_id_type', 'Barangay ID', isset($form_data['valid_id_type']) && $form_data['valid_id_type'] === 'Barangay ID'); ?>>Barangay ID</option>
+                            <option value="Other" <?php echo preserveSelect('valid_id_type', 'Other', isset($form_data['valid_id_type']) && $form_data['valid_id_type'] === 'Other'); ?>>Other</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
                         <label for="valid_id_number" class="required">ID Number</label>
-                        <input type="text" id="valid_id_number" name="valid_id_number" required maxlength="50">
+                        <input type="text" id="valid_id_number" name="valid_id_number" required maxlength="50"
+                               value="<?php echo isset($form_data['valid_id_number']) ? htmlspecialchars($form_data['valid_id_number'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                               class="<?php echo in_array('valid_id_number', $failed_fields) ? 'error' : ''; ?>">
                     </div>
                 </div>
             </div>
 
             <!-- Section 2: ID Photo Upload with Camera -->
-            <div class="form-section">
+            <div class="form-section <?php echo (in_array('id_front_photo', $failed_fields) || in_array('id_back_photo', $failed_fields)) ? 'failed' : ''; ?>">
                 <div class="section-header">
                     <div class="section-icon">
                         <i class="fas fa-images"></i>
@@ -1780,7 +1963,8 @@ $current_form_token = $_SESSION['form_token'];
                             </div>
 
                             <!-- File upload for front -->
-                            <div class="photo-upload-box" id="frontFileUpload" onclick="document.getElementById('id_front_input').click()">
+                            <div class="photo-upload-box <?php echo in_array('id_front_photo', $failed_fields) ? 'error' : ''; ?>" 
+                                 id="frontFileUpload" onclick="document.getElementById('id_front_input').click()">
                                 <div class="upload-icon">
                                     <i class="fas fa-id-card"></i>
                                 </div>
@@ -1859,7 +2043,8 @@ $current_form_token = $_SESSION['form_token'];
                             </div>
 
                             <!-- File upload for back -->
-                            <div class="photo-upload-box" id="backFileUpload" onclick="document.getElementById('id_back_input').click()">
+                            <div class="photo-upload-box <?php echo in_array('id_back_photo', $failed_fields) ? 'error' : ''; ?>" 
+                                 id="backFileUpload" onclick="document.getElementById('id_back_input').click()">
                                 <div class="upload-icon">
                                     <i class="fas fa-id-card"></i>
                                 </div>
@@ -1889,7 +2074,7 @@ $current_form_token = $_SESSION['form_token'];
             </div>
 
             <!-- Section 3: Emergency Contact Information -->
-            <div class="form-section">
+            <div class="form-section <?php echo (in_array('emergency_contact_name', $failed_fields) || in_array('emergency_contact_relationship', $failed_fields) || in_array('emergency_contact_number', $failed_fields) || in_array('emergency_contact_address', $failed_fields)) ? 'failed' : ''; ?>">
                 <div class="section-header">
                     <div class="section-icon">
                         <i class="fas fa-phone-alt"></i>
@@ -1900,28 +2085,35 @@ $current_form_token = $_SESSION['form_token'];
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="emergency_contact_name" class="required">Full Name</label>
-                        <input type="text" id="emergency_contact_name" name="emergency_contact_name" required maxlength="100">
+                        <input type="text" id="emergency_contact_name" name="emergency_contact_name" required maxlength="100"
+                               value="<?php echo isset($form_data['emergency_contact_name']) ? htmlspecialchars($form_data['emergency_contact_name'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                               class="<?php echo in_array('emergency_contact_name', $failed_fields) ? 'error' : ''; ?>">
                     </div>
                     
                     <div class="form-group">
                         <label for="emergency_contact_relationship" class="required">Relationship</label>
-                        <input type="text" id="emergency_contact_relationship" name="emergency_contact_relationship" required maxlength="50">
+                        <input type="text" id="emergency_contact_relationship" name="emergency_contact_relationship" required maxlength="50"
+                               value="<?php echo isset($form_data['emergency_contact_relationship']) ? htmlspecialchars($form_data['emergency_contact_relationship'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                               class="<?php echo in_array('emergency_contact_relationship', $failed_fields) ? 'error' : ''; ?>">
                     </div>
                     
                     <div class="form-group">
                         <label for="emergency_contact_number" class="required">Contact Number</label>
-                        <input type="tel" id="emergency_contact_number" name="emergency_contact_number" required maxlength="20">
+                        <input type="tel" id="emergency_contact_number" name="emergency_contact_number" required maxlength="20"
+                               value="<?php echo isset($form_data['emergency_contact_number']) ? htmlspecialchars($form_data['emergency_contact_number'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                               class="<?php echo in_array('emergency_contact_number', $failed_fields) ? 'error' : ''; ?>">
                     </div>
                     
                     <div class="form-group full-width">
                         <label for="emergency_contact_address" class="required">Address</label>
-                        <textarea id="emergency_contact_address" name="emergency_contact_address" rows="2" required maxlength="500"></textarea>
+                        <textarea id="emergency_contact_address" name="emergency_contact_address" rows="2" required maxlength="500"
+                                  class="<?php echo in_array('emergency_contact_address', $failed_fields) ? 'error' : ''; ?>"><?php echo isset($form_data['emergency_contact_address']) ? htmlspecialchars($form_data['emergency_contact_address'], ENT_QUOTES, 'UTF-8') : ''; ?></textarea>
                     </div>
                 </div>
             </div>
 
             <!-- Section 4: Volunteer Background -->
-            <div class="form-section">
+            <div class="form-section <?php echo (in_array('volunteer_motivation', $failed_fields)) ? 'failed' : ''; ?>">
                 <div class="section-header">
                     <div class="section-icon">
                         <i class="fas fa-history"></i>
@@ -1934,38 +2126,41 @@ $current_form_token = $_SESSION['form_token'];
                         <label for="volunteered_before" class="required">Have you volunteered before?</label>
                         <select id="volunteered_before" name="volunteered_before" required>
                             <option value="">Select</option>
-                            <option value="Yes">Yes</option>
-                            <option value="No">No</option>
+                            <option value="Yes" <?php echo preserveSelect('volunteered_before', 'Yes', isset($form_data['volunteered_before']) && $form_data['volunteered_before'] === 'Yes'); ?>>Yes</option>
+                            <option value="No" <?php echo preserveSelect('volunteered_before', 'No', isset($form_data['volunteered_before']) && $form_data['volunteered_before'] === 'No'); ?>>No</option>
                         </select>
                     </div>
                     
                     <div class="form-group full-width" id="previous_experience_container" style="display: none;">
                         <label for="previous_volunteer_experience">If yes, where and what was your role?</label>
-                        <textarea id="previous_volunteer_experience" name="previous_volunteer_experience" rows="3" maxlength="500"></textarea>
+                        <textarea id="previous_volunteer_experience" name="previous_volunteer_experience" rows="3" maxlength="500"><?php echo isset($form_data['previous_volunteer_experience']) ? htmlspecialchars($form_data['previous_volunteer_experience'], ENT_QUOTES, 'UTF-8') : ''; ?></textarea>
                     </div>
                     
                     <div class="form-group full-width">
                         <label for="volunteer_motivation" class="required">Why do you want to join the Fire and Rescue Volunteer Program?</label>
-                        <textarea id="volunteer_motivation" name="volunteer_motivation" rows="3" required minlength="20" maxlength="1000"></textarea>
+                        <textarea id="volunteer_motivation" name="volunteer_motivation" rows="3" required minlength="20" maxlength="1000"
+                                  class="<?php echo in_array('volunteer_motivation', $failed_fields) ? 'error' : ''; ?>"><?php echo isset($form_data['volunteer_motivation']) ? htmlspecialchars($form_data['volunteer_motivation'], ENT_QUOTES, 'UTF-8') : ''; ?></textarea>
                     </div>
                     
                     <div class="form-group">
                         <label for="currently_employed" class="required">Are you currently employed?</label>
                         <select id="currently_employed" name="currently_employed" required>
                             <option value="">Select</option>
-                            <option value="Yes">Yes</option>
-                            <option value="No">No</option>
+                            <option value="Yes" <?php echo preserveSelect('currently_employed', 'Yes', isset($form_data['currently_employed']) && $form_data['currently_employed'] === 'Yes'); ?>>Yes</option>
+                            <option value="No" <?php echo preserveSelect('currently_employed', 'No', isset($form_data['currently_employed']) && $form_data['currently_employed'] === 'No'); ?>>No</option>
                         </select>
                     </div>
                     
                     <div class="form-group" id="occupation_container" style="display: none;">
                         <label for="occupation">Occupation</label>
-                        <input type="text" id="occupation" name="occupation" maxlength="100">
+                        <input type="text" id="occupation" name="occupation" maxlength="100"
+                               value="<?php echo isset($form_data['occupation']) ? htmlspecialchars($form_data['occupation'], ENT_QUOTES, 'UTF-8') : ''; ?>">
                     </div>
                     
                     <div class="form-group" id="company_container" style="display: none;">
                         <label for="company">Company</label>
-                        <input type="text" id="company" name="company" maxlength="100">
+                        <input type="text" id="company" name="company" maxlength="100"
+                               value="<?php echo isset($form_data['company']) ? htmlspecialchars($form_data['company'], ENT_QUOTES, 'UTF-8') : ''; ?>">
                     </div>
                 </div>
             </div>
@@ -1984,12 +2179,12 @@ $current_form_token = $_SESSION['form_token'];
                         <label for="education" class="required">Highest Educational Attainment</label>
                         <select id="education" name="education" required>
                             <option value="">Select</option>
-                            <option value="Elementary">Elementary</option>
-                            <option value="High School">High School</option>
-                            <option value="Vocational">Vocational</option>
-                            <option value="College Undergraduate">College Undergraduate</option>
-                            <option value="College Graduate">College Graduate</option>
-                            <option value="Postgraduate">Postgraduate</option>
+                            <option value="Elementary" <?php echo preserveSelect('education', 'Elementary', isset($form_data['education']) && $form_data['education'] === 'Elementary'); ?>>Elementary</option>
+                            <option value="High School" <?php echo preserveSelect('education', 'High School', isset($form_data['education']) && $form_data['education'] === 'High School'); ?>>High School</option>
+                            <option value="Vocational" <?php echo preserveSelect('education', 'Vocational', isset($form_data['education']) && $form_data['education'] === 'Vocational'); ?>>Vocational</option>
+                            <option value="College Undergraduate" <?php echo preserveSelect('education', 'College Undergraduate', isset($form_data['education']) && $form_data['education'] === 'College Undergraduate'); ?>>College Undergraduate</option>
+                            <option value="College Graduate" <?php echo preserveSelect('education', 'College Graduate', isset($form_data['education']) && $form_data['education'] === 'College Graduate'); ?>>College Graduate</option>
+                            <option value="Postgraduate" <?php echo preserveSelect('education', 'Postgraduate', isset($form_data['education']) && $form_data['education'] === 'Postgraduate'); ?>>Postgraduate</option>
                         </select>
                     </div>
                     
@@ -1997,51 +2192,59 @@ $current_form_token = $_SESSION['form_token'];
                         <label for="physical_fitness" class="required">Physical Fitness Level</label>
                         <select id="physical_fitness" name="physical_fitness" required>
                             <option value="">Select</option>
-                            <option value="Excellent">Excellent</option>
-                            <option value="Good">Good</option>
-                            <option value="Fair">Fair</option>
+                            <option value="Excellent" <?php echo preserveSelect('physical_fitness', 'Excellent', isset($form_data['physical_fitness']) && $form_data['physical_fitness'] === 'Excellent'); ?>>Excellent</option>
+                            <option value="Good" <?php echo preserveSelect('physical_fitness', 'Good', isset($form_data['physical_fitness']) && $form_data['physical_fitness'] === 'Good'); ?>>Good</option>
+                            <option value="Fair" <?php echo preserveSelect('physical_fitness', 'Fair', isset($form_data['physical_fitness']) && $form_data['physical_fitness'] === 'Fair'); ?>>Fair</option>
                         </select>
                     </div>
                     
                     <div class="form-group full-width">
                         <label for="specialized_training">Specialized Training / Certifications</label>
-                        <textarea id="specialized_training" name="specialized_training" rows="3" placeholder="e.g., BLS, First Aid, Firefighting, Rescue Operations" maxlength="500"></textarea>
+                        <textarea id="specialized_training" name="specialized_training" rows="3" placeholder="e.g., BLS, First Aid, Firefighting, Rescue Operations" maxlength="500"><?php echo isset($form_data['specialized_training']) ? htmlspecialchars($form_data['specialized_training'], ENT_QUOTES, 'UTF-8') : ''; ?></textarea>
                     </div>
                     
                     <div class="form-group full-width">
                         <label for="languages_spoken" class="required">Languages Spoken</label>
-                        <input type="text" id="languages_spoken" name="languages_spoken" required placeholder="e.g., English, Tagalog, Bisaya" maxlength="100">
+                        <input type="text" id="languages_spoken" name="languages_spoken" required placeholder="e.g., English, Tagalog, Bisaya" maxlength="100"
+                               value="<?php echo isset($form_data['languages_spoken']) ? htmlspecialchars($form_data['languages_spoken'], ENT_QUOTES, 'UTF-8') : ''; ?>">
                     </div>
                     
                     <div class="form-group full-width">
                         <label>Skills (check all that apply)</label>
                         <div class="checkbox-group">
-                            <div class="checkbox-item">
-                                <input type="checkbox" id="skills_basic_firefighting" name="skills_basic_firefighting" value="1">
+                            <div class="checkbox-item <?php echo in_array('skills_basic_firefighting', $failed_fields) ? 'error' : ''; ?>">
+                                <input type="checkbox" id="skills_basic_firefighting" name="skills_basic_firefighting" value="1" 
+                                       <?php echo preserveCheckbox('skills_basic_firefighting'); ?>>
                                 <label for="skills_basic_firefighting">Basic Firefighting</label>
                             </div>
-                            <div class="checkbox-item">
-                                <input type="checkbox" id="skills_first_aid_cpr" name="skills_first_aid_cpr" value="1">
+                            <div class="checkbox-item <?php echo in_array('skills_first_aid_cpr', $failed_fields) ? 'error' : ''; ?>">
+                                <input type="checkbox" id="skills_first_aid_cpr" name="skills_first_aid_cpr" value="1"
+                                       <?php echo preserveCheckbox('skills_first_aid_cpr'); ?>>
                                 <label for="skills_first_aid_cpr">First Aid / CPR</label>
                             </div>
-                            <div class="checkbox-item">
-                                <input type="checkbox" id="skills_search_rescue" name="skills_search_rescue" value="1">
+                            <div class="checkbox-item <?php echo in_array('skills_search_rescue', $failed_fields) ? 'error' : ''; ?>">
+                                <input type="checkbox" id="skills_search_rescue" name="skills_search_rescue" value="1"
+                                       <?php echo preserveCheckbox('skills_search_rescue'); ?>>
                                 <label for="skills_search_rescue">Search and Rescue</label>
                             </div>
-                            <div class="checkbox-item">
-                                <input type="checkbox" id="skills_driving" name="skills_driving" value="1">
+                            <div class="checkbox-item <?php echo in_array('skills_driving', $failed_fields) ? 'error' : ''; ?>">
+                                <input type="checkbox" id="skills_driving" name="skills_driving" value="1"
+                                       <?php echo preserveCheckbox('skills_driving'); ?>>
                                 <label for="skills_driving">Driving</label>
                             </div>
-                            <div class="checkbox-item">
-                                <input type="checkbox" id="skills_communication" name="skills_communication" value="1">
+                            <div class="checkbox-item <?php echo in_array('skills_communication', $failed_fields) ? 'error' : ''; ?>">
+                                <input type="checkbox" id="skills_communication" name="skills_communication" value="1"
+                                       <?php echo preserveCheckbox('skills_communication'); ?>>
                                 <label for="skills_communication">Communication / Dispatch</label>
                             </div>
-                            <div class="checkbox-item">
-                                <input type="checkbox" id="skills_mechanical" name="skills_mechanical" value="1">
+                            <div class="checkbox-item <?php echo in_array('skills_mechanical', $failed_fields) ? 'error' : ''; ?>">
+                                <input type="checkbox" id="skills_mechanical" name="skills_mechanical" value="1"
+                                       <?php echo preserveCheckbox('skills_mechanical'); ?>>
                                 <label for="skills_mechanical">Mechanical / Technical</label>
                             </div>
-                            <div class="checkbox-item">
-                                <input type="checkbox" id="skills_logistics" name="skills_logistics" value="1">
+                            <div class="checkbox-item <?php echo in_array('skills_logistics', $failed_fields) ? 'error' : ''; ?>">
+                                <input type="checkbox" id="skills_logistics" name="skills_logistics" value="1"
+                                       <?php echo preserveCheckbox('skills_logistics'); ?>>
                                 <label for="skills_logistics">Logistics and Supply Handling</label>
                             </div>
                         </div>
@@ -2049,13 +2252,14 @@ $current_form_token = $_SESSION['form_token'];
                     
                     <div class="form-group full-width" id="driving_license_container" style="display: none;">
                         <label for="driving_license_no">Driving License Number</label>
-                        <input type="text" id="driving_license_no" name="driving_license_no" maxlength="50">
+                        <input type="text" id="driving_license_no" name="driving_license_no" maxlength="50"
+                               value="<?php echo isset($form_data['driving_license_no']) ? htmlspecialchars($form_data['driving_license_no'], ENT_QUOTES, 'UTF-8') : ''; ?>">
                     </div>
                 </div>
             </div>
 
             <!-- Section 6: Availability -->
-            <div class="form-section">
+            <div class="form-section <?php echo (in_array('available_days', $failed_fields) || in_array('available_hours', $failed_fields)) ? 'failed' : ''; ?>">
                 <div class="section-header">
                     <div class="section-icon">
                         <i class="fas fa-calendar-alt"></i>
@@ -2068,31 +2272,38 @@ $current_form_token = $_SESSION['form_token'];
                         <label class="required">Days Available</label>
                         <div class="days-grid">
                             <div class="day-checkbox">
-                                <input type="checkbox" id="day_monday" name="available_days[]" value="Monday">
+                                <input type="checkbox" id="day_monday" name="available_days[]" value="Monday"
+                                       <?php echo preserveArrayCheckbox('available_days', 'Monday'); ?>>
                                 <label for="day_monday">Monday</label>
                             </div>
                             <div class="day-checkbox">
-                                <input type="checkbox" id="day_tuesday" name="available_days[]" value="Tuesday">
+                                <input type="checkbox" id="day_tuesday" name="available_days[]" value="Tuesday"
+                                       <?php echo preserveArrayCheckbox('available_days', 'Tuesday'); ?>>
                                 <label for="day_tuesday">Tuesday</label>
                             </div>
                             <div class="day-checkbox">
-                                <input type="checkbox" id="day_wednesday" name="available_days[]" value="Wednesday">
+                                <input type="checkbox" id="day_wednesday" name="available_days[]" value="Wednesday"
+                                       <?php echo preserveArrayCheckbox('available_days', 'Wednesday'); ?>>
                                 <label for="day_wednesday">Wednesday</label>
                             </div>
                             <div class="day-checkbox">
-                                <input type="checkbox" id="day_thursday" name="available_days[]" value="Thursday">
+                                <input type="checkbox" id="day_thursday" name="available_days[]" value="Thursday"
+                                       <?php echo preserveArrayCheckbox('available_days', 'Thursday'); ?>>
                                 <label for="day_thursday">Thursday</label>
                             </div>
                             <div class="day-checkbox">
-                                <input type="checkbox" id="day_friday" name="available_days[]" value="Friday">
+                                <input type="checkbox" id="day_friday" name="available_days[]" value="Friday"
+                                       <?php echo preserveArrayCheckbox('available_days', 'Friday'); ?>>
                                 <label for="day_friday">Friday</label>
                             </div>
                             <div class="day-checkbox">
-                                <input type="checkbox" id="day_saturday" name="available_days[]" value="Saturday">
+                                <input type="checkbox" id="day_saturday" name="available_days[]" value="Saturday"
+                                       <?php echo preserveArrayCheckbox('available_days', 'Saturday'); ?>>
                                 <label for="day_saturday">Saturday</label>
                             </div>
                             <div class="day-checkbox">
-                                <input type="checkbox" id="day_sunday" name="available_days[]" value="Sunday">
+                                <input type="checkbox" id="day_sunday" name="available_days[]" value="Sunday"
+                                       <?php echo preserveArrayCheckbox('available_days', 'Sunday'); ?>>
                                 <label for="day_sunday">Sunday</label>
                             </div>
                         </div>
@@ -2102,15 +2313,18 @@ $current_form_token = $_SESSION['form_token'];
                         <label class="required">Hours Available</label>
                         <div class="hours-grid">
                             <div class="hour-checkbox">
-                                <input type="checkbox" id="hour_morning" name="available_hours[]" value="Morning">
+                                <input type="checkbox" id="hour_morning" name="available_hours[]" value="Morning"
+                                       <?php echo preserveArrayCheckbox('available_hours', 'Morning'); ?>>
                                 <label for="hour_morning">Morning</label>
                             </div>
                             <div class="hour-checkbox">
-                                <input type="checkbox" id="hour_afternoon" name="available_hours[]" value="Afternoon">
+                                <input type="checkbox" id="hour_afternoon" name="available_hours[]" value="Afternoon"
+                                       <?php echo preserveArrayCheckbox('available_hours', 'Afternoon'); ?>>
                                 <label for="hour_afternoon">Afternoon</label>
                             </div>
                             <div class="hour-checkbox">
-                                <input type="checkbox" id="hour_night" name="available_hours[]" value="Night">
+                                <input type="checkbox" id="hour_night" name="available_hours[]" value="Night"
+                                       <?php echo preserveArrayCheckbox('available_hours', 'Night'); ?>>
                                 <label for="hour_night">Night</label>
                             </div>
                         </div>
@@ -2120,8 +2334,8 @@ $current_form_token = $_SESSION['form_token'];
                         <label for="emergency_response" class="required">Willing to respond during emergencies?</label>
                         <select id="emergency_response" name="emergency_response" required>
                             <option value="">Select</option>
-                            <option value="Yes">Yes</option>
-                            <option value="No">No</option>
+                            <option value="Yes" <?php echo preserveSelect('emergency_response', 'Yes', isset($form_data['emergency_response']) && $form_data['emergency_response'] === 'Yes'); ?>>Yes</option>
+                            <option value="No" <?php echo preserveSelect('emergency_response', 'No', isset($form_data['emergency_response']) && $form_data['emergency_response'] === 'No'); ?>>No</option>
                         </select>
                     </div>
                 </div>
@@ -2140,23 +2354,28 @@ $current_form_token = $_SESSION['form_token'];
                     <label>Select your areas of interest (check all that apply)</label>
                     <div class="checkbox-group">
                         <div class="checkbox-item">
-                            <input type="checkbox" id="area_interest_fire_suppression" name="area_interest_fire_suppression" value="1">
+                            <input type="checkbox" id="area_interest_fire_suppression" name="area_interest_fire_suppression" value="1"
+                                   <?php echo preserveCheckbox('area_interest_fire_suppression'); ?>>
                             <label for="area_interest_fire_suppression">Fire Suppression</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" id="area_interest_rescue_operations" name="area_interest_rescue_operations" value="1">
+                            <input type="checkbox" id="area_interest_rescue_operations" name="area_interest_rescue_operations" value="1"
+                                   <?php echo preserveCheckbox('area_interest_rescue_operations'); ?>>
                             <label for="area_interest_rescue_operations">Rescue Operations</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" id="area_interest_ems" name="area_interest_ems" value="1">
+                            <input type="checkbox" id="area_interest_ems" name="area_interest_ems" value="1"
+                                   <?php echo preserveCheckbox('area_interest_ems'); ?>>
                             <label for="area_interest_ems">Emergency Medical Services (EMS)</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" id="area_interest_disaster_response" name="area_interest_disaster_response" value="1">
+                            <input type="checkbox" id="area_interest_disaster_response" name="area_interest_disaster_response" value="1"
+                                   <?php echo preserveCheckbox('area_interest_disaster_response'); ?>>
                             <label for="area_interest_disaster_response">Disaster Response / Evacuation</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" id="area_interest_admin_logistics" name="area_interest_admin_logistics" value="1">
+                            <input type="checkbox" id="area_interest_admin_logistics" name="area_interest_admin_logistics" value="1"
+                                   <?php echo preserveCheckbox('area_interest_admin_logistics'); ?>>
                             <label for="area_interest_admin_logistics">Admin / Logistics / Communications</label>
                         </div>
                     </div>
@@ -2164,7 +2383,7 @@ $current_form_token = $_SESSION['form_token'];
             </div>
 
             <!-- Section 8: Declaration and Consent -->
-            <div class="form-section">
+            <div class="form-section <?php echo (in_array('declaration_agreed', $failed_fields) || in_array('signature', $failed_fields)) ? 'failed' : ''; ?>">
                 <div class="section-header">
                     <div class="section-icon">
                         <i class="fas fa-file-signature"></i>
@@ -2181,8 +2400,10 @@ $current_form_token = $_SESSION['form_token'];
                     <div class="form-grid">
                         <div class="form-group full-width">
                             <label for="signature" class="required">Signature of Applicant (Type your full name)</label>
-                            <div class="signature-input-wrapper">
-                                <input type="text" id="signature" name="signature" class="signature-input" placeholder="Enter your full name as signature" required maxlength="100">
+                            <div class="signature-input-wrapper <?php echo in_array('signature', $failed_fields) ? 'error' : ''; ?>">
+                                <input type="text" id="signature" name="signature" class="signature-input" 
+                                       placeholder="Enter your full name as signature" required maxlength="100"
+                                       value="<?php echo isset($form_data['signature']) ? htmlspecialchars($form_data['signature'], ENT_QUOTES, 'UTF-8') : ''; ?>">
                             </div>
                             <div class="signature-hint">
                                 <i class="fas fa-info-circle"></i>
@@ -2197,8 +2418,9 @@ $current_form_token = $_SESSION['form_token'];
                     </div>
                     
                     <div class="form-group">
-                        <div class="checkbox-item" style="margin-top: 22px;">
-                            <input type="checkbox" id="declaration_agreed" name="declaration_agreed" value="1" required>
+                        <div class="checkbox-item <?php echo in_array('declaration_agreed', $failed_fields) ? 'error' : ''; ?>" style="margin-top: 22px;">
+                            <input type="checkbox" id="declaration_agreed" name="declaration_agreed" value="1" required
+                                   <?php echo preserveCheckbox('declaration_agreed'); ?>>
                             <label for="declaration_agreed" class="required">I agree to the terms and conditions stated above</label>
                         </div>
                     </div>
@@ -2457,11 +2679,65 @@ $current_form_token = $_SESSION['form_token'];
                     const imgElement = document.getElementById(imgElementId);
                     imgElement.src = e.target.result;
                     previewContainer.style.display = 'block';
+                    
+                    // Remove error class if it exists
+                    event.target.closest('.photo-upload-box').classList.remove('error');
                 };
                 img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
+
+        // Initialize form based on stored data
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show/hide previous experience based on selection
+            const volunteeredBefore = document.getElementById('volunteered_before');
+            if (volunteeredBefore.value === 'Yes') {
+                document.getElementById('previous_experience_container').style.display = 'block';
+            }
+            
+            // Show/hide employment fields based on selection
+            const currentlyEmployed = document.getElementById('currently_employed');
+            if (currentlyEmployed.value === 'Yes') {
+                document.getElementById('occupation_container').style.display = 'block';
+                document.getElementById('company_container').style.display = 'block';
+            }
+            
+            // Show/hide driving license field based on checkbox
+            const skillsDriving = document.getElementById('skills_driving');
+            if (skillsDriving.checked) {
+                document.getElementById('driving_license_container').style.display = 'block';
+            }
+            
+            // Function to scroll to first failed field
+            window.scrollToFirstFailedField = function() {
+                const firstFailedSection = document.querySelector('.form-section.failed');
+                if (firstFailedSection) {
+                    firstFailedSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // Highlight the section
+                    firstFailedSection.style.animation = 'none';
+                    setTimeout(() => {
+                        firstFailedSection.style.animation = 'pulse 2s infinite';
+                    }, 10);
+                    
+                    // Find first failed input within the section
+                    const firstFailedInput = firstFailedSection.querySelector('.error');
+                    if (firstFailedInput) {
+                        setTimeout(() => {
+                            firstFailedInput.focus();
+                        }, 500);
+                    }
+                }
+            };
+            
+            // Auto-scroll to failed section on page load if there are errors
+            <?php if (!empty($failed_fields) && $error_message): ?>
+            setTimeout(function() {
+                scrollToFirstFailedField();
+            }, 500);
+            <?php endif; ?>
+        });
 
         document.getElementById('volunteered_before').addEventListener('change', function() {
             document.getElementById('previous_experience_container').style.display = this.value === 'Yes' ? 'block' : 'none';
@@ -2510,11 +2786,9 @@ $current_form_token = $_SESSION['form_token'];
             fullName = fullName.trim();
             
             if (fullName && signature && fullName !== signature) {
-                this.style.borderColor = 'var(--primary-red)';
-                this.style.backgroundColor = 'var(--primary-red-light)';
+                this.closest('.signature-input-wrapper').classList.add('error');
             } else {
-                this.style.borderColor = '';
-                this.style.backgroundColor = '';
+                this.closest('.signature-input-wrapper').classList.remove('error');
             }
         });
 

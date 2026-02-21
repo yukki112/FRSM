@@ -1557,7 +1557,7 @@ $stmt = null;
                 <p class="menu-title">FIRE & RESCUE MANAGEMENT</p>
                 
                 <div class="menu-items">
-                    <a href="#" class="menu-item" id="dashboard-menu">
+                    <a href="../admin_dashboard.php" class="menu-item" id="dashboard-menu">
                         <div class="icon-box icon-bg-red">
                             <i class='bx bxs-dashboard icon-red'></i>
                         </div>
@@ -1632,23 +1632,7 @@ $stmt = null;
                         <a href="../rm/review_deployment.php" class="submenu-item">Review Deployment</a>
                     </div>
                     
-                    <!-- Shift & Duty Scheduling -->
-                    <div class="menu-item" onclick="toggleSubmenu('schedule-management')">
-                        <div class="icon-box icon-bg-purple">
-                            <i class='bx bxs-calendar icon-purple'></i>
-                        </div>
-                        <span class="font-medium">Schedule Management</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="schedule-management" class="submenu">
-                        <a href="../sm/view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="../sm/create_schedule.php" class="submenu-item">Create Schedule</a>
-                        <a href="../sm/approve_shifts.php" class="submenu-item">Approve Shifts</a>
-                        <a href="../sm/override_assignments.php" class="submenu-item">Override Assignments</a>
-                        <a href="../sm/monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
-                    </div>
+                   
                     
                     <!-- Training & Certification Monitoring -->
                     <div class="menu-item" onclick="toggleSubmenu('training-management')">

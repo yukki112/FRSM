@@ -1179,25 +1179,9 @@ $incident_types = $types_stmt->fetchAll();
 </head>
 <body>
 
-    <!-- Loading Animation -->
-    <div class="dashboard-animation" id="dashboard-animation">
-        <div class="animation-logo">
-            <div class="animation-logo-icon">
-                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo">
-            </div>
-            <span class="animation-logo-text">Fire & Rescue</span>
-        </div>
-        <div class="animation-progress">
-            <div class="animation-progress-fill" id="animation-progress"></div>
-        </div>
-        <div class="animation-text" id="animation-text">Loading Deployment Review System...</div>
-    </div>
+   
     
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loading-overlay">
-        <div class="loading-spinner"></div>
-        <div class="loading-text" id="loading-text">Processing...</div>
-    </div>
+ 
     
     <!-- Review Deployment Modal -->
     <div class="modal-overlay" id="review-modal">
@@ -1443,23 +1427,7 @@ $incident_types = $types_stmt->fetchAll();
                         <a href="review_deployment.php" class="submenu-item active">Review Deployment</a>
                     </div>
                     
-                    <!-- Shift & Duty Scheduling -->
-                    <div class="menu-item" onclick="toggleSubmenu('schedule-management')">
-                        <div class="icon-box icon-bg-purple">
-                            <i class='bx bxs-calendar icon-purple'></i>
-                        </div>
-                        <span class="font-medium">Schedule Management</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="schedule-management" class="submenu">
-                        <a href="../sm/view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="../sm/create_schedule.php" class="submenu-item">Create Schedule</a>
-                        <a href="../sm/approve_shifts.php" class="submenu-item">Approve Shifts</a>
-                        <a href="../sm/override_assignments.php" class="submenu-item">Override Assignments</a>
-                        <a href="../sm/monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
-                    </div>
+                  
                     
                     <!-- Training & Certification Monitoring -->
                     <div class="menu-item" onclick="toggleSubmenu('training-management')">

@@ -1127,68 +1127,46 @@ $categories_stmt = null;
             background: var(--gray-600);
         }
         
-        /* Loading Animation */
-        .dashboard-animation {
+        /* Sync Loading Overlay */
+        .loading-overlay {
             position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--background-color);
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease;
-        }
-
-        .animation-logo {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 30px;
+            z-index: 2000;
             opacity: 0;
-            transform: translateY(20px);
-            transition: all 0.5s ease;
+            visibility: hidden;
+            transition: all 0.3s ease;
         }
-
-        .animation-logo-icon img {
-            width: 70px;
-            height: 75px;
-            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+        
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
         }
-
-        .animation-logo-text {
-            font-size: 28px;
-            font-weight: 800;
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .animation-progress {
-            width: 200px;
-            height: 4px;
-            background: var(--gray-200);
-            border-radius: 2px;
-            overflow: hidden;
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--gray-200);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
             margin-bottom: 20px;
         }
-
-        .animation-progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-            border-radius: 2px;
-            transition: width 1s ease;
-            width: 0%;
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
-
-        .animation-text {
+        
+        .loading-text {
+            color: white;
             font-size: 16px;
-            color: var(--text-light);
-            opacity: 0;
-            transition: opacity 0.5s ease;
         }
         
         /* Alert messages */
@@ -1233,48 +1211,6 @@ $categories_stmt = null;
         
         .alert i {
             font-size: 20px;
-        }
-        
-        /* Loading overlay for sync */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-        
-        .loading-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-        
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--gray-200);
-            border-top-color: var(--primary-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .loading-text {
-            color: white;
-            font-size: 16px;
         }
         
         /* Table Footer */
@@ -1678,20 +1614,6 @@ $categories_stmt = null;
 </head>
 <body>
 
-    <!-- Loading Animation -->
-    <div class="dashboard-animation" id="dashboard-animation">
-        <div class="animation-logo">
-            <div class="animation-logo-icon">
-                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo">
-            </div>
-            <span class="animation-logo-text">Fire & Rescue</span>
-        </div>
-        <div class="animation-progress">
-            <div class="animation-progress-fill" id="animation-progress"></div>
-        </div>
-        <div class="animation-text" id="animation-text">Loading Equipment Resources...</div>
-    </div>
-    
     <!-- Sync Loading Overlay -->
     <div class="loading-overlay" id="loading-overlay">
         <div class="loading-spinner"></div>
@@ -1886,23 +1808,7 @@ $categories_stmt = null;
                         <a href="review_deployment.php" class="submenu-item">Review Deployment</a>
                     </div>
                     
-                    <!-- Shift & Duty Scheduling -->
-                    <div class="menu-item" onclick="toggleSubmenu('schedule-management')">
-                        <div class="icon-box icon-bg-purple">
-                            <i class='bx bxs-calendar icon-purple'></i>
-                        </div>
-                        <span class="font-medium">Schedule Management</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="schedule-management" class="submenu">
-                        <a href="../sm/view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="../sm/create_schedule.php" class="submenu-item">Create Schedule</a>
-                        <a href="../sm/approve_shifts.php" class="submenu-item">Approve Shifts</a>
-                        <a href="../sm/override_assignments.php" class="submenu-item">Override Assignments</a>
-                        <a href="../sm/monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
-                    </div>
+                
                     
                     <!-- Training & Certification Monitoring -->
                     <div class="menu-item" onclick="toggleSubmenu('training-management')">
@@ -2321,33 +2227,6 @@ $categories_stmt = null;
         let selectedStatus = null;
         
         document.addEventListener('DOMContentLoaded', function() {
-            const animationOverlay = document.getElementById('dashboard-animation');
-            const animationProgress = document.getElementById('animation-progress');
-            const animationText = document.getElementById('animation-text');
-            const animationLogo = document.querySelector('.animation-logo');
-            
-            // Show logo and text immediately
-            setTimeout(() => {
-                animationLogo.style.opacity = '1';
-                animationLogo.style.transform = 'translateY(0)';
-            }, 100);
-            
-            setTimeout(() => {
-                animationText.style.opacity = '1';
-            }, 300);
-            
-            // Faster loading - 1 second only
-            setTimeout(() => {
-                animationProgress.style.width = '100%';
-            }, 100);
-            
-            setTimeout(() => {
-                animationOverlay.style.opacity = '0';
-                setTimeout(() => {
-                    animationOverlay.style.display = 'none';
-                }, 300);
-            }, 1000);
-            
             // Initialize event listeners
             initEventListeners();
         });

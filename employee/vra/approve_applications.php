@@ -1648,24 +1648,7 @@ $count_stmt = null;
                         <a href="../ri/tag_resources.php" class="submenu-item">Tag Resources</a>
                     </div>
                     
-                    <!-- Shift & Duty Scheduling -->
-                    <div class="menu-item" onclick="toggleSubmenu('schedule')">
-                        <div class="icon-box icon-bg-purple">
-                            <i class='bx bxs-calendar icon-purple'></i>
-                        </div>
-                        <span class="font-medium">Shift & Duty Scheduling</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="schedule" class="submenu">
-                         <a href="../sds/create_shifts.php" class="submenu-item">Create Shifts</a>
-                        <a href="../sds/view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="../sds/confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="../sds/request_change.php" class="submenu-item">Request Change</a>
-                        <a href="../sds/mark_attendance.php" class="submenu-item">Mark Attendance</a>
-                       
-                    </div>
+                 
                     
                    <!-- Training & Certification Logging -->
                     <div class="menu-item" onclick="toggleSubmenu('training')">

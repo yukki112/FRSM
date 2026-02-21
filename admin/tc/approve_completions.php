@@ -1740,19 +1740,7 @@ function getTrainingDetails($registration_id) {
 </head>
 <body>
 
-    <!-- Loading Animation -->
-    <div class="dashboard-animation" id="dashboard-animation">
-        <div class="animation-logo">
-            <div class="animation-logo-icon">
-                <img src="../../img/frsm-logo.png" alt="Fire & Rescue Logo">
-            </div>
-            <span class="animation-logo-text">Fire & Rescue</span>
-        </div>
-        <div class="animation-progress">
-            <div class="animation-progress-fill" id="animation-progress"></div>
-        </div>
-        <div class="animation-text" id="animation-text">Loading Dashboard...</div>
-    </div>
+    
     
     <!-- Loading Overlay for Actions -->
     <div class="loading-overlay" id="loading-overlay">
@@ -1824,6 +1812,7 @@ function getTrainingDetails($registration_id) {
                     </div>
                     
                     <!-- Volunteer Management -->
+                   <!-- Volunteer Management -->
                     <div class="menu-item" onclick="toggleSubmenu('volunteer-management')">
                         <div class="icon-box icon-bg-blue">
                             <i class='bx bxs-user-detail icon-blue'></i>
@@ -1834,12 +1823,12 @@ function getTrainingDetails($registration_id) {
                         </svg>
                     </div>
                     <div id="volunteer-management" class="submenu">
-                        <a href="../review_data.php" class="submenu-item">Review Data</a>
-                        <a href="../approve-applications.php" class="submenu-item">Approve Applications</a>
-                        <a href="../assign-volunteers.php" class="submenu-item">Assign Volunteers</a>
-                        <a href="../view-availability.php" class="submenu-item">View Availability</a>
-                        <a href="../remove-volunteers.php" class="submenu-item">Remove Volunteers</a>
-                        <a href="../toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
+                        <a href="../vm/review_data.php" class="submenu-item">Review Data</a>
+                        
+                        <a href="../vm/approve-applications.php" class="submenu-item">Assign Volunteers</a>
+                        <a href="../vm/view-availability.php" class="submenu-item">View Availability</a>
+                        
+                        <a href="../vm/toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
                     </div>
                     
                     <!-- Resource Inventory Management -->
@@ -1859,23 +1848,7 @@ function getTrainingDetails($registration_id) {
                         <a href="../rm/review_deployment.php" class="submenu-item">Review Deployment</a>
                     </div>
                     
-                      <!-- Shift & Duty Scheduling -->
-                    <div class="menu-item" onclick="toggleSubmenu('schedule-management')">
-                        <div class="icon-box icon-bg-purple">
-                            <i class='bx bxs-calendar icon-purple'></i>
-                        </div>
-                        <span class="font-medium">Schedule Management</span>
-                        <svg class="dropdown-arrow menu-icon rotated" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="schedule-management" class="submenu">
-                       <a href="../sm/view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="../sm/create_schedule.php" class="submenu-item">Create Schedule</a>
-                        <a href="../sm/confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="../sm/request_change.php" class="submenu-item">Request Change</a>
-                        <a href="../sm/monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
-                    </div>
+                      
                     
                    <!-- Training & Certification Monitoring -->
                     <div class="menu-item active" onclick="toggleSubmenu('training-management')">
@@ -1905,10 +1878,10 @@ function getTrainingDetails($registration_id) {
                         </svg>
                     </div>
                     <div id="inspection-management" class="submenu">
-                        <a href="#" class="submenu-item">Approve Reports</a>
-                        <a href="#" class="submenu-item">Review Violations</a>
-                        <a href="#" class="submenu-item">Issue Certificates</a>
-                        <a href="#" class="submenu-item">Track Follow-Up</a>
+                        <a href="../ile/approve_reports.php" class="submenu-item">Approve Reports</a>
+                        <a href="../ile/review_violations.php" class="submenu-item">Review Violations</a>
+                        <a href="../ile/issue_certificates.php" class="submenu-item">Issue Certificates</a>
+                        <a href="../ile/track_follow_up.php" class="submenu-item">Track Follow-Up</a>
                     </div>
                     
                     <!-- Post-Incident Reporting & Analytics -->

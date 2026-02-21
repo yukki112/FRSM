@@ -252,48 +252,6 @@ function formatDate($date) {
     return date('M j, Y', strtotime($date));
 }
 
-// Get status badge HTML
-function getStatusBadge($status) {
-    global $status_colors;
-    $status = strtolower($status);
-    $color = $status_colors[$status] ?? '#6b7280';
-    $text = ucfirst(str_replace('_', ' ', $status));
-    
-    return <<<HTML
-        <span class="status-badge" style="background: rgba(${hexToRgb($color)}, 0.1); color: {$color}; border-color: rgba(${hexToRgb($color)}, 0.3);">
-            {$text}
-        </span>
-    HTML;
-}
-
-// Get risk level badge HTML
-function getRiskBadge($risk) {
-    global $risk_colors;
-    $risk = strtolower($risk);
-    $color = $risk_colors[$risk] ?? '#6b7280';
-    $text = ucfirst($risk);
-    
-    return <<<HTML
-        <span class="risk-badge" style="background: rgba(${hexToRgb($color)}, 0.1); color: {$color}; border-color: rgba(${hexToRgb($color)}, 0.3);">
-            {$text}
-        </span>
-    HTML;
-}
-
-// Get hazard level badge HTML
-function getHazardBadge($hazard) {
-    global $hazard_colors;
-    $hazard = strtolower($hazard);
-    $color = $hazard_colors[$hazard] ?? '#6b7280';
-    $text = ucfirst($hazard);
-    
-    return <<<HTML
-        <span class="hazard-badge" style="background: rgba(${hexToRgb($color)}, 0.1); color: {$color}; border-color: rgba(${hexToRgb($color)}, 0.3);">
-            {$text}
-        </span>
-    HTML;
-}
-
 // Helper function to convert hex to RGB
 function hexToRgb($hex) {
     $hex = str_replace('#', '', $hex);
@@ -307,6 +265,39 @@ function hexToRgb($hex) {
         $b = hexdec(substr($hex,4,2));
     }
     return "$r, $g, $b";
+}
+
+// Get status badge HTML - FIXED: Using concatenation instead of variable interpolation
+function getStatusBadge($status) {
+    global $status_colors;
+    $status_lower = strtolower($status);
+    $color = isset($status_colors[$status_lower]) ? $status_colors[$status_lower] : '#6b7280';
+    $text = ucfirst(str_replace('_', ' ', $status_lower));
+    $rgb = hexToRgb($color);
+    
+    return '<span class="status-badge" style="background: rgba(' . $rgb . ', 0.1); color: ' . $color . '; border-color: rgba(' . $rgb . ', 0.3);">' . $text . '</span>';
+}
+
+// Get risk level badge HTML - FIXED: Using concatenation instead of variable interpolation
+function getRiskBadge($risk) {
+    global $risk_colors;
+    $risk_lower = strtolower($risk);
+    $color = isset($risk_colors[$risk_lower]) ? $risk_colors[$risk_lower] : '#6b7280';
+    $text = ucfirst($risk_lower);
+    $rgb = hexToRgb($color);
+    
+    return '<span class="risk-badge" style="background: rgba(' . $rgb . ', 0.1); color: ' . $color . '; border-color: rgba(' . $rgb . ', 0.3);">' . $text . '</span>';
+}
+
+// Get hazard level badge HTML - FIXED: Using concatenation instead of variable interpolation
+function getHazardBadge($hazard) {
+    global $hazard_colors;
+    $hazard_lower = strtolower($hazard);
+    $color = isset($hazard_colors[$hazard_lower]) ? $hazard_colors[$hazard_lower] : '#6b7280';
+    $text = ucfirst($hazard_lower);
+    $rgb = hexToRgb($color);
+    
+    return '<span class="hazard-badge" style="background: rgba(' . $rgb . ', 0.1); color: ' . $color . '; border-color: rgba(' . $rgb . ', 0.3);">' . $text . '</span>';
 }
 ?>
 <!DOCTYPE html>
@@ -1737,24 +1728,7 @@ function hexToRgb($hex) {
                         <a href="#" class="submenu-item">Review Deployment</a>
                     </div>
                     
-                    <!-- Shift & Duty Scheduling -->
-                    <div class="menu-item" onclick="toggleSubmenu('schedule-management')">
-                        <div class="icon-box icon-bg-purple">
-                            <i class='bx bxs-calendar icon-purple'></i>
-                        </div>
-                        <span class="font-medium">Schedule Management</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="schedule-management" class="submenu">
-                       <a href="view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="create_schedule.php" class="submenu-item">Create Schedule</a>
-                          <a href="confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="request_change.php" class="submenu-item">Request Change</a>
-                        <a href="monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
-                    </div>
-                    
+                   
                    <!-- Training & Certification Monitoring -->
                     <div class="menu-item" onclick="toggleSubmenu('training-management')">
                         <div class="icon-box icon-bg-teal">
@@ -2281,7 +2255,7 @@ function hexToRgb($hex) {
                                                     </button>
                                                 <?php endif; ?>
                                                 
-                                                <?php if ($report['status'] === 'approved' && !$report['certificate_number']): ?>
+                                                <?php if ($report['status'] === 'approved' && !isset($report['certificate_number'])): ?>
                                                     <button class="action-button certificate-button" onclick="issueCertificate(<?php echo $report['id']; ?>, <?php echo isset($report['establishment_id']) ? $report['establishment_id'] : 'null'; ?>)">
                                                         <i class='bx bxs-certificate'></i>
                                                         Certificate
@@ -2559,11 +2533,10 @@ function hexToRgb($hex) {
             const detailsContent = document.getElementById('details-content');
             
             // Determine compliance score class
-            let complianceClass = 'compliance-score-high';
             let complianceCircleClass = 'compliance-circle-high';
-            if (report.overall_compliance_score < 80) complianceClass = 'compliance-score-medium';
-            if (report.overall_compliance_score < 60) complianceClass = 'compliance-score-low';
-            if (report.overall_compliance_score < 40) complianceClass = 'compliance-score-critical';
+            if (report.overall_compliance_score < 80) complianceCircleClass = 'compliance-circle-medium';
+            if (report.overall_compliance_score < 60) complianceCircleClass = 'compliance-circle-low';
+            if (report.overall_compliance_score < 40) complianceCircleClass = 'compliance-circle-critical';
             
             // Generate violation summary HTML
             let violationsHtml = '';

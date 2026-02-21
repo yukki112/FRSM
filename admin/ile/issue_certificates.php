@@ -1750,7 +1750,7 @@ $success_message = isset($_GET['success']) ? urldecode($_GET['success']) : '';
                         <a href="#" class="submenu-item">Mark Resolved</a>
                     </div>
                     
-                    <!-- Volunteer Management -->
+                   <!-- Volunteer Management -->
                     <div class="menu-item" onclick="toggleSubmenu('volunteer-management')">
                         <div class="icon-box icon-bg-blue">
                             <i class='bx bxs-user-detail icon-blue'></i>
@@ -1761,12 +1761,12 @@ $success_message = isset($_GET['success']) ? urldecode($_GET['success']) : '';
                         </svg>
                     </div>
                     <div id="volunteer-management" class="submenu">
-                        <a href="../volunteer/review_data.php" class="submenu-item">Review Data</a>
-                        <a href="../volunteer/approve_applications.php" class="submenu-item">Approve Applications</a>
-                        <a href="../volunteer/assign_volunteers.php" class="submenu-item">Assign Volunteers</a>
-                        <a href="../volunteer/view_availability.php" class="submenu-item">View Availability</a>
-                        <a href="../volunteer/remove_volunteers.php" class="submenu-item">Remove Volunteers</a>
-                        <a href="../volunteer/toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
+                        <a href="../vm/review_data.php" class="submenu-item">Review Data</a>
+                        
+                        <a href="../vm/approve-applications.php" class="submenu-item">Assign Volunteers</a>
+                        <a href="../vm/view-availability.php" class="submenu-item">View Availability</a>
+                        
+                        <a href="../vm/toggle_volunteer_registration.php" class="submenu-item">Toggle Volunteer Registration Access</a>
                     </div>
                     
                     <!-- Resource Inventory Management -->
@@ -1786,23 +1786,7 @@ $success_message = isset($_GET['success']) ? urldecode($_GET['success']) : '';
                         <a href="#" class="submenu-item">Review Deployment</a>
                     </div>
                     
-                    <!-- Shift & Duty Scheduling -->
-                    <div class="menu-item" onclick="toggleSubmenu('schedule-management')">
-                        <div class="icon-box icon-bg-purple">
-                            <i class='bx bxs-calendar icon-purple'></i>
-                        </div>
-                        <span class="font-medium">Schedule Management</span>
-                        <svg class="dropdown-arrow menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                    <div id="schedule-management" class="submenu">
-                       <a href="view_shifts.php" class="submenu-item">View Shifts</a>
-                        <a href="create_schedule.php" class="submenu-item">Create Schedule</a>
-                          <a href="confirm_availability.php" class="submenu-item">Confirm Availability</a>
-                        <a href="request_change.php" class="submenu-item">Request Change</a>
-                        <a href="monitor_attendance.php" class="submenu-item">Monitor Attendance</a>
-                    </div>
+                    
                     
                    <!-- Training & Certification Monitoring -->
                     <div class="menu-item" onclick="toggleSubmenu('training-management')">
