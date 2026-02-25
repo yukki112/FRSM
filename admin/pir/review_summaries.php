@@ -1,7 +1,27 @@
 <?php
 session_start();
-require_once '../../config/db_connection.php';
-require_once '../../vendor/setasign/fpdf/fpdf.php';
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Fix the path to config file - adjust based on actual file structure
+$config_path = __DIR__ . '/../../config/db_connection.php';
+if (!file_exists($config_path)) {
+    $config_path = __DIR__ . '/../config/db_connection.php';
+}
+require_once $config_path;
+
+// Check if FPDF exists, if not, provide alternative or skip PDF generation
+$fpdf_path = __DIR__ . '/../../vendor/setasign/fpdf/fpdf.php';
+$fpdf_alternative = __DIR__ . '/../../vendor/fpdf/fpdf.php';
+$fpdf_installed = false;
+
+if (file_exists($fpdf_path)) {
+    require_once $fpdf_path;
+    $fpdf_installed = true;
+} elseif (file_exists($fpdf_alternative)) {
+    require_once $fpdf_alternative;
+    $fpdf_installed = true;
+}
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../../login/login.php");
@@ -23,7 +43,7 @@ $first_name = htmlspecialchars($user['first_name']);
 $middle_name = htmlspecialchars($user['middle_name']);
 $last_name = htmlspecialchars($user['last_name']);
 $role = htmlspecialchars($user['role']);
-$avatar = htmlspecialchars($user['avatar']);
+$avatar = htmlspecialchars($user['avatar'] ?? '');
 
 $full_name = $first_name;
 if (!empty($middle_name)) {
@@ -41,14 +61,26 @@ $search_query = isset($_GET['search']) ? $_GET['search'] : '';
 
 // Handle report generation
 if (isset($_GET['export']) && $_GET['export'] == 'pdf') {
-    generatePDFReport($pdo, $filter_type, $filter_status, $filter_date_from, $filter_date_to, $filter_barangay, $search_query);
+    if ($fpdf_installed) {
+        generatePDFReport($pdo, $filter_type, $filter_status, $filter_date_from, $filter_date_to, $filter_barangay, $search_query);
+    } else {
+        // Alternative: Generate simple HTML report or show error
+        header('Content-Type: text/html');
+        echo '<html><body><h3>PDF generation is currently unavailable. Please check FPDF installation.</h3>';
+        echo '<p><a href="javascript:history.back()">Go Back</a></p></body></html>';
+    }
     exit();
 }
 
 // Handle AI prediction request
 if (isset($_GET['ai_predict']) && $_GET['ai_predict'] == 'true') {
-    $predictions = generatePredictions($pdo);
-    echo json_encode($predictions);
+    header('Content-Type: application/json');
+    try {
+        $predictions = generatePredictions($pdo);
+        echo json_encode($predictions);
+    } catch (Exception $e) {
+        echo json_encode(['error' => $e->getMessage()]);
+    }
     exit();
 }
 
@@ -56,121 +88,228 @@ if (isset($_GET['ai_predict']) && $_GET['ai_predict'] == 'true') {
 function getStatistics($pdo, $filter_type = 'all', $filter_status = 'all', $filter_date_from = '', $filter_date_to = '', $filter_barangay = '', $search_query = '') {
     $stats = [];
     
-    // Incident Statistics
-    $sql = "SELECT 
-                COUNT(*) as total_incidents,
-                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_incidents,
-                SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_incidents,
-                SUM(CASE WHEN status = 'responded' THEN 1 ELSE 0 END) as responded_incidents,
-                SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_incidents,
-                AVG(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) * 100 as critical_percentage,
-                AVG(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) * 100 as high_percentage,
-                AVG(CASE WHEN severity = 'medium' THEN 1 ELSE 0 END) * 100 as medium_percentage,
-                AVG(CASE WHEN severity = 'low' THEN 1 ELSE 0 END) * 100 as low_percentage
-            FROM api_incidents WHERE 1=1";
-    
-    $params = [];
-    
-    if (!empty($filter_date_from)) {
-        $sql .= " AND DATE(created_at) >= ?";
-        $params[] = $filter_date_from;
+    try {
+        // Incident Statistics
+        $sql = "SELECT 
+                    COUNT(*) as total_incidents,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_incidents,
+                    SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_incidents,
+                    SUM(CASE WHEN status = 'responded' THEN 1 ELSE 0 END) as responded_incidents,
+                    SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_incidents,
+                    AVG(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) * 100 as critical_percentage,
+                    AVG(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) * 100 as high_percentage,
+                    AVG(CASE WHEN severity = 'medium' THEN 1 ELSE 0 END) * 100 as medium_percentage,
+                    AVG(CASE WHEN severity = 'low' THEN 1 ELSE 0 END) * 100 as low_percentage
+                FROM api_incidents WHERE 1=1";
+        
+        $params = [];
+        
+        if (!empty($filter_date_from)) {
+            $sql .= " AND DATE(created_at) >= ?";
+            $params[] = $filter_date_from;
+        }
+        
+        if (!empty($filter_date_to)) {
+            $sql .= " AND DATE(created_at) <= ?";
+            $params[] = $filter_date_to;
+        }
+        
+        if (!empty($filter_barangay)) {
+            $sql .= " AND affected_barangays LIKE ?";
+            $params[] = "%$filter_barangay%";
+        }
+        
+        if (!empty($search_query)) {
+            $sql .= " AND (title LIKE ? OR description LIKE ? OR location LIKE ?)";
+            $search_param = "%$search_query%";
+            $params[] = $search_param;
+            $params[] = $search_param;
+            $params[] = $search_param;
+        }
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $incident_stats = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Ensure all keys exist with default values
+        $stats['incidents'] = [
+            'total_incidents' => $incident_stats['total_incidents'] ?? 0,
+            'pending_incidents' => $incident_stats['pending_incidents'] ?? 0,
+            'processing_incidents' => $incident_stats['processing_incidents'] ?? 0,
+            'responded_incidents' => $incident_stats['responded_incidents'] ?? 0,
+            'closed_incidents' => $incident_stats['closed_incidents'] ?? 0,
+            'critical_percentage' => $incident_stats['critical_percentage'] ?? 0,
+            'high_percentage' => $incident_stats['high_percentage'] ?? 0,
+            'medium_percentage' => $incident_stats['medium_percentage'] ?? 0,
+            'low_percentage' => $incident_stats['low_percentage'] ?? 0
+        ];
+    } catch (Exception $e) {
+        $stats['incidents'] = [
+            'total_incidents' => 0,
+            'pending_incidents' => 0,
+            'processing_incidents' => 0,
+            'responded_incidents' => 0,
+            'closed_incidents' => 0,
+            'critical_percentage' => 0,
+            'high_percentage' => 0,
+            'medium_percentage' => 0,
+            'low_percentage' => 0
+        ];
     }
     
-    if (!empty($filter_date_to)) {
-        $sql .= " AND DATE(created_at) <= ?";
-        $params[] = $filter_date_to;
+    try {
+        // Volunteer Statistics
+        $sql = "SELECT 
+                    COUNT(*) as total_volunteers,
+                    SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as active_volunteers,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_volunteers,
+                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_volunteers,
+                    AVG(CASE WHEN volunteer_status = 'Active' THEN 1 ELSE 0 END) * 100 as active_percentage
+                FROM volunteers WHERE 1=1";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        $volunteer_stats = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $stats['volunteers'] = [
+            'total_volunteers' => $volunteer_stats['total_volunteers'] ?? 0,
+            'active_volunteers' => $volunteer_stats['active_volunteers'] ?? 0,
+            'pending_volunteers' => $volunteer_stats['pending_volunteers'] ?? 0,
+            'rejected_volunteers' => $volunteer_stats['rejected_volunteers'] ?? 0,
+            'active_percentage' => $volunteer_stats['active_percentage'] ?? 0
+        ];
+    } catch (Exception $e) {
+        $stats['volunteers'] = [
+            'total_volunteers' => 0,
+            'active_volunteers' => 0,
+            'pending_volunteers' => 0,
+            'rejected_volunteers' => 0,
+            'active_percentage' => 0
+        ];
     }
     
-    if (!empty($filter_barangay)) {
-        $sql .= " AND affected_barangays LIKE ?";
-        $params[] = "%$filter_barangay%";
+    try {
+        // Training Statistics
+        $sql = "SELECT 
+                    COUNT(*) as total_trainings,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_trainings,
+                    SUM(CASE WHEN status = 'ongoing' THEN 1 ELSE 0 END) as ongoing_trainings,
+                    SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled_trainings,
+                    AVG(current_participants) as avg_participants
+                FROM trainings WHERE 1=1";
+        
+        $params2 = [];
+        
+        if (!empty($filter_date_from)) {
+            $sql .= " AND DATE(training_date) >= ?";
+            $params2[] = $filter_date_from;
+        }
+        
+        if (!empty($filter_date_to)) {
+            $sql .= " AND DATE(training_date) <= ?";
+            $params2[] = $filter_date_to;
+        }
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params2);
+        $training_stats = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $stats['trainings'] = [
+            'total_trainings' => $training_stats['total_trainings'] ?? 0,
+            'completed_trainings' => $training_stats['completed_trainings'] ?? 0,
+            'ongoing_trainings' => $training_stats['ongoing_trainings'] ?? 0,
+            'scheduled_trainings' => $training_stats['scheduled_trainings'] ?? 0,
+            'avg_participants' => $training_stats['avg_participants'] ?? 0
+        ];
+    } catch (Exception $e) {
+        $stats['trainings'] = [
+            'total_trainings' => 0,
+            'completed_trainings' => 0,
+            'ongoing_trainings' => 0,
+            'scheduled_trainings' => 0,
+            'avg_participants' => 0
+        ];
     }
     
-    if (!empty($search_query)) {
-        $sql .= " AND (title LIKE ? OR description LIKE ? OR location LIKE ?)";
-        $search_param = "%$search_query%";
-        $params[] = $search_param;
-        $params[] = $search_param;
-        $params[] = $search_param;
+    try {
+        // Inspection Statistics
+        $sql = "SELECT 
+                    COUNT(*) as total_inspections,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_inspections,
+                    SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft_inspections,
+                    SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as submitted_inspections,
+                    AVG(overall_compliance_score) as avg_compliance_score,
+                    SUM(CASE WHEN risk_assessment = 'high' THEN 1 ELSE 0 END) as high_risk_inspections,
+                    SUM(CASE WHEN risk_assessment = 'critical' THEN 1 ELSE 0 END) as critical_risk_inspections
+                FROM inspection_reports WHERE 1=1";
+        
+        $params3 = [];
+        
+        if (!empty($filter_date_from)) {
+            $sql .= " AND DATE(inspection_date) >= ?";
+            $params3[] = $filter_date_from;
+        }
+        
+        if (!empty($filter_date_to)) {
+            $sql .= " AND DATE(inspection_date) <= ?";
+            $params3[] = $filter_date_to;
+        }
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params3);
+        $inspection_stats = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $stats['inspections'] = [
+            'total_inspections' => $inspection_stats['total_inspections'] ?? 0,
+            'completed_inspections' => $inspection_stats['completed_inspections'] ?? 0,
+            'draft_inspections' => $inspection_stats['draft_inspections'] ?? 0,
+            'submitted_inspections' => $inspection_stats['submitted_inspections'] ?? 0,
+            'avg_compliance_score' => $inspection_stats['avg_compliance_score'] ?? 0,
+            'high_risk_inspections' => $inspection_stats['high_risk_inspections'] ?? 0,
+            'critical_risk_inspections' => $inspection_stats['critical_risk_inspections'] ?? 0
+        ];
+    } catch (Exception $e) {
+        $stats['inspections'] = [
+            'total_inspections' => 0,
+            'completed_inspections' => 0,
+            'draft_inspections' => 0,
+            'submitted_inspections' => 0,
+            'avg_compliance_score' => 0,
+            'high_risk_inspections' => 0,
+            'critical_risk_inspections' => 0
+        ];
     }
     
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $stats['incidents'] = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Volunteer Statistics
-    $sql = "SELECT 
-                COUNT(*) as total_volunteers,
-                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as active_volunteers,
-                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_volunteers,
-                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_volunteers,
-                AVG(CASE WHEN volunteer_status = 'Active' THEN 1 ELSE 0 END) * 100 as active_percentage
-            FROM volunteers WHERE 1=1";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $stats['volunteers'] = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Training Statistics
-    $sql = "SELECT 
-                COUNT(*) as total_trainings,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_trainings,
-                SUM(CASE WHEN status = 'ongoing' THEN 1 ELSE 0 END) as ongoing_trainings,
-                SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled_trainings,
-                AVG(current_participants) as avg_participants
-            FROM trainings WHERE 1=1";
-    
-    if (!empty($filter_date_from)) {
-        $sql .= " AND DATE(training_date) >= ?";
-        $params2[] = $filter_date_from;
+    try {
+        // Resource Statistics
+        $sql = "SELECT 
+                    COUNT(*) as total_resources,
+                    SUM(CASE WHEN condition_status = 'Serviceable' THEN 1 ELSE 0 END) as serviceable_resources,
+                    SUM(CASE WHEN condition_status = 'Under Maintenance' THEN 1 ELSE 0 END) as maintenance_resources,
+                    SUM(CASE WHEN condition_status = 'Condemned' THEN 1 ELSE 0 END) as condemned_resources,
+                    SUM(available_quantity) as total_available_quantity
+                FROM resources WHERE is_active = 1";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        $resource_stats = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $stats['resources'] = [
+            'total_resources' => $resource_stats['total_resources'] ?? 0,
+            'serviceable_resources' => $resource_stats['serviceable_resources'] ?? 0,
+            'maintenance_resources' => $resource_stats['maintenance_resources'] ?? 0,
+            'condemned_resources' => $resource_stats['condemned_resources'] ?? 0,
+            'total_available_quantity' => $resource_stats['total_available_quantity'] ?? 0
+        ];
+    } catch (Exception $e) {
+        $stats['resources'] = [
+            'total_resources' => 0,
+            'serviceable_resources' => 0,
+            'maintenance_resources' => 0,
+            'condemned_resources' => 0,
+            'total_available_quantity' => 0
+        ];
     }
-    
-    if (!empty($filter_date_to)) {
-        $sql .= " AND DATE(training_date) <= ?";
-        $params2[] = $filter_date_to;
-    }
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params2 ?? []);
-    $stats['trainings'] = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Inspection Statistics
-    $sql = "SELECT 
-                COUNT(*) as total_inspections,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_inspections,
-                SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft_inspections,
-                SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as submitted_inspections,
-                AVG(overall_compliance_score) as avg_compliance_score,
-                SUM(CASE WHEN risk_assessment = 'high' THEN 1 ELSE 0 END) as high_risk_inspections,
-                SUM(CASE WHEN risk_assessment = 'critical' THEN 1 ELSE 0 END) as critical_risk_inspections
-            FROM inspection_reports WHERE 1=1";
-    
-    if (!empty($filter_date_from)) {
-        $sql .= " AND DATE(inspection_date) >= ?";
-        $params3[] = $filter_date_from;
-    }
-    
-    if (!empty($filter_date_to)) {
-        $sql .= " AND DATE(inspection_date) <= ?";
-        $params3[] = $filter_date_to;
-    }
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params3 ?? []);
-    $stats['inspections'] = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Resource Statistics
-    $sql = "SELECT 
-                COUNT(*) as total_resources,
-                SUM(CASE WHEN condition_status = 'Serviceable' THEN 1 ELSE 0 END) as serviceable_resources,
-                SUM(CASE WHEN condition_status = 'Under Maintenance' THEN 1 ELSE 0 END) as maintenance_resources,
-                SUM(CASE WHEN condition_status = 'Condemned' THEN 1 ELSE 0 END) as condemned_resources,
-                SUM(available_quantity) as total_available_quantity
-            FROM resources WHERE is_active = 1";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $stats['resources'] = $stmt->fetch(PDO::FETCH_ASSOC);
     
     return $stats;
 }
@@ -179,89 +318,103 @@ function getStatistics($pdo, $filter_type = 'all', $filter_status = 'all', $filt
 function generatePredictions($pdo) {
     $predictions = [];
     
-    // Predict incident trends based on historical data
-    $sql = "SELECT 
-                emergency_type,
-                COUNT(*) as count,
-                MONTH(created_at) as month,
-                AVG(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical_rate
-            FROM api_incidents 
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-            GROUP BY emergency_type, MONTH(created_at)
-            ORDER BY emergency_type, month";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $incident_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Analyze trends
-    $trends = [];
-    foreach ($incident_data as $data) {
-        $type = $data['emergency_type'];
-        if (!isset($trends[$type])) {
-            $trends[$type] = [];
+    try {
+        // Predict incident trends based on historical data
+        $sql = "SELECT 
+                    emergency_type,
+                    COUNT(*) as count,
+                    MONTH(created_at) as month,
+                    AVG(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical_rate
+                FROM api_incidents 
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                GROUP BY emergency_type, MONTH(created_at)
+                ORDER BY emergency_type, month";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        $incident_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Analyze trends
+        $trends = [];
+        foreach ($incident_data as $data) {
+            $type = $data['emergency_type'] ?? 'other';
+            if (!isset($trends[$type])) {
+                $trends[$type] = [];
+            }
+            $trends[$type][] = $data['count'] ?? 0;
         }
-        $trends[$type][] = $data['count'];
+        
+        // Make predictions for next month
+        $predictions['incident_predictions'] = [];
+        foreach ($trends as $type => $counts) {
+            if (count($counts) >= 3) {
+                // Simple linear regression for prediction
+                $last_three = array_slice($counts, -3);
+                $trend = ($last_three[2] - $last_three[0]) / 2;
+                $prediction = end($last_three) + $trend;
+                
+                $predictions['incident_predictions'][] = [
+                    'type' => $type,
+                    'predicted_count' => max(0, round($prediction)),
+                    'confidence' => 75,
+                    'trend' => $trend > 0 ? 'increasing' : ($trend < 0 ? 'decreasing' : 'stable')
+                ];
+            }
+        }
+    } catch (Exception $e) {
+        $predictions['incident_predictions'] = [];
     }
     
-    // Make predictions for next month
-    foreach ($trends as $type => $counts) {
-        if (count($counts) >= 3) {
-            // Simple linear regression for prediction
-            $last_three = array_slice($counts, -3);
-            $trend = ($last_three[2] - $last_three[0]) / 2;
-            $prediction = end($last_three) + $trend;
-            
-            $predictions['incident_predictions'][] = [
-                'type' => $type,
-                'predicted_count' => max(0, round($prediction)),
-                'confidence' => 75,
-                'trend' => $trend > 0 ? 'increasing' : ($trend < 0 ? 'decreasing' : 'stable')
+    try {
+        // Predict resource needs
+        $sql = "SELECT 
+                    resource_type,
+                    AVG(quantity - available_quantity) as avg_usage
+                FROM resources 
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                GROUP BY resource_type";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        $resource_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $predictions['resource_predictions'] = [];
+        foreach ($resource_data as $data) {
+            $predictions['resource_predictions'][] = [
+                'resource_type' => $data['resource_type'] ?? 'Unknown',
+                'predicted_need' => round(($data['avg_usage'] ?? 0) * 1.1), // 10% buffer
+                'confidence' => 70
             ];
         }
+    } catch (Exception $e) {
+        $predictions['resource_predictions'] = [];
     }
     
-    // Predict resource needs
-    $sql = "SELECT 
-                resource_type,
-                AVG(quantity - available_quantity) as avg_usage,
-                MONTH(created_at) as month
-            FROM resources 
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-            GROUP BY resource_type, MONTH(created_at)";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $resource_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    foreach ($resource_data as $data) {
-        $predictions['resource_predictions'][] = [
-            'resource_type' => $data['resource_type'],
-            'predicted_need' => round($data['avg_usage'] * 1.1), // 10% buffer
-            'confidence' => 70
-        ];
-    }
-    
-    // Predict training needs based on incident types
-    $sql = "SELECT 
-                emergency_type,
-                COUNT(*) as frequency
-            FROM api_incidents 
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
-            GROUP BY emergency_type
-            ORDER BY frequency DESC
-            LIMIT 3";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $training_needs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    foreach ($training_needs as $need) {
-        $predictions['training_predictions'][] = [
-            'type' => $need['emergency_type'],
-            'priority' => 'high',
-            'recommended_training' => getTrainingForIncidentType($need['emergency_type'])
-        ];
+    try {
+        // Predict training needs based on incident types
+        $sql = "SELECT 
+                    emergency_type,
+                    COUNT(*) as frequency
+                FROM api_incidents 
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+                GROUP BY emergency_type
+                ORDER BY frequency DESC
+                LIMIT 3";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        $training_needs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $predictions['training_predictions'] = [];
+        foreach ($training_needs as $need) {
+            $predictions['training_predictions'][] = [
+                'type' => $need['emergency_type'] ?? 'other',
+                'priority' => 'high',
+                'recommended_training' => getTrainingForIncidentType($need['emergency_type'] ?? 'other')
+            ];
+        }
+    } catch (Exception $e) {
+        $predictions['training_predictions'] = [];
     }
     
     return $predictions;
@@ -275,168 +428,244 @@ function getTrainingForIncidentType($type) {
         'other' => 'Incident Command System'
     ];
     
-    return $training_map[$type] ?? 'General Emergency Response';
+    return $training_map[strtolower($type)] ?? 'General Emergency Response';
 }
 
 // Generate PDF Report
 function generatePDFReport($pdo, $filter_type, $filter_status, $date_from, $date_to, $barangay, $search) {
+    global $fpdf_installed;
+    
+    if (!$fpdf_installed) {
+        header('Content-Type: text/html');
+        echo '<html><body><h3>FPDF library not found. Cannot generate PDF.</h3>';
+        echo '<p>Please install FPDF via composer: composer require setasign/fpdf</p>';
+        echo '<p><a href="javascript:history.back()">Go Back</a></p></body></html>';
+        exit();
+    }
+    
     $stats = getStatistics($pdo, $filter_type, $filter_status, $date_from, $date_to, $barangay, $search);
     $predictions = generatePredictions($pdo);
     
-    $pdf = new FPDF();
-    $pdf->AddPage();
-    
-    // Header
-    $pdf->SetFont('Arial', 'B', 16);
-    $pdf->Cell(0, 10, 'Fire & Rescue Management System - Analytics Report', 0, 1, 'C');
-    $pdf->SetFont('Arial', '', 12);
-    $pdf->Cell(0, 10, 'Generated on: ' . date('Y-m-d H:i:s'), 0, 1, 'C');
-    $pdf->Ln(10);
-    
-    // Filter Information
-    $pdf->SetFont('Arial', 'B', 12);
-    $pdf->Cell(0, 10, 'Report Filters:', 0, 1);
-    $pdf->SetFont('Arial', '', 10);
-    $pdf->Cell(0, 6, 'Date Range: ' . ($date_from ? $date_from : 'All') . ' to ' . ($date_to ? $date_to : 'All'), 0, 1);
-    $pdf->Cell(0, 6, 'Barangay: ' . ($barangay ? $barangay : 'All'), 0, 1);
-    $pdf->Cell(0, 6, 'Search: ' . ($search ? $search : 'None'), 0, 1);
-    $pdf->Ln(10);
-    
-    // Incident Statistics
-    $pdf->SetFont('Arial', 'B', 14);
-    $pdf->Cell(0, 10, 'Incident Statistics', 0, 1);
-    $pdf->SetFont('Arial', '', 10);
-    
-    $incident_data = $stats['incidents'];
-    $pdf->Cell(0, 6, 'Total Incidents: ' . $incident_data['total_incidents'], 0, 1);
-    $pdf->Cell(0, 6, 'Pending: ' . $incident_data['pending_incidents'], 0, 1);
-    $pdf->Cell(0, 6, 'Processing: ' . $incident_data['processing_incidents'], 0, 1);
-    $pdf->Cell(0, 6, 'Responded: ' . $incident_data['responded_incidents'], 0, 1);
-    $pdf->Cell(0, 6, 'Closed: ' . $incident_data['closed_incidents'], 0, 1);
-    $pdf->Ln(5);
-    
-    // Severity Distribution
-    $pdf->Cell(0, 6, 'Severity Distribution:', 0, 1);
-    $pdf->Cell(0, 6, 'Critical: ' . number_format($incident_data['critical_percentage'], 1) . '%', 0, 1);
-    $pdf->Cell(0, 6, 'High: ' . number_format($incident_data['high_percentage'], 1) . '%', 0, 1);
-    $pdf->Cell(0, 6, 'Medium: ' . number_format($incident_data['medium_percentage'], 1) . '%', 0, 1);
-    $pdf->Cell(0, 6, 'Low: ' . number_format($incident_data['low_percentage'], 1) . '%', 0, 1);
-    $pdf->Ln(10);
-    
-    // Volunteer Statistics
-    $pdf->SetFont('Arial', 'B', 14);
-    $pdf->Cell(0, 10, 'Volunteer Statistics', 0, 1);
-    $pdf->SetFont('Arial', '', 10);
-    
-    $volunteer_data = $stats['volunteers'];
-    $pdf->Cell(0, 6, 'Total Volunteers: ' . $volunteer_data['total_volunteers'], 0, 1);
-    $pdf->Cell(0, 6, 'Active: ' . $volunteer_data['active_volunteers'], 0, 1);
-    $pdf->Cell(0, 6, 'Pending: ' . $volunteer_data['pending_volunteers'], 0, 1);
-    $pdf->Cell(0, 6, 'Rejected: ' . $volunteer_data['rejected_volunteers'], 0, 1);
-    $pdf->Cell(0, 6, 'Active Rate: ' . number_format($volunteer_data['active_percentage'], 1) . '%', 0, 1);
-    $pdf->Ln(10);
-    
-    // Training Statistics
-    $pdf->SetFont('Arial', 'B', 14);
-    $pdf->Cell(0, 10, 'Training Statistics', 0, 1);
-    $pdf->SetFont('Arial', '', 10);
-    
-    $training_data = $stats['trainings'];
-    $pdf->Cell(0, 6, 'Total Trainings: ' . $training_data['total_trainings'], 0, 1);
-    $pdf->Cell(0, 6, 'Completed: ' . $training_data['completed_trainings'], 0, 1);
-    $pdf->Cell(0, 6, 'Ongoing: ' . $training_data['ongoing_trainings'], 0, 1);
-    $pdf->Cell(0, 6, 'Scheduled: ' . $training_data['scheduled_trainings'], 0, 1);
-    $pdf->Cell(0, 6, 'Average Participants: ' . number_format($training_data['avg_participants'], 1), 0, 1);
-    $pdf->Ln(10);
-    
-    // Inspection Statistics
-    $pdf->SetFont('Arial', 'B', 14);
-    $pdf->Cell(0, 10, 'Inspection Statistics', 0, 1);
-    $pdf->SetFont('Arial', '', 10);
-    
-    $inspection_data = $stats['inspections'];
-    $pdf->Cell(0, 6, 'Total Inspections: ' . $inspection_data['total_inspections'], 0, 1);
-    $pdf->Cell(0, 6, 'Completed: ' . $inspection_data['completed_inspections'], 0, 1);
-    $pdf->Cell(0, 6, 'Average Compliance Score: ' . number_format($inspection_data['avg_compliance_score'], 1) . '%', 0, 1);
-    $pdf->Cell(0, 6, 'High Risk Inspections: ' . $inspection_data['high_risk_inspections'], 0, 1);
-    $pdf->Cell(0, 6, 'Critical Risk Inspections: ' . $inspection_data['critical_risk_inspections'], 0, 1);
-    $pdf->Ln(10);
-    
-    // Resource Statistics
-    $pdf->SetFont('Arial', 'B', 14);
-    $pdf->Cell(0, 10, 'Resource Statistics', 0, 1);
-    $pdf->SetFont('Arial', '', 10);
-    
-    $resource_data = $stats['resources'];
-    $pdf->Cell(0, 6, 'Total Resources: ' . $resource_data['total_resources'], 0, 1);
-    $pdf->Cell(0, 6, 'Serviceable: ' . $resource_data['serviceable_resources'], 0, 1);
-    $pdf->Cell(0, 6, 'Under Maintenance: ' . $resource_data['maintenance_resources'], 0, 1);
-    $pdf->Cell(0, 6, 'Condemned: ' . $resource_data['condemned_resources'], 0, 1);
-    $pdf->Cell(0, 6, 'Total Available Quantity: ' . $resource_data['total_available_quantity'], 0, 1);
-    $pdf->Ln(10);
-    
-    // AI Predictions Section
-    $pdf->SetFont('Arial', 'B', 14);
-    $pdf->Cell(0, 10, 'AI Predictive Analytics', 0, 1);
-    $pdf->SetFont('Arial', '', 10);
-    
-    if (isset($predictions['incident_predictions'])) {
-        $pdf->Cell(0, 6, 'Incident Predictions for Next Month:', 0, 1);
-        foreach ($predictions['incident_predictions'] as $prediction) {
-            $pdf->Cell(0, 6, '- ' . ucfirst($prediction['type']) . ': ' . $prediction['predicted_count'] . ' incidents (' . $prediction['trend'] . ' trend)', 0, 1);
-        }
-    }
-    
-    if (isset($predictions['resource_predictions'])) {
+    try {
+        $pdf = new FPDF();
+        $pdf->AddPage();
+        
+        // Header
+        $pdf->SetFont('Arial', 'B', 16);
+        $pdf->Cell(0, 10, 'Fire & Rescue Management System - Analytics Report', 0, 1, 'C');
+        $pdf->SetFont('Arial', '', 12);
+        $pdf->Cell(0, 10, 'Generated on: ' . date('Y-m-d H:i:s'), 0, 1, 'C');
+        $pdf->Ln(10);
+        
+        // Filter Information
+        $pdf->SetFont('Arial', 'B', 12);
+        $pdf->Cell(0, 10, 'Report Filters:', 0, 1);
+        $pdf->SetFont('Arial', '', 10);
+        $pdf->Cell(0, 6, 'Date Range: ' . ($date_from ? $date_from : 'All') . ' to ' . ($date_to ? $date_to : 'All'), 0, 1);
+        $pdf->Cell(0, 6, 'Barangay: ' . ($barangay ? $barangay : 'All'), 0, 1);
+        $pdf->Cell(0, 6, 'Search: ' . ($search ? $search : 'None'), 0, 1);
+        $pdf->Ln(10);
+        
+        // Incident Statistics
+        $pdf->SetFont('Arial', 'B', 14);
+        $pdf->Cell(0, 10, 'Incident Statistics', 0, 1);
+        $pdf->SetFont('Arial', '', 10);
+        
+        $incident_data = $stats['incidents'];
+        $pdf->Cell(0, 6, 'Total Incidents: ' . ($incident_data['total_incidents'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Pending: ' . ($incident_data['pending_incidents'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Processing: ' . ($incident_data['processing_incidents'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Responded: ' . ($incident_data['responded_incidents'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Closed: ' . ($incident_data['closed_incidents'] ?? 0), 0, 1);
         $pdf->Ln(5);
-        $pdf->Cell(0, 6, 'Resource Needs Prediction:', 0, 1);
-        foreach ($predictions['resource_predictions'] as $prediction) {
-            $pdf->Cell(0, 6, '- ' . $prediction['resource_type'] . ': ' . $prediction['predicted_need'] . ' units needed', 0, 1);
+        
+        // Severity Distribution
+        $pdf->Cell(0, 6, 'Severity Distribution:', 0, 1);
+        $pdf->Cell(0, 6, 'Critical: ' . number_format($incident_data['critical_percentage'] ?? 0, 1) . '%', 0, 1);
+        $pdf->Cell(0, 6, 'High: ' . number_format($incident_data['high_percentage'] ?? 0, 1) . '%', 0, 1);
+        $pdf->Cell(0, 6, 'Medium: ' . number_format($incident_data['medium_percentage'] ?? 0, 1) . '%', 0, 1);
+        $pdf->Cell(0, 6, 'Low: ' . number_format($incident_data['low_percentage'] ?? 0, 1) . '%', 0, 1);
+        $pdf->Ln(10);
+        
+        // Volunteer Statistics
+        $pdf->SetFont('Arial', 'B', 14);
+        $pdf->Cell(0, 10, 'Volunteer Statistics', 0, 1);
+        $pdf->SetFont('Arial', '', 10);
+        
+        $volunteer_data = $stats['volunteers'];
+        $pdf->Cell(0, 6, 'Total Volunteers: ' . ($volunteer_data['total_volunteers'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Active: ' . ($volunteer_data['active_volunteers'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Pending: ' . ($volunteer_data['pending_volunteers'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Rejected: ' . ($volunteer_data['rejected_volunteers'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Active Rate: ' . number_format($volunteer_data['active_percentage'] ?? 0, 1) . '%', 0, 1);
+        $pdf->Ln(10);
+        
+        // Training Statistics
+        $pdf->SetFont('Arial', 'B', 14);
+        $pdf->Cell(0, 10, 'Training Statistics', 0, 1);
+        $pdf->SetFont('Arial', '', 10);
+        
+        $training_data = $stats['trainings'];
+        $pdf->Cell(0, 6, 'Total Trainings: ' . ($training_data['total_trainings'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Completed: ' . ($training_data['completed_trainings'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Ongoing: ' . ($training_data['ongoing_trainings'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Scheduled: ' . ($training_data['scheduled_trainings'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Average Participants: ' . number_format($training_data['avg_participants'] ?? 0, 1), 0, 1);
+        $pdf->Ln(10);
+        
+        // Inspection Statistics
+        $pdf->SetFont('Arial', 'B', 14);
+        $pdf->Cell(0, 10, 'Inspection Statistics', 0, 1);
+        $pdf->SetFont('Arial', '', 10);
+        
+        $inspection_data = $stats['inspections'];
+        $pdf->Cell(0, 6, 'Total Inspections: ' . ($inspection_data['total_inspections'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Completed: ' . ($inspection_data['completed_inspections'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Average Compliance Score: ' . number_format($inspection_data['avg_compliance_score'] ?? 0, 1) . '%', 0, 1);
+        $pdf->Cell(0, 6, 'High Risk Inspections: ' . ($inspection_data['high_risk_inspections'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Critical Risk Inspections: ' . ($inspection_data['critical_risk_inspections'] ?? 0), 0, 1);
+        $pdf->Ln(10);
+        
+        // Resource Statistics
+        $pdf->SetFont('Arial', 'B', 14);
+        $pdf->Cell(0, 10, 'Resource Statistics', 0, 1);
+        $pdf->SetFont('Arial', '', 10);
+        
+        $resource_data = $stats['resources'];
+        $pdf->Cell(0, 6, 'Total Resources: ' . ($resource_data['total_resources'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Serviceable: ' . ($resource_data['serviceable_resources'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Under Maintenance: ' . ($resource_data['maintenance_resources'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Condemned: ' . ($resource_data['condemned_resources'] ?? 0), 0, 1);
+        $pdf->Cell(0, 6, 'Total Available Quantity: ' . ($resource_data['total_available_quantity'] ?? 0), 0, 1);
+        $pdf->Ln(10);
+        
+        // AI Predictions Section
+        $pdf->SetFont('Arial', 'B', 14);
+        $pdf->Cell(0, 10, 'AI Predictive Analytics', 0, 1);
+        $pdf->SetFont('Arial', '', 10);
+        
+        if (isset($predictions['incident_predictions']) && count($predictions['incident_predictions']) > 0) {
+            $pdf->Cell(0, 6, 'Incident Predictions for Next Month:', 0, 1);
+            foreach ($predictions['incident_predictions'] as $prediction) {
+                $pdf->Cell(0, 6, '- ' . ucfirst($prediction['type']) . ': ' . $prediction['predicted_count'] . ' incidents (' . $prediction['trend'] . ' trend)', 0, 1);
+            }
         }
-    }
-    
-    if (isset($predictions['training_predictions'])) {
-        $pdf->Ln(5);
-        $pdf->Cell(0, 6, 'Recommended Training:', 0, 1);
-        foreach ($predictions['training_predictions'] as $prediction) {
-            $pdf->Cell(0, 6, '- ' . ucfirst($prediction['type']) . ' incidents: ' . $prediction['recommended_training'], 0, 1);
+        
+        if (isset($predictions['resource_predictions']) && count($predictions['resource_predictions']) > 0) {
+            $pdf->Ln(5);
+            $pdf->Cell(0, 6, 'Resource Needs Prediction:', 0, 1);
+            foreach ($predictions['resource_predictions'] as $prediction) {
+                $pdf->Cell(0, 6, '- ' . $prediction['resource_type'] . ': ' . $prediction['predicted_need'] . ' units needed', 0, 1);
+            }
         }
+        
+        if (isset($predictions['training_predictions']) && count($predictions['training_predictions']) > 0) {
+            $pdf->Ln(5);
+            $pdf->Cell(0, 6, 'Recommended Training:', 0, 1);
+            foreach ($predictions['training_predictions'] as $prediction) {
+                $pdf->Cell(0, 6, '- ' . ucfirst($prediction['type']) . ' incidents: ' . $prediction['recommended_training'], 0, 1);
+            }
+        }
+        
+        // Footer
+        $pdf->SetY(-15);
+        $pdf->SetFont('Arial', 'I', 8);
+        $pdf->Cell(0, 10, 'Page ' . $pdf->PageNo(), 0, 0, 'C');
+        
+        $pdf->Output('I', 'FRSM_Analytics_Report_' . date('Y-m-d') . '.pdf');
+    } catch (Exception $e) {
+        header('Content-Type: text/html');
+        echo '<html><body><h3>Error generating PDF: ' . htmlspecialchars($e->getMessage()) . '</h3>';
+        echo '<p><a href="javascript:history.back()">Go Back</a></p></body></html>';
     }
-    
-    // Footer
-    $pdf->SetY(-15);
-    $pdf->SetFont('Arial', 'I', 8);
-    $pdf->Cell(0, 10, 'Page ' . $pdf->PageNo(), 0, 0, 'C');
-    
-    $pdf->Output('I', 'FRSM_Analytics_Report_' . date('Y-m-d') . '.pdf');
 }
 
 // Get barangays for filter
 function getBarangays($pdo) {
-    $sql = "SELECT DISTINCT affected_barangays FROM api_incidents WHERE affected_barangays IS NOT NULL AND affected_barangays != ''";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $barangays = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    $unique_barangays = [];
-    foreach ($barangays as $barangay_list) {
-        $list = explode(',', $barangay_list);
-        foreach ($list as $barangay) {
-            $barangay = trim($barangay);
-            if ($barangay && !in_array($barangay, $unique_barangays)) {
-                $unique_barangays[] = $barangay;
+    $barangays = [];
+    try {
+        $sql = "SELECT DISTINCT affected_barangays FROM api_incidents WHERE affected_barangays IS NOT NULL AND affected_barangays != ''";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        $result = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        $unique_barangays = [];
+        foreach ($result as $barangay_list) {
+            $list = explode(',', $barangay_list);
+            foreach ($list as $barangay) {
+                $barangay = trim($barangay);
+                if ($barangay && !in_array($barangay, $unique_barangays)) {
+                    $unique_barangays[] = $barangay;
+                }
             }
         }
+        
+        sort($unique_barangays);
+        $barangays = $unique_barangays;
+    } catch (Exception $e) {
+        // Return empty array if query fails
     }
     
-    sort($unique_barangays);
-    return $unique_barangays;
+    return $barangays;
 }
 
-// Get statistics data
-$barangays = getBarangays($pdo);
-$stats = getStatistics($pdo, $filter_type, $filter_status, $filter_date_from, $filter_date_to, $filter_barangay, $search_query);
-$predictions = generatePredictions($pdo);
+// Get statistics data with error handling
+try {
+    $barangays = getBarangays($pdo);
+    $stats = getStatistics($pdo, $filter_type, $filter_status, $filter_date_from, $filter_date_to, $filter_barangay, $search_query);
+    $predictions = generatePredictions($pdo);
+} catch (Exception $e) {
+    // Provide default values if queries fail
+    $barangays = [];
+    $stats = [
+        'incidents' => [
+            'total_incidents' => 0,
+            'pending_incidents' => 0,
+            'processing_incidents' => 0,
+            'responded_incidents' => 0,
+            'closed_incidents' => 0,
+            'critical_percentage' => 0,
+            'high_percentage' => 0,
+            'medium_percentage' => 0,
+            'low_percentage' => 0
+        ],
+        'volunteers' => [
+            'total_volunteers' => 0,
+            'active_volunteers' => 0,
+            'pending_volunteers' => 0,
+            'rejected_volunteers' => 0,
+            'active_percentage' => 0
+        ],
+        'trainings' => [
+            'total_trainings' => 0,
+            'completed_trainings' => 0,
+            'ongoing_trainings' => 0,
+            'scheduled_trainings' => 0,
+            'avg_participants' => 0
+        ],
+        'inspections' => [
+            'total_inspections' => 0,
+            'completed_inspections' => 0,
+            'draft_inspections' => 0,
+            'submitted_inspections' => 0,
+            'avg_compliance_score' => 0,
+            'high_risk_inspections' => 0,
+            'critical_risk_inspections' => 0
+        ],
+        'resources' => [
+            'total_resources' => 0,
+            'serviceable_resources' => 0,
+            'maintenance_resources' => 0,
+            'condemned_resources' => 0,
+            'total_available_quantity' => 0
+        ]
+    ];
+    $predictions = [
+        'incident_predictions' => [],
+        'resource_predictions' => [],
+        'training_predictions' => []
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -505,6 +734,8 @@ $predictions = generatePredictions($pdo);
             color: var(--text-color);
             background-color: var(--background-color);
             overflow-x: hidden;
+            margin: 0;
+            padding: 0;
         }
 
         .dashboard-content {
@@ -626,6 +857,7 @@ $predictions = generatePredictions($pdo);
             display: flex;
             background: rgba(220, 38, 38, 0.03);
             border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
         }
 
         .tab {
@@ -807,6 +1039,8 @@ $predictions = generatePredictions($pdo);
             margin-bottom: 20px;
             position: relative;
             z-index: 1;
+            flex-wrap: wrap;
+            gap: 15px;
         }
 
         .ai-title {
@@ -1116,6 +1350,55 @@ $predictions = generatePredictions($pdo);
                 opacity: 1;
             }
         }
+
+        @keyframes slideOut {
+            from {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 20px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            max-width: 400px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            color: white;
+        }
+
+        .notification-success {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(16, 185, 129, 0.8));
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .notification-error {
+            background: linear-gradient(135deg, rgba(220, 38, 38, 0.9), rgba(220, 38, 38, 0.8));
+            border: 1px solid rgba(220, 38, 38, 0.3);
+        }
+
+        .notification-warning {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.9), rgba(245, 158, 11, 0.8));
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .notification-info {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(59, 130, 246, 0.8));
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -1276,7 +1559,7 @@ $predictions = generatePredictions($pdo);
                         </svg>
                     </div>
                     <div id="analytics-management" class="submenu active">
-                        <a href="../pir/review_summaries.php" class="submenu-item active">Review Summaries</a>
+                        <a href="review_summaries.php" class="submenu-item active">Review Summaries</a>
                     </div>
                 </div>
                 
@@ -1361,19 +1644,19 @@ $predictions = generatePredictions($pdo);
                     <!-- Tabs -->
                     <div class="tabs-container">
                         <div class="tabs-header">
-                            <div class="tab active" onclick="switchTab('review-summaries')">
+                            <div class="tab active" onclick="switchTab('review-summaries', this)">
                                 <i class='bx bxs-dashboard'></i>
                                 Review Summaries
                             </div>
-                            <div class="tab" onclick="switchTab('analyze-data')">
+                            <div class="tab" onclick="switchTab('analyze-data', this)">
                                 <i class='bx bxs-analyse'></i>
                                 Analyze Data
                             </div>
-                            <div class="tab" onclick="switchTab('export-reports')">
+                            <div class="tab" onclick="switchTab('export-reports', this)">
                                 <i class='bx bxs-file-export'></i>
                                 Export Reports
                             </div>
-                            <div class="tab" onclick="switchTab('generate-statistics')">
+                            <div class="tab" onclick="switchTab('generate-statistics', this)">
                                 <i class='bx bxs-bar-chart-alt-2'></i>
                                 Generate Statistics
                             </div>
@@ -1385,7 +1668,7 @@ $predictions = generatePredictions($pdo);
                             <div class="ai-predictions">
                                 <div class="ai-header">
                                     <h2 class="ai-title">AI Predictive Analytics</h2>
-                                    <button class="ai-refresh" onclick="refreshPredictions()">
+                                    <button class="ai-refresh" onclick="refreshPredictions(this)">
                                         <i class='bx bx-refresh'></i>
                                         Refresh Predictions
                                     </button>
@@ -1397,7 +1680,7 @@ $predictions = generatePredictions($pdo);
                                             Incident Predictions
                                         </h3>
                                         <div class="prediction-content">
-                                            <?php if (isset($predictions['incident_predictions'])): ?>
+                                            <?php if (isset($predictions['incident_predictions']) && count($predictions['incident_predictions']) > 0): ?>
                                                 <?php foreach ($predictions['incident_predictions'] as $prediction): ?>
                                                     <div class="prediction-item">
                                                         <?php echo ucfirst($prediction['type']); ?>: 
@@ -1416,7 +1699,7 @@ $predictions = generatePredictions($pdo);
                                             Resource Needs
                                         </h3>
                                         <div class="prediction-content">
-                                            <?php if (isset($predictions['resource_predictions'])): ?>
+                                            <?php if (isset($predictions['resource_predictions']) && count($predictions['resource_predictions']) > 0): ?>
                                                 <?php foreach ($predictions['resource_predictions'] as $prediction): ?>
                                                     <div class="prediction-item">
                                                         <?php echo $prediction['resource_type']; ?>: 
@@ -1434,7 +1717,7 @@ $predictions = generatePredictions($pdo);
                                             Training Recommendations
                                         </h3>
                                         <div class="prediction-content">
-                                            <?php if (isset($predictions['training_predictions'])): ?>
+                                            <?php if (isset($predictions['training_predictions']) && count($predictions['training_predictions']) > 0): ?>
                                                 <?php foreach ($predictions['training_predictions'] as $prediction): ?>
                                                     <div class="prediction-item">
                                                         <?php echo ucfirst($prediction['type']); ?> incidents: 
@@ -1684,7 +1967,7 @@ $predictions = generatePredictions($pdo);
                                         <div class="export-description">Comprehensive PDF report with all analytics</div>
                                     </a>
                                     
-                                    <a href="#" class="export-option" onclick="exportToCSV()">
+                                    <a href="#" class="export-option" onclick="exportToCSV(event)">
                                         <div class="export-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
                                             <i class='bx bxs-file'></i>
                                         </div>
@@ -1692,7 +1975,7 @@ $predictions = generatePredictions($pdo);
                                         <div class="export-description">Export data in CSV format for Excel</div>
                                     </a>
                                     
-                                    <a href="#" class="export-option" onclick="exportToExcel()">
+                                    <a href="#" class="export-option" onclick="exportToExcel(event)">
                                         <div class="export-icon" style="background: rgba(59, 130, 246, 0.1); color: var(--info);">
                                             <i class='bx bxs-spreadsheet'></i>
                                         </div>
@@ -1700,7 +1983,7 @@ $predictions = generatePredictions($pdo);
                                         <div class="export-description">Generate Excel spreadsheet with charts</div>
                                     </a>
                                     
-                                    <a href="#" class="export-option" onclick="generateSummary()">
+                                    <a href="#" class="export-option" onclick="generateSummary(event)">
                                         <div class="export-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
                                             <i class='bx bxs-report'></i>
                                         </div>
@@ -1885,21 +2168,26 @@ $predictions = generatePredictions($pdo);
         function initSearch() {
             const searchInput = document.getElementById('search-input');
             const analysisForm = document.getElementById('analysis-form');
-            const searchParam = analysisForm.querySelector('input[name="search"]');
             
-            // Set search input value from URL parameter
-            searchInput.value = '<?php echo htmlspecialchars($search_query); ?>';
-            
-            // Add event listener for search input
-            searchInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    searchParam.value = this.value;
-                    analysisForm.submit();
-                }
-            });
+            if (analysisForm) {
+                const searchParam = analysisForm.querySelector('input[name="search"]');
+                
+                // Set search input value from URL parameter
+                searchInput.value = '<?php echo htmlspecialchars($search_query); ?>';
+                
+                // Add event listener for search input
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        if (searchParam) {
+                            searchParam.value = this.value;
+                        }
+                        analysisForm.submit();
+                    }
+                });
+            }
         }
         
-        function switchTab(tabId) {
+        function switchTab(tabId, element) {
             // Hide all tab contents
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
@@ -1914,20 +2202,26 @@ $predictions = generatePredictions($pdo);
             document.getElementById(tabId).classList.add('active');
             
             // Add active class to clicked tab
-            event.currentTarget.classList.add('active');
+            if (element) {
+                element.classList.add('active');
+            }
             
             // Update charts when switching to analyze data tab
             if (tabId === 'analyze-data') {
-                updateCharts();
+                setTimeout(updateCharts, 100);
             }
         }
         
         function toggleSubmenu(id) {
             const submenu = document.getElementById(id);
-            const arrow = submenu.previousElementSibling.querySelector('.dropdown-arrow');
+            if (!submenu) return;
+            
+            const arrow = submenu.previousElementSibling ? submenu.previousElementSibling.querySelector('.dropdown-arrow') : null;
             
             submenu.classList.toggle('active');
-            arrow.classList.toggle('rotated');
+            if (arrow) {
+                arrow.classList.toggle('rotated');
+            }
         }
         
         function updateTime() {
@@ -1940,16 +2234,20 @@ $predictions = generatePredictions($pdo);
             const seconds = gmt8.getSeconds().toString().padStart(2, '0');
             
             const timeString = `${hours}:${minutes}:${seconds} UTC+8`;
-            document.getElementById('current-time').textContent = timeString;
+            const timeElement = document.getElementById('current-time');
+            if (timeElement) {
+                timeElement.textContent = timeString;
+            }
         }
         
-        function refreshPredictions() {
-            const refreshBtn = event.currentTarget;
-            const originalHTML = refreshBtn.innerHTML;
+        function refreshPredictions(button) {
+            if (!button) return;
+            
+            const originalHTML = button.innerHTML;
             
             // Show loading state
-            refreshBtn.innerHTML = '<div class="loading"></div>';
-            refreshBtn.disabled = true;
+            button.innerHTML = '<div class="loading"></div>';
+            button.disabled = true;
             
             // Fetch new predictions
             fetch('review_summaries.php?ai_predict=true')
@@ -1960,8 +2258,8 @@ $predictions = generatePredictions($pdo);
                     
                     // Restore button
                     setTimeout(() => {
-                        refreshBtn.innerHTML = originalHTML;
-                        refreshBtn.disabled = false;
+                        button.innerHTML = originalHTML;
+                        button.disabled = false;
                         
                         // Show success message
                         showNotification('success', 'Predictions refreshed successfully!');
@@ -1969,312 +2267,349 @@ $predictions = generatePredictions($pdo);
                 })
                 .catch(error => {
                     console.error('Error refreshing predictions:', error);
-                    refreshBtn.innerHTML = originalHTML;
-                    refreshBtn.disabled = false;
+                    button.innerHTML = originalHTML;
+                    button.disabled = false;
                     showNotification('error', 'Failed to refresh predictions');
                 });
         }
         
         function updatePredictionsDisplay(predictions) {
             // Update incident predictions
-            if (predictions.incident_predictions) {
+            if (predictions.incident_predictions && predictions.incident_predictions.length > 0) {
                 const incidentContainer = document.querySelector('.prediction-card:nth-child(1) .prediction-content');
-                incidentContainer.innerHTML = '';
-                predictions.incident_predictions.forEach(prediction => {
-                    const item = document.createElement('div');
-                    item.className = 'prediction-item';
-                    item.innerHTML = `
-                        ${ucfirst(prediction.type)}: 
-                        <strong>${prediction.predicted_count}</strong> incidents expected
-                        (${prediction.trend} trend)
-                    `;
-                    incidentContainer.appendChild(item);
-                });
+                if (incidentContainer) {
+                    incidentContainer.innerHTML = '';
+                    predictions.incident_predictions.forEach(prediction => {
+                        const item = document.createElement('div');
+                        item.className = 'prediction-item';
+                        item.innerHTML = `
+                            ${ucfirst(prediction.type)}: 
+                            <strong>${prediction.predicted_count}</strong> incidents expected
+                            (${prediction.trend} trend)
+                        `;
+                        incidentContainer.appendChild(item);
+                    });
+                }
             }
             
             // Update resource predictions
-            if (predictions.resource_predictions) {
+            if (predictions.resource_predictions && predictions.resource_predictions.length > 0) {
                 const resourceContainer = document.querySelector('.prediction-card:nth-child(2) .prediction-content');
-                resourceContainer.innerHTML = '';
-                predictions.resource_predictions.forEach(prediction => {
-                    const item = document.createElement('div');
-                    item.className = 'prediction-item';
-                    item.innerHTML = `
-                        ${prediction.resource_type}: 
-                        <strong>${prediction.predicted_need}</strong> units needed
-                    `;
-                    resourceContainer.appendChild(item);
-                });
+                if (resourceContainer) {
+                    resourceContainer.innerHTML = '';
+                    predictions.resource_predictions.forEach(prediction => {
+                        const item = document.createElement('div');
+                        item.className = 'prediction-item';
+                        item.innerHTML = `
+                            ${prediction.resource_type}: 
+                            <strong>${prediction.predicted_need}</strong> units needed
+                        `;
+                        resourceContainer.appendChild(item);
+                    });
+                }
             }
             
             // Update training predictions
-            if (predictions.training_predictions) {
+            if (predictions.training_predictions && predictions.training_predictions.length > 0) {
                 const trainingContainer = document.querySelector('.prediction-card:nth-child(3) .prediction-content');
-                trainingContainer.innerHTML = '';
-                predictions.training_predictions.forEach(prediction => {
-                    const item = document.createElement('div');
-                    item.className = 'prediction-item';
-                    item.innerHTML = `
-                        ${ucfirst(prediction.type)} incidents: 
-                        ${prediction.recommended_training}
-                    `;
-                    trainingContainer.appendChild(item);
-                });
+                if (trainingContainer) {
+                    trainingContainer.innerHTML = '';
+                    predictions.training_predictions.forEach(prediction => {
+                        const item = document.createElement('div');
+                        item.className = 'prediction-item';
+                        item.innerHTML = `
+                            ${ucfirst(prediction.type)} incidents: 
+                            ${prediction.recommended_training}
+                        `;
+                        trainingContainer.appendChild(item);
+                    });
+                }
             }
         }
         
         function ucfirst(str) {
+            if (!str) return '';
             return str.charAt(0).toUpperCase() + str.slice(1);
         }
         
         function initializeCharts() {
-            // Incident Status Chart
-            const incidentStatusCtx = document.getElementById('incidentStatusChart').getContext('2d');
-            window.incidentStatusChart = new Chart(incidentStatusCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Pending', 'Processing', 'Responded', 'Closed'],
-                    datasets: [{
-                        data: [
-                            <?php echo $stats['incidents']['pending_incidents']; ?>,
-                            <?php echo $stats['incidents']['processing_incidents']; ?>,
-                            <?php echo $stats['incidents']['responded_incidents']; ?>,
-                            <?php echo $stats['incidents']['closed_incidents']; ?>
-                        ],
-                        backgroundColor: [
-                            'rgba(245, 158, 11, 0.8)',
-                            'rgba(59, 130, 246, 0.8)',
-                            'rgba(139, 92, 246, 0.8)',
-                            'rgba(16, 185, 129, 0.8)'
-                        ],
-                        borderColor: [
-                            'rgba(245, 158, 11, 1)',
-                            'rgba(59, 130, 246, 1)',
-                            'rgba(139, 92, 246, 1)',
-                            'rgba(16, 185, 129, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
-                            }
-                        }
-                    }
-                }
-            });
-            
-            // Severity Chart
-            const severityCtx = document.getElementById('severityChart').getContext('2d');
-            window.severityChart = new Chart(severityCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Critical', 'High', 'Medium', 'Low'],
-                    datasets: [{
-                        label: 'Incidents by Severity',
-                        data: [
-                            <?php echo $stats['incidents']['critical_percentage']; ?>,
-                            <?php echo $stats['incidents']['high_percentage']; ?>,
-                            <?php echo $stats['incidents']['medium_percentage']; ?>,
-                            <?php echo $stats['incidents']['low_percentage']; ?>
-                        ],
-                        backgroundColor: [
-                            'rgba(220, 38, 38, 0.8)',
-                            'rgba(245, 158, 11, 0.8)',
-                            'rgba(59, 130, 246, 0.8)',
-                            'rgba(16, 185, 129, 0.8)'
-                        ],
-                        borderColor: [
-                            'rgba(220, 38, 38, 1)',
-                            'rgba(245, 158, 11, 1)',
-                            'rgba(59, 130, 246, 1)',
-                            'rgba(16, 185, 129, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
-                            },
-                            grid: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
-                            }
+            try {
+                // Incident Status Chart
+                const incidentStatusCtx = document.getElementById('incidentStatusChart')?.getContext('2d');
+                if (incidentStatusCtx) {
+                    window.incidentStatusChart = new Chart(incidentStatusCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Pending', 'Processing', 'Responded', 'Closed'],
+                            datasets: [{
+                                data: [
+                                    <?php echo $stats['incidents']['pending_incidents'] ?? 0; ?>,
+                                    <?php echo $stats['incidents']['processing_incidents'] ?? 0; ?>,
+                                    <?php echo $stats['incidents']['responded_incidents'] ?? 0; ?>,
+                                    <?php echo $stats['incidents']['closed_incidents'] ?? 0; ?>
+                                ],
+                                backgroundColor: [
+                                    'rgba(245, 158, 11, 0.8)',
+                                    'rgba(59, 130, 246, 0.8)',
+                                    'rgba(139, 92, 246, 0.8)',
+                                    'rgba(16, 185, 129, 0.8)'
+                                ],
+                                borderColor: [
+                                    'rgba(245, 158, 11, 1)',
+                                    'rgba(59, 130, 246, 1)',
+                                    'rgba(139, 92, 246, 1)',
+                                    'rgba(16, 185, 129, 1)'
+                                ],
+                                borderWidth: 1
+                            }]
                         },
-                        x: {
-                            ticks: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
-                            },
-                            grid: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    }
+                                }
                             }
                         }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
-                            }
-                        }
-                    }
+                    });
                 }
-            });
+            } catch (e) {
+                console.error('Error creating incident status chart:', e);
+            }
             
-            // Monthly Trend Chart (sample data)
-            const monthlyTrendCtx = document.getElementById('monthlyTrendChart').getContext('2d');
-            window.monthlyTrendChart = new Chart(monthlyTrendCtx, {
-                type: 'line',
-                data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-                    datasets: [{
-                        label: 'Incidents',
-                        data: [12, 19, 15, 25, 22, 30, 28, 35, 32, 40, 38, 45],
-                        borderColor: 'rgba(220, 38, 38, 0.8)',
-                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }, {
-                        label: 'Resolved',
-                        data: [8, 12, 10, 18, 16, 22, 20, 25, 24, 30, 28, 35],
-                        borderColor: 'rgba(16, 185, 129, 0.8)',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
-                            },
-                            grid: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
-                            }
+            try {
+                // Severity Chart
+                const severityCtx = document.getElementById('severityChart')?.getContext('2d');
+                if (severityCtx) {
+                    window.severityChart = new Chart(severityCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Critical', 'High', 'Medium', 'Low'],
+                            datasets: [{
+                                label: 'Incidents by Severity',
+                                data: [
+                                    <?php echo $stats['incidents']['critical_percentage'] ?? 0; ?>,
+                                    <?php echo $stats['incidents']['high_percentage'] ?? 0; ?>,
+                                    <?php echo $stats['incidents']['medium_percentage'] ?? 0; ?>,
+                                    <?php echo $stats['incidents']['low_percentage'] ?? 0; ?>
+                                ],
+                                backgroundColor: [
+                                    'rgba(220, 38, 38, 0.8)',
+                                    'rgba(245, 158, 11, 0.8)',
+                                    'rgba(59, 130, 246, 0.8)',
+                                    'rgba(16, 185, 129, 0.8)'
+                                ],
+                                borderColor: [
+                                    'rgba(220, 38, 38, 1)',
+                                    'rgba(245, 158, 11, 1)',
+                                    'rgba(59, 130, 246, 1)',
+                                    'rgba(16, 185, 129, 1)'
+                                ],
+                                borderWidth: 1
+                            }]
                         },
-                        x: {
-                            ticks: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    },
+                                    grid: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    },
+                                    grid: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                                    }
+                                }
                             },
-                            grid: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                            plugins: {
+                                legend: {
+                                    labels: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    }
+                                }
                             }
                         }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
-                            }
-                        }
-                    }
+                    });
                 }
-            });
+            } catch (e) {
+                console.error('Error creating severity chart:', e);
+            }
             
-            // Resource Condition Chart
-            const resourceConditionCtx = document.getElementById('resourceConditionChart').getContext('2d');
-            window.resourceConditionChart = new Chart(resourceConditionCtx, {
-                type: 'pie',
-                data: {
-                    labels: ['Serviceable', 'Under Maintenance', 'Condemned'],
-                    datasets: [{
-                        data: [
-                            <?php echo $stats['resources']['serviceable_resources']; ?>,
-                            <?php echo $stats['resources']['maintenance_resources']; ?>,
-                            <?php echo $stats['resources']['condemned_resources']; ?>
-                        ],
-                        backgroundColor: [
-                            'rgba(16, 185, 129, 0.8)',
-                            'rgba(245, 158, 11, 0.8)',
-                            'rgba(220, 38, 38, 0.8)'
-                        ],
-                        borderColor: [
-                            'rgba(16, 185, 129, 1)',
-                            'rgba(245, 158, 11, 1)',
-                            'rgba(220, 38, 38, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
-                            }
-                        }
-                    }
-                }
-            });
-            
-            // Statistics Chart
-            const statisticsCtx = document.getElementById('statisticsChart').getContext('2d');
-            window.statisticsChart = new Chart(statisticsCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Incidents', 'Volunteers', 'Trainings', 'Inspections', 'Resources'],
-                    datasets: [{
-                        label: 'Total Count',
-                        data: [
-                            <?php echo $stats['incidents']['total_incidents']; ?>,
-                            <?php echo $stats['volunteers']['total_volunteers']; ?>,
-                            <?php echo $stats['trainings']['total_trainings']; ?>,
-                            <?php echo $stats['inspections']['total_inspections']; ?>,
-                            <?php echo $stats['resources']['total_resources']; ?>
-                        ],
-                        backgroundColor: 'rgba(220, 38, 38, 0.8)',
-                        borderColor: 'rgba(220, 38, 38, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
-                            },
-                            grid: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
-                            }
+            try {
+                // Monthly Trend Chart (sample data)
+                const monthlyTrendCtx = document.getElementById('monthlyTrendChart')?.getContext('2d');
+                if (monthlyTrendCtx) {
+                    window.monthlyTrendChart = new Chart(monthlyTrendCtx, {
+                        type: 'line',
+                        data: {
+                            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                            datasets: [{
+                                label: 'Incidents',
+                                data: [12, 19, 15, 25, 22, 30, 28, 35, 32, 40, 38, 45],
+                                borderColor: 'rgba(220, 38, 38, 0.8)',
+                                backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }, {
+                                label: 'Resolved',
+                                data: [8, 12, 10, 18, 16, 22, 20, 25, 24, 30, 28, 35],
+                                borderColor: 'rgba(16, 185, 129, 0.8)',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
                         },
-                        x: {
-                            ticks: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    },
+                                    grid: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    },
+                                    grid: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                                    }
+                                }
                             },
-                            grid: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                            plugins: {
+                                legend: {
+                                    labels: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    }
+                                }
                             }
                         }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
-                            }
-                        }
-                    }
+                    });
                 }
-            });
+            } catch (e) {
+                console.error('Error creating monthly trend chart:', e);
+            }
+            
+            try {
+                // Resource Condition Chart
+                const resourceConditionCtx = document.getElementById('resourceConditionChart')?.getContext('2d');
+                if (resourceConditionCtx) {
+                    window.resourceConditionChart = new Chart(resourceConditionCtx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['Serviceable', 'Under Maintenance', 'Condemned'],
+                            datasets: [{
+                                data: [
+                                    <?php echo $stats['resources']['serviceable_resources'] ?? 0; ?>,
+                                    <?php echo $stats['resources']['maintenance_resources'] ?? 0; ?>,
+                                    <?php echo $stats['resources']['condemned_resources'] ?? 0; ?>
+                                ],
+                                backgroundColor: [
+                                    'rgba(16, 185, 129, 0.8)',
+                                    'rgba(245, 158, 11, 0.8)',
+                                    'rgba(220, 38, 38, 0.8)'
+                                ],
+                                borderColor: [
+                                    'rgba(16, 185, 129, 1)',
+                                    'rgba(245, 158, 11, 1)',
+                                    'rgba(220, 38, 38, 1)'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Error creating resource condition chart:', e);
+            }
+            
+            try {
+                // Statistics Chart
+                const statisticsCtx = document.getElementById('statisticsChart')?.getContext('2d');
+                if (statisticsCtx) {
+                    window.statisticsChart = new Chart(statisticsCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Incidents', 'Volunteers', 'Trainings', 'Inspections', 'Resources'],
+                            datasets: [{
+                                label: 'Total Count',
+                                data: [
+                                    <?php echo $stats['incidents']['total_incidents'] ?? 0; ?>,
+                                    <?php echo $stats['volunteers']['total_volunteers'] ?? 0; ?>,
+                                    <?php echo $stats['trainings']['total_trainings'] ?? 0; ?>,
+                                    <?php echo $stats['inspections']['total_inspections'] ?? 0; ?>,
+                                    <?php echo $stats['resources']['total_resources'] ?? 0; ?>
+                                ],
+                                backgroundColor: 'rgba(220, 38, 38, 0.8)',
+                                borderColor: 'rgba(220, 38, 38, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    },
+                                    grid: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    },
+                                    grid: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    labels: {
+                                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-color')
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Error creating statistics chart:', e);
+            }
         }
         
         function updateCharts() {
@@ -2324,7 +2659,8 @@ $predictions = generatePredictions($pdo);
             });
         }
         
-        function exportToCSV() {
+        function exportToCSV(event) {
+            if (event) event.preventDefault();
             showNotification('info', 'Generating CSV report...');
             // In a real implementation, this would generate a CSV file
             setTimeout(() => {
@@ -2337,7 +2673,8 @@ $predictions = generatePredictions($pdo);
             }, 1500);
         }
         
-        function exportToExcel() {
+        function exportToExcel(event) {
+            if (event) event.preventDefault();
             showNotification('info', 'Generating Excel report...');
             // In a real implementation, this would generate an Excel file
             setTimeout(() => {
@@ -2345,7 +2682,8 @@ $predictions = generatePredictions($pdo);
             }, 1500);
         }
         
-        function generateSummary() {
+        function generateSummary(event) {
+            if (event) event.preventDefault();
             showNotification('info', 'Generating executive summary...');
             // In a real implementation, this would generate a summary report
             setTimeout(() => {
@@ -2378,13 +2716,15 @@ $predictions = generatePredictions($pdo);
         function generateStatistics() {
             showNotification('info', 'Generating custom statistics...');
             
-            const timePeriod = document.getElementById('time-period').value;
-            const statsType = document.getElementById('statistics-type').value;
-            const chartType = document.getElementById('chart-type').value;
+            const timePeriod = document.getElementById('time-period')?.value || '7';
+            const statsType = document.getElementById('statistics-type')?.value || 'overview';
+            const chartType = document.getElementById('chart-type')?.value || 'bar';
             
             // Update chart type
-            window.statisticsChart.config.type = chartType;
-            window.statisticsChart.update();
+            if (window.statisticsChart) {
+                window.statisticsChart.config.type = chartType;
+                window.statisticsChart.update();
+            }
             
             setTimeout(() => {
                 showNotification('success', 'Statistics generated successfully!');
@@ -2392,9 +2732,14 @@ $predictions = generatePredictions($pdo);
         }
         
         function resetStatistics() {
-            document.getElementById('time-period').value = '7';
-            document.getElementById('statistics-type').value = 'overview';
-            document.getElementById('chart-type').value = 'bar';
+            const timePeriod = document.getElementById('time-period');
+            if (timePeriod) timePeriod.value = '7';
+            
+            const statsType = document.getElementById('statistics-type');
+            if (statsType) statsType.value = 'overview';
+            
+            const chartType = document.getElementById('chart-type');
+            if (chartType) chartType.value = 'bar';
             
             // Reset checkboxes
             document.querySelectorAll('#statistics-form input[type="checkbox"]').forEach(cb => {
@@ -2406,6 +2751,8 @@ $predictions = generatePredictions($pdo);
         
         function downloadStatistics() {
             const canvas = document.getElementById('statisticsChart');
+            if (!canvas) return;
+            
             const link = document.createElement('a');
             link.download = 'FRSM_Statistics_' + new Date().toISOString().split('T')[0] + '.png';
             link.href = canvas.toDataURL('image/png');
@@ -2433,42 +2780,6 @@ $predictions = generatePredictions($pdo);
                 </button>
             `;
             
-            // Add styles
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 16px 20px;
-                border-radius: 12px;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 15px;
-                max-width: 400px;
-                z-index: 9999;
-                animation: slideIn 0.3s ease;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-                backdrop-filter: blur(10px);
-            `;
-            
-            if (type === 'success') {
-                notification.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(16, 185, 129, 0.8))';
-                notification.style.color = 'white';
-                notification.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-            } else if (type === 'error') {
-                notification.style.background = 'linear-gradient(135deg, rgba(220, 38, 38, 0.9), rgba(220, 38, 38, 0.8))';
-                notification.style.color = 'white';
-                notification.style.border = '1px solid rgba(220, 38, 38, 0.3)';
-            } else if (type === 'warning') {
-                notification.style.background = 'linear-gradient(135deg, rgba(245, 158, 11, 0.9), rgba(245, 158, 11, 0.8))';
-                notification.style.color = 'white';
-                notification.style.border = '1px solid rgba(245, 158, 11, 0.3)';
-            } else {
-                notification.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(59, 130, 246, 0.8))';
-                notification.style.color = 'white';
-                notification.style.border = '1px solid rgba(59, 130, 246, 0.3)';
-            }
-            
             document.body.appendChild(notification);
             
             // Auto-remove after 5 seconds
@@ -2482,32 +2793,15 @@ $predictions = generatePredictions($pdo);
                     }, 300);
                 }
             }, 5000);
-            
-            // Add keyframes
-            if (!document.querySelector('#notification-styles')) {
-                const style = document.createElement('style');
-                style.id = 'notification-styles';
-                style.textContent = `
-                    @keyframes slideIn {
-                        from { transform: translateX(100%); opacity: 0; }
-                        to { transform: translateX(0); opacity: 1; }
-                    }
-                    @keyframes slideOut {
-                        from { transform: translateX(0); opacity: 1; }
-                        to { transform: translateX(100%); opacity: 0; }
-                    }
-                `;
-                document.head.appendChild(style);
-            }
         }
         
         // PHP statistics data for JavaScript access
         const stats = {
-            incidents: <?php echo json_encode($stats['incidents']); ?>,
-            volunteers: <?php echo json_encode($stats['volunteers']); ?>,
-            trainings: <?php echo json_encode($stats['trainings']); ?>,
-            inspections: <?php echo json_encode($stats['inspections']); ?>,
-            resources: <?php echo json_encode($stats['resources']); ?>
+            incidents: <?php echo json_encode($stats['incidents'] ?? []); ?>,
+            volunteers: <?php echo json_encode($stats['volunteers'] ?? []); ?>,
+            trainings: <?php echo json_encode($stats['trainings'] ?? []); ?>,
+            inspections: <?php echo json_encode($stats['inspections'] ?? []); ?>,
+            resources: <?php echo json_encode($stats['resources'] ?? []); ?>
         };
     </script>
 </body>

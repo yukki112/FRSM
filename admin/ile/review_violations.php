@@ -246,34 +246,6 @@ function formatCurrency($amount) {
     return '₱' . number_format($amount, 2);
 }
 
-// Get status badge HTML
-function getStatusBadge($status) {
-    global $status_colors;
-    $status = strtolower($status);
-    $color = $status_colors[$status] ?? '#6b7280';
-    $text = ucfirst($status);
-    
-    return <<<HTML
-        <span class="status-badge" style="background: rgba(${hexToRgb($color)}, 0.1); color: {$color}; border-color: rgba(${hexToRgb($color)}, 0.3);">
-            {$text}
-        </span>
-    HTML;
-}
-
-// Get severity badge HTML
-function getSeverityBadge($severity) {
-    global $severity_colors;
-    $severity = strtolower($severity);
-    $color = $severity_colors[$severity] ?? '#6b7280';
-    $text = ucfirst($severity);
-    
-    return <<<HTML
-        <span class="severity-badge" style="background: rgba(${hexToRgb($color)}, 0.1); color: {$color}; border-color: rgba(${hexToRgb($color)}, 0.3);">
-            {$text}
-        </span>
-    HTML;
-}
-
 // Helper function to convert hex to RGB
 function hexToRgb($hex) {
     $hex = str_replace('#', '', $hex);
@@ -287,6 +259,36 @@ function hexToRgb($hex) {
         $b = hexdec(substr($hex,4,2));
     }
     return "$r, $g, $b";
+}
+
+// Get status badge HTML - FIXED VERSION
+function getStatusBadge($status) {
+    global $status_colors;
+    $status = strtolower($status);
+    $color = isset($status_colors[$status]) ? $status_colors[$status] : '#6b7280';
+    $rgb = hexToRgb($color);
+    $text = ucfirst($status);
+    
+    return <<<HTML
+        <span class="status-badge" style="background: rgba({$rgb}, 0.1); color: {$color}; border-color: rgba({$rgb}, 0.3);">
+            {$text}
+        </span>
+    HTML;
+}
+
+// Get severity badge HTML - FIXED VERSION
+function getSeverityBadge($severity) {
+    global $severity_colors;
+    $severity = strtolower($severity);
+    $color = isset($severity_colors[$severity]) ? $severity_colors[$severity] : '#6b7280';
+    $rgb = hexToRgb($color);
+    $text = ucfirst($severity);
+    
+    return <<<HTML
+        <span class="severity-badge" style="background: rgba({$rgb}, 0.1); color: {$color}; border-color: rgba({$rgb}, 0.3);">
+            {$text}
+        </span>
+    HTML;
 }
 
 // Check if date is overdue
@@ -2223,9 +2225,9 @@ function isOverdue($deadline, $status) {
                                     ?>
                                     <div class="table-row <?php echo $rowClass; ?>" style="animation-delay: <?php echo $index * 0.05; ?>s;">
                                         <div class="table-cell" data-label="Code">
-                                            <div class="violation-code"><?php echo $violation['violation_code']; ?></div>
+                                            <div class="violation-code"><?php echo htmlspecialchars($violation['violation_code']); ?></div>
                                             <?php if ($violation['section_violated']): ?>
-                                                <div style="font-size: 11px; color: var(--text-light);">Sec: <?php echo $violation['section_violated']; ?></div>
+                                                <div style="font-size: 11px; color: var(--text-light);">Sec: <?php echo htmlspecialchars($violation['section_violated']); ?></div>
                                             <?php endif; ?>
                                         </div>
                                         <div class="table-cell" data-label="Establishment">
@@ -2269,7 +2271,7 @@ function isOverdue($deadline, $status) {
                                             <?php endif; ?>
                                         </div>
                                         <div class="table-cell" data-label="Report">
-                                            <div class="report-number"><?php echo $violation['report_number']; ?></div>
+                                            <div class="report-number"><?php echo htmlspecialchars($violation['report_number']); ?></div>
                                             <div style="font-size: 11px; color: var(--text-light);">
                                                 <?php echo formatDate($violation['inspection_date']); ?>
                                             </div>
@@ -2637,6 +2639,45 @@ function isOverdue($deadline, $status) {
                     month: 'long', 
                     day: 'numeric' 
                 });
+            }
+            
+            // Helper functions for badges (recreated in JS)
+            function getSeverityBadge(severity) {
+                const severityColors = {
+                    'critical': '#7c2d12',
+                    'major': '#dc2626',
+                    'minor': '#f59e0b'
+                };
+                const color = severityColors[severity] || '#6b7280';
+                const text = severity.charAt(0).toUpperCase() + severity.slice(1);
+                return `<span class="severity-badge" style="background: rgba(${hexToRgb(color)}, 0.1); color: ${color}; border-color: rgba(${hexToRgb(color)}, 0.3);">${text}</span>`;
+            }
+            
+            function getStatusBadge(status) {
+                const statusColors = {
+                    'pending': '#f59e0b',
+                    'rectified': '#10b981',
+                    'overdue': '#dc2626',
+                    'escalated': '#8b5cf6',
+                    'waived': '#6b7280'
+                };
+                const color = statusColors[status] || '#6b7280';
+                const text = status.charAt(0).toUpperCase() + status.slice(1);
+                return `<span class="status-badge" style="background: rgba(${hexToRgb(color)}, 0.1); color: ${color}; border-color: rgba(${hexToRgb(color)}, 0.3);">${text}</span>`;
+            }
+            
+            function hexToRgb(hex) {
+                hex = hex.replace('#', '');
+                if(hex.length == 3) {
+                    let r = parseInt(hex.charAt(0) + hex.charAt(0), 16);
+                    let g = parseInt(hex.charAt(1) + hex.charAt(1), 16);
+                    let b = parseInt(hex.charAt(2) + hex.charAt(2), 16);
+                    return r + ', ' + g + ', ' + b;
+                }
+                let r = parseInt(hex.substring(0, 2), 16);
+                let g = parseInt(hex.substring(2, 4), 16);
+                let b = parseInt(hex.substring(4, 6), 16);
+                return r + ', ' + g + ', ' + b;
             }
             
             let detailsHtml = `
